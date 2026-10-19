@@ -27,6 +27,7 @@ node scripts/build-single-file.js  # đóng gói dist/botautotask.mjs
 |---|---|
 | `src/ui/dashboard-html.js` | Toàn bộ Web UI (HTML/CSS/JS embed, ~1.100 dòng) |
 | `src/daemon/web-ui.js` | HTTP + SSE server của dashboard, auth, nonce idempotent |
+| `src/core/core-stats.js` | Thống kê usage theo lõi (runs/429/done) persist `~/.botautotask/core-stats.json` — nourish panel CORES & LIMITS trong telemetry rail |
 | `src/core/agent-mesh.js` | AgentMesh đa agent + 3 chế độ giao tin send/interrupt/queue |
 | `src/core/worktree-manager.js` | Git worktree isolate cho từng agent writer |
 | `src/harnesses/` | Adapter các lõi AI (opencode, antigravity, claude, codex, neko-core, custom-cmd) |
