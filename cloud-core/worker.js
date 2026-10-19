@@ -101,79 +101,197 @@ function renderCloudDashboardHtml() {
 <html lang="vi">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>BotAutoTask — 24/7 Cloud & Mobile Control</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>BotAutoTask — 24/7 Cloud & Coworker Mesh</title>
 <style>
-  :root{color-scheme:dark;--bg:#0b0f17;--card:#151c28;--border:#263248;--fg:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
-  *{box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
-  body{margin:0;background:var(--bg);color:var(--fg);padding:16px;max-width:980px;margin-inline:auto}
-  h1{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:8px}
-  .sub{color:var(--muted);font-size:.85rem;margin-bottom:16px}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  input,select,textarea,button{background:#0f1520;color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:.9rem}
-  input,select,textarea{width:100%}
-  button{cursor:pointer;background:var(--accent);color:#03111c;font-weight:600;border:none;width:auto}
-  button.sec{background:#1e293b;color:var(--fg);border:1px solid var(--border)}
-  button.danger{background:var(--err);color:#fff}
-  .badge{padding:2px 8px;border-radius:99px;font-size:.75rem;font-weight:600;background:#1e293b}
-  .QUEUED,.RUNNING_LOCAL,.RUNNING_CLOUD{color:var(--accent)}
-  .COMPLETED{color:var(--ok)} .PAUSED{color:var(--warn)} .CANCELLED,.FAILED{color:var(--err)}
-  .goal{border-top:1px solid var(--border);padding:10px 0;margin-top:10px}
-  .mono{font-family:ui-monospace,Consolas,monospace;font-size:.8rem;color:var(--muted)}
+  :root {
+    color-scheme: dark;
+    --bg-void: #06080d;
+    --bg-surface: #0c1018;
+    --bg-elevated: #121824;
+    --bg-card: #161e2e;
+    --border-dim: #1e293b;
+    --border-bright: #334155;
+    --fg-primary: #f1f5f9;
+    --fg-secondary: #94a3b8;
+    --fg-muted: #64748b;
+    --cyan: #06b6d4;
+    --cyan-dim: rgba(6, 182, 212, 0.14);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245, 158, 11, 0.15);
+    --emerald: #10b981;
+    --emerald-dim: rgba(16, 185, 129, 0.15);
+    --rose: #f43f5e;
+    --rose-dim: rgba(244, 63, 94, 0.16);
+    --violet: #8b5cf6;
+    --violet-dim: rgba(139, 92, 246, 0.15);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg-void); color: var(--fg-primary); font-family: var(--font-sans); min-height: 100vh; display: flex; flex-direction: column; }
+  .topbar {
+    background: var(--bg-surface); border-bottom: 1px solid var(--border-dim);
+    padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1rem; }
+  .logo {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-weight: 800; font-size: 0.85rem; color: #fff;
+  }
+  .pill {
+    padding: 4px 10px; border-radius: 6px; font-family: var(--font-mono); font-size: 0.73rem; font-weight: 600;
+    border: 1px solid var(--border-dim); background: var(--bg-elevated); color: var(--fg-secondary);
+  }
+  .pill.ok { color: var(--emerald); background: var(--emerald-dim); border-color: rgba(16,185,129,0.4); }
+  .pill.warn { color: var(--amber); background: var(--amber-dim); border-color: rgba(245,158,11,0.4); }
+  .pill.err { color: var(--rose); background: var(--rose-dim); border-color: rgba(244,63,94,0.4); }
+  .grid {
+    display: grid; grid-template-columns: 300px 1fr 330px; gap: 14px; padding: 14px; max-width: 1440px; width: 100%; margin: 0 auto; flex: 1;
+  }
+  .col { display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--bg-surface); border: 1px solid var(--border-dim); border-radius: 10px; padding: 14px; }
+  .card-hdr {
+    font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700; color: var(--fg-muted);
+    letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .cw-item {
+    background: var(--bg-elevated); border: 1px solid var(--border-dim); border-radius: 8px; padding: 10px; margin-bottom: 8px;
+  }
+  .cw-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-weight: 700; font-size: 0.86rem; }
+  .role-tag { font-family: var(--font-mono); font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; background: var(--cyan-dim); color: var(--cyan); }
+  .role-tag.writer { background: var(--violet-dim); color: #c4b5fd; }
+  input, select, textarea, button {
+    background: var(--bg-void); color: var(--fg-primary); border: 1px solid var(--border-dim);
+    border-radius: 7px; padding: 8px 11px; font-family: var(--font-sans); font-size: 0.84rem;
+  }
+  input, select, textarea { width: 100%; }
+  button { cursor: pointer; background: var(--cyan); color: #04131a; font-weight: 600; border: none; width: auto; display: inline-flex; align-items: center; gap: 5px; }
+  button.sec { background: var(--bg-elevated); color: var(--fg-primary); border: 1px solid var(--border-dim); }
+  button.amber { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.4); }
+  button.danger { background: var(--rose-dim); color: var(--rose); border: 1px solid rgba(244,63,94,0.4); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .goal-node {
+    background: var(--bg-elevated); border: 1px solid var(--border-dim); border-radius: 8px; padding: 11px; margin-bottom: 8px;
+  }
+  .mono { font-family: var(--font-mono); font-size: 0.75rem; color: var(--fg-secondary); }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-  <h1>🤖 BotAutoTask Cloud Core <span id="conn" class="badge">Checking...</span></h1>
-  <div class="sub">Điều khiển đội Agent 24/7 từ điện thoại & máy tính (Cloudflare Worker + D1 + GitHub Actions)</div>
-
-  <div id="authCard" class="card" style="display:none">
-    <b>🔑 Nhập API Token (chỉ cần 1 lần)</b>
-    <p class="sub">Lấy trong <code>~/.botautotask/config.json</code> (trường <code>cloud.apiToken</code>) hoặc mở bằng link có <code>#token=...</code></p>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">B²</div>
+      <div>
+        <div>BotAutoTask Cloud Core <span class="pill" style="font-size:0.65rem">24/7 RELAY & D1</span></div>
+        <div class="mono" style="font-size:0.7rem;color:var(--fg-muted)">Coworker Mesh · Atomic Lease CAS · GitHub Actions Failover</div>
+      </div>
+    </div>
     <div class="row">
-      <input id="tokenInput" type="password" placeholder="BOTAUTOTASK_API_TOKEN" style="flex:1"/>
-      <button onclick="saveToken()">Lưu & Kết nối</button>
+      <span id="conn" class="pill">Checking...</span>
+      <button class="sec" onclick="loadState()">↻ Refresh</button>
     </div>
   </div>
 
-  <div class="card">
-    <b>🎯 Giao nhiệm vụ mới (Goal)</b>
-    <div style="display:grid;gap:8px;margin-top:10px">
-      <textarea id="prompt" rows="2" placeholder="Mô tả công việc cho Agent (VD: Viết unit test và fix lỗi auth)..."></textarea>
-      <div class="row">
-        <select id="core" style="flex:1;min-width:180px">
-          <option value="auto">Lõi AI: Auto (Săn Model Free tốt nhất)</option>
-          <option value="opencode:opencode/deepseek-v4.1-flash-free">OpenCode: deepseek-v4.1-flash-free</option>
-          <option value="opencode:freemodel/claude-sonnet-4-6">OpenCode: claude-sonnet-4-6 (Free)</option>
-          <option value="codex">Codex (ChatGPT OAuth 0-Key)</option>
-          <option value="claude">Claude Code</option>
-          <option value="antigravity">Antigravity IDE</option>
-        </select>
-        <select id="mode" style="flex:1;min-width:150px">
-          <option value="auto">Chế độ: Auto (PC -> Cloud)</option>
-          <option value="local">Chỉ chạy trên PC (Local)</option>
-          <option value="cloud">Chạy ngay trên Cloud (GitHub Actions)</option>
-        </select>
+  <div class="grid">
+    <!-- Left: Coworker Squad & Remote Steer -->
+    <div class="col">
+      <div id="authCard" class="card" style="display:none;border-color:var(--amber)">
+        <div class="card-hdr" style="color:var(--amber)">🔑 Pair API Token</div>
+        <div class="row">
+          <input id="tokenInput" type="password" placeholder="BOTAUTOTASK_API_TOKEN"/>
+          <button onclick="saveToken()">Connect</button>
+        </div>
       </div>
-      <div class="row">
-        <input id="repo" placeholder="GitHub Repo khi tắt máy (VD: huongmh14/BotAutoTask)" value="huongmh14/BotAutoTask" style="flex:1"/>
-        <input id="check" placeholder="Lệnh kiểm tra (VD: npm test)" value="npm test" style="flex:1"/>
-        <button onclick="createGoal()">🚀 Gửi Goal</button>
+
+      <div class="card">
+        <div class="card-hdr"><span>COWORKER MESH ROSTER</span><span>3 SPECIALISTS</span></div>
+        <div class="cw-item">
+          <div class="cw-top"><span>@lead · Team Lead</span><span class="role-tag">READER</span></div>
+          <div class="mono" style="font-size:0.72rem">Decomposes goals, coordinates @coder & @reviewer, verifies completion contract.</div>
+        </div>
+        <div class="cw-item">
+          <div class="cw-top"><span>@coder · Senior Engineer</span><span class="role-tag writer">WRITER (WORKTREE)</span></div>
+          <div class="mono" style="font-size:0.72rem">Implements features & unit tests in isolated branch <code>botautotask/agent-coder</code>.</div>
+        </div>
+        <div class="cw-item" style="margin-bottom:0">
+          <div class="cw-top"><span>@reviewer · Adversarial QA</span><span class="role-tag">READER</span></div>
+          <div class="mono" style="font-size:0.72rem">Audits git diff, runs acceptance check, blocks unverified merges.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span>⚡ 3-MODE REMOTE STEER DOCK</span></div>
+        <div style="display:grid;gap:8px">
+          <div class="row">
+            <select id="cmdTarget" style="flex:1">
+              <option value="lead">@lead (Orchestrator)</option>
+              <option value="coder">@coder (Writer)</option>
+              <option value="reviewer">@reviewer (QA)</option>
+              <option value="all">@all (Broadcast)</option>
+            </select>
+            <select id="cmdType" style="flex:1">
+              <option value="STEER">📨 Send / Steer</option>
+              <option value="INTERRUPT">⚡ Interrupt Turn</option>
+              <option value="QUEUE">⏳ Queue Follow-up</option>
+            </select>
+          </div>
+          <input id="cmdPayload" placeholder="Inject remote instruction to coworker..."/>
+          <button class="amber" style="justify-content:center" onclick="sendRemoteCommand()">Transmit Command ↵</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <b>📋 Danh sách Goals & Điều khiển trực tiếp</b>
-      <button class="sec" onclick="loadState()">↻ Làm mới</button>
+    <!-- Center: Mission Launcher & Active Goals -->
+    <div class="col">
+      <div class="card">
+        <div class="card-hdr"><span>🎯 DISPATCH NEW SQUAD MISSION (GOAL)</span></div>
+        <div style="display:grid;gap:8px">
+          <textarea id="prompt" rows="2" placeholder="Describe the feature, bugfix, or refactoring mission for the squad..."></textarea>
+          <div class="row">
+            <select id="core" style="flex:1;min-width:180px">
+              <option value="auto">AI Core: Auto (Best Free Model)</option>
+              <option value="opencode:opencode/deepseek-v4.1-flash-free">OpenCode: deepseek-v4.1-flash-free</option>
+              <option value="opencode:freemodel/claude-sonnet-4-6">OpenCode: claude-sonnet-4-6 (Free)</option>
+              <option value="codex">Codex (ChatGPT OAuth 0-Key)</option>
+              <option value="claude">Claude Code</option>
+              <option value="antigravity">Antigravity IDE</option>
+            </select>
+            <select id="mode" style="flex:1;min-width:150px">
+              <option value="auto">Mode: Auto (PC → Cloud Failover)</option>
+              <option value="local">Mode: Local PC Only</option>
+              <option value="cloud">Mode: Cloud Immediately (GitHub Actions)</option>
+            </select>
+          </div>
+          <div class="row">
+            <input id="repo" placeholder="GitHub Repo (e.g. huongmh14/BotAutoTask)" value="huongmh14/BotAutoTask" style="flex:1"/>
+            <input id="check" placeholder="Verify cmd (e.g. npm test)" value="npm test" style="flex:1"/>
+            <button onclick="createGoal()">🚀 Launch Mission</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1">
+        <div class="card-hdr"><span>📋 ACTIVE & RECENT MISSIONS (CAS LEASE PROTECTED)</span></div>
+        <div id="goalsList" class="mono">Loading missions...</div>
+      </div>
     </div>
-    <div id="goalsList" class="sub" style="margin-top:8px">Đang tải...</div>
-  </div>
 
-  <div class="card">
-    <b>📜 Nhật ký bước chạy (Journal Entries)</b>
-    <div id="journalList" class="sub" style="margin-top:8px">Đang tải...</div>
+    <!-- Right: Live Journal & Remote Command Queue -->
+    <div class="col">
+      <div class="card">
+        <div class="card-hdr"><span>📜 STEP JOURNAL & HANDOFF TELEMETRY</span></div>
+        <div id="journalList" class="mono" style="max-height:380px;overflow-y:auto">Loading journal...</div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span>📡 PENDING REMOTE COMMANDS</span></div>
+        <div id="commandsList" class="mono">No pending remote commands.</div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -198,16 +316,20 @@ function renderCloudDashboardHtml() {
     });
     if (res.status === 401) {
       document.getElementById('authCard').style.display = 'block';
-      document.getElementById('conn').textContent = 'Cần nhập Token';
+      const c = document.getElementById('conn');
+      c.className = 'pill err';
+      c.textContent = 'TOKEN REQUIRED';
       throw new Error('Unauthorized');
     }
     document.getElementById('authCard').style.display = 'none';
-    document.getElementById('conn').textContent = '🟢 Đã kết nối 24/7';
+    const c = document.getElementById('conn');
+    c.className = 'pill ok';
+    c.textContent = '🟢 24/7 CLOUD LIVE';
     return res.json();
   }
   async function createGoal() {
     const prompt = document.getElementById('prompt').value.trim();
-    if (!prompt) return alert('Nhập mô tả công việc!');
+    if (!prompt) return;
     await api('/api/goals', {
       prompt,
       preferred_core: document.getElementById('core').value,
@@ -218,6 +340,17 @@ function renderCloudDashboardHtml() {
     document.getElementById('prompt').value = '';
     loadState();
   }
+  async function sendRemoteCommand() {
+    const payload = document.getElementById('cmdPayload').value.trim();
+    if (!payload) return;
+    await api('/api/commands', {
+      target_id: document.getElementById('cmdTarget').value,
+      command_type: document.getElementById('cmdType').value,
+      payload
+    });
+    document.getElementById('cmdPayload').value = '';
+    loadState();
+  }
   async function goalAction(goalId, action, value) {
     await api('/api/goals/action', { goalId, action, value });
     loadState();
@@ -226,29 +359,48 @@ function renderCloudDashboardHtml() {
     try {
       const data = await api('/api/state');
       const gEl = document.getElementById('goalsList');
-      gEl.innerHTML = (data.goals || []).length ? data.goals.map(g => \`
-        <div class="goal">
-          <div class="row" style="justify-content:space-between">
-            <div><b>\${esc(g.title)}</b> <span class="mono">(\${esc(g.id)})</span></div>
-            <span class="badge \${esc(g.status)}">\${esc(g.status)}</span>
+      gEl.innerHTML = (data.goals || []).length ? data.goals.map(g => {
+        const stClass = g.status === 'COMPLETED' ? 'ok' : (g.status === 'PAUSED' ? 'warn' : (g.status === 'CANCELLED' ? 'err' : ''));
+        return \`
+        <div class="goal-node">
+          <div class="row" style="justify-content:space-between;margin-bottom:4px">
+            <b style="color:var(--fg-primary)">\${esc(g.title)}</b>
+            <span class="pill \${stClass}">\${esc(g.status)}</span>
           </div>
-          <div class="mono" style="margin:4px 0">Worker: \${esc(g.lease_owner || 'waiting')} | Core: \${esc(g.preferred_core)} | Mode: \${esc(g.execution_mode)} | Step: \${g.current_step}/\${g.max_steps}</div>
-          <div class="row" style="margin-top:6px">
-            <button class="sec" onclick="goalAction('\${esc(g.id)}','pause')">⏸ Pause</button>
-            <button class="sec" onclick="goalAction('\${esc(g.id)}','resume')">▶ Resume</button>
-            <button class="sec" onclick="goalAction('\${esc(g.id)}','switch',prompt('Đổi lõi/model (auto, codex, claude, opencode:...):','\${esc(g.preferred_core)}'))">🔄 Đổi Lõi</button>
-            <button class="danger" onclick="goalAction('\${esc(g.id)}','cancel')">✕ Hủy</button>
+          <div class="mono" style="margin-bottom:8px;font-size:0.71rem">
+            id: \${esc(g.id)} · worker: <b>\${esc(g.lease_owner || 'waiting')}</b> · epoch: #\${g.lease_epoch || 0} · core: \${esc(g.preferred_core)} · step: \${g.current_step}/\${g.max_steps}
           </div>
-        </div>\`).join('') : 'Chưa có Goal nào. Hãy tạo Goal ở trên!';
+          <div class="row">
+            <button class="sec" style="padding:4px 8px;font-size:0.74rem" onclick="goalAction('\${esc(g.id)}','pause')">⏸ Pause</button>
+            <button class="sec" style="padding:4px 8px;font-size:0.74rem" onclick="goalAction('\${esc(g.id)}','resume')">▶ Resume</button>
+            <button class="amber" style="padding:4px 8px;font-size:0.74rem" onclick="goalAction('\${esc(g.id)}','switch',prompt('Switch AI Core (auto, codex, claude, opencode:...):','\${esc(g.preferred_core)}'))">🔄 Swap Core</button>
+            <button class="danger" style="padding:4px 8px;font-size:0.74rem" onclick="goalAction('\${esc(g.id)}','cancel')">✕ Cancel</button>
+          </div>
+        </div>\`;
+      }).join('') : 'No missions queued yet.';
+
       const jEl = document.getElementById('journalList');
       jEl.innerHTML = (data.journal || []).length ? data.journal.map(e => \`
-        <div class="goal mono">
-          <b>[\${esc(e.goal_id)} #Step \${e.step_number}]</b> (\${esc(e.core_used)}:\${esc(e.model_used)} → \${esc(e.outcome)}): \${esc(e.summary)}
-        </div>\`).join('') : 'Chưa có bước chạy nào.';
+        <div style="border-bottom:1px solid var(--border-dim);padding:7px 0">
+          <div style="color:var(--cyan);font-weight:700">[\${esc(e.goal_id)} · Step #\${e.step_number}] \${esc(e.outcome)}</div>
+          <div style="font-size:0.7rem;color:var(--fg-muted)">via \${esc(e.core_used)}:\${esc(e.model_used)}</div>
+          <div style="color:var(--fg-primary);margin-top:2px">\${esc(e.summary)}</div>
+        </div>\`).join('') : 'No steps recorded yet.';
+
+      const cEl = document.getElementById('commandsList');
+      if (Array.isArray(data.commands) && data.commands.length) {
+        cEl.innerHTML = data.commands.map(c => \`
+          <div style="border-bottom:1px solid var(--border-dim);padding:5px 0">
+            <span class="pill warn" style="padding:1px 5px;font-size:0.65rem">\${esc(c.command_type)}</span>
+            <b>@\${esc(c.target_id || 'lead')}</b>: \${esc(c.payload)}
+          </div>\`).join('');
+      } else {
+        cEl.innerHTML = 'Queue clear — all commands delivered.';
+      }
     } catch {}
   }
   loadState();
-  setInterval(loadState, 8000);
+  setInterval(loadState, 6000);
 </script>
 </body>
 </html>`;
@@ -387,7 +539,12 @@ export default {
     if (request.method === 'GET' && url.pathname === '/api/state') {
       const { results: goals } = await env.DB.prepare(`SELECT * FROM goals ORDER BY created_at DESC LIMIT 20`).all();
       const { results: journal } = await env.DB.prepare(`SELECT * FROM journal_entries ORDER BY id DESC LIMIT 30`).all();
-      return Response.json({ goals: goals || [], journal: journal || [] });
+      const { results: commands } = await env.DB.prepare(
+        `SELECT * FROM remote_commands WHERE status = 'PENDING' ORDER BY created_at ASC LIMIT 20`
+      )
+        .all()
+        .catch(() => ({ results: [] }));
+      return Response.json({ goals: goals || [], journal: journal || [], commands: commands || [] });
     }
 
     if (request.method === 'POST' && url.pathname === '/api/goals') {
