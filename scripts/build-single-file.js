@@ -15,6 +15,7 @@ const MODULE_ORDER = [
   'src/core/rate-limit-detector.js',
   'src/core/spawn-cli.js',
   'src/core/log-reader.js',
+  'src/core/auth-bridge.js',
   'src/core/model-discovery.js',
   'src/harnesses/custom-cmd-harness.js',
   'src/harnesses/opencode-harness.js',
@@ -24,6 +25,7 @@ const MODULE_ORDER = [
   'src/core/harness-registry.js',
   'src/core/orchestrator.js',
   'src/core/supervisor.js',
+  'src/core/agent-mesh.js',
   'src/daemon/network-monitor.js',
   'src/daemon/local-daemon.js',
   'src/daemon/cli.js'
@@ -49,8 +51,10 @@ for (const relPath of MODULE_ORDER) {
 
 const mergedImports = [
   `import { exec, execFile, spawn } from 'node:child_process';`,
+  `import { createServer } from 'node:http';`,
+  `import { randomUUID } from 'node:crypto';`,
   `import { promisify } from 'node:util';`,
-  `import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from 'node:fs';`,
+  `import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync, lstatSync, renameSync } from 'node:fs';`,
   `import { join, dirname } from 'node:path';`,
   `import { homedir, tmpdir } from 'node:os';`,
   `import { fileURLToPath } from 'node:url';`

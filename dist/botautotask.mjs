@@ -4,8 +4,10 @@
  * Can be downloaded and executed directly on any machine with Node.js >= 20 or Bun.
  */
 import { exec, execFile, spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync, lstatSync, renameSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -442,6 +444,326 @@ function writeIdeDirectiveBridge(workspaceDir, { goalId, stepNumber, directive, 
 
   writeFileSync(mdPath, content, 'utf8');
   return mdPath;
+}
+
+
+// --- MODULE: src/core/auth-bridge.js ---
+
+/**
+ * Zero-API-Key Local Auth & Direct Session Router
+ * Inspired by Grok Bot 0.18 (`provider-session.ts`, `codex-direct-responses.ts`,
+ * `inference-router-local.ts`) and Neko-Bot (`chatgpt-auth.ts`, `opencode-auth.ts`).
+ *
+ * Reuses existing local CLI logins (`codex login`, `claude login`, `opencode auth login`, `Antigravity`)
+ * so the user NEVER needs to buy or paste separate metered API keys.
+ */
+
+function getCodexAuthPath() {
+  const codexHome = process.env.CODEX_HOME?.trim() || join(homedir(), '.codex');
+  return join(codexHome, 'auth.json');
+}
+
+function getClaudeCredentialsPath() {
+  return join(homedir(), '.claude', '.credentials.json');
+}
+
+function getOpenCodeAuthPath() {
+  const localShare = process.env.LOCALAPPDATA || join(homedir(), '.local', 'share');
+  const candidates = [
+    join(localShare, 'opencode', 'auth.json'),
+    join(homedir(), '.local', 'share', 'opencode', 'auth.json'),
+    join(homedir(), '.neko-core', 'opencode-auth.json')
+  ];
+  return candidates.find((p) => existsSync(p)) || candidates[0];
+}
+
+/**
+ * Reads local ~/.codex/auth.json created by `codex login` (ChatGPT OAuth mode).
+ */
+function loadCodexCredentials() {
+  const authPath = getCodexAuthPath();
+  if (!existsSync(authPath)) return null;
+  try {
+    const stat = lstatSync(authPath);
+    if (!stat.isFile() || stat.isSymbolicLink()) return null;
+    const parsed = JSON.parse(readFileSync(authPath, 'utf8'));
+    const accessToken = parsed?.tokens?.access_token;
+    const refreshToken = parsed?.tokens?.refresh_token;
+    const idToken = parsed?.tokens?.id_token;
+    const accountId = parsed?.tokens?.account_id;
+    if (
+      parsed?.auth_mode !== 'chatgpt' ||
+      typeof accessToken !== 'string' || !accessToken ||
+      typeof refreshToken !== 'string' || !refreshToken ||
+      typeof accountId !== 'string' || !accountId
+    ) {
+      return null;
+    }
+    return {
+      accessToken,
+      refreshToken,
+      idToken: typeof idToken === 'string' ? idToken : '',
+      accountId,
+      path: authPath,
+      document: parsed
+    };
+  } catch {
+    return null;
+  }
+}
+
+function extractJwtAudience(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'));
+    const aud = payload?.aud;
+    if (typeof aud === 'string') return aud;
+    if (Array.isArray(aud)) return aud.find((item) => typeof item === 'string') || null;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Automatically refreshes ~/.codex/auth.json OAuth token on HTTP 401
+ * using https://auth.openai.com/oauth/token (same mechanism as Grok Bot & Neko-Bot).
+ */
+async function refreshCodexCredentials(current, fetchImpl = fetch) {
+  const clientId = extractJwtAudience(current.idToken) || 'app_EMoamEEZ73f0CkXaXp7hrann';
+  const res = await fetchImpl('https://auth.openai.com/oauth/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: current.refreshToken,
+      client_id: clientId
+    })
+  });
+  if (!res.ok) {
+    throw new Error(`Codex OAuth refresh failed (HTTP ${res.status}). Run "codex login" again.`);
+  }
+  const payload = await res.json();
+  if (typeof payload?.access_token !== 'string' || !payload.access_token) {
+    throw new Error('Codex OAuth refresh returned no access_token.');
+  }
+  const updatedDoc = {
+    ...current.document,
+    tokens: {
+      ...current.document.tokens,
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token || current.refreshToken,
+      id_token: payload.id_token || current.idToken
+    },
+    last_refresh: new Date().toISOString()
+  };
+  mkdirSync(dirname(current.path), { recursive: true });
+  const tmp = `${current.path}.${process.pid}.${randomUUID()}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(updatedDoc, null, 2)}\n`, 'utf8');
+  renameSync(tmp, current.path);
+  return loadCodexCredentials();
+}
+
+/**
+ * Direct Codex Responses transport (`https://chatgpt.com/backend-api/codex/responses`)
+ * using the local ChatGPT/Codex login session, supporting multi-step tool execution!
+ */
+async function runCodexDirectTurn({
+  prompt,
+  instructions = 'You are an autonomous coding teammate orchestrated by BotAutoTask.',
+  model = 'gpt-5.4',
+  tools = [],
+  executeTool = null,
+  maxSteps = 6,
+  fetchImpl = fetch
+}) {
+  let creds = loadCodexCredentials();
+  if (!creds) {
+    throw new Error('Codex is not signed in with ChatGPT. Run `codex login` first.');
+  }
+
+  const authedFetch = async (url, init) => {
+    const send = () => {
+      const headers = new Headers(init?.headers || {});
+      headers.set('authorization', `Bearer ${creds.accessToken}`);
+      headers.set('ChatGPT-Account-Id', creds.accountId);
+      return fetchImpl(url, { ...init, headers });
+    };
+    let res = await send();
+    if (res.status === 401) {
+      creds = await refreshCodexCredentials(creds, fetchImpl);
+      res = await send();
+    }
+    return res;
+  };
+
+  const toolsByName = new Map(tools.map((t) => [t.name, t]));
+  const wireTools =
+    tools.length > 0
+      ? tools.map((t) => ({
+          type: 'function',
+          name: t.name,
+          description: t.description || '',
+          parameters: t.inputSchema || t.parameters || { type: 'object', properties: {} },
+          strict: false
+        }))
+      : undefined;
+
+  let input = [{ role: 'user', content: prompt }];
+  let finalText = '';
+
+  for (let step = 0; step < maxSteps; step++) {
+    const res = await authedFetch('https://chatgpt.com/backend-api/codex/responses', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'text/event-stream',
+        'user-agent': 'botautotask-router/1'
+      },
+      body: JSON.stringify({
+        model,
+        instructions,
+        input,
+        ...(wireTools ? { tools: wireTools, tool_choice: 'auto', parallel_tool_calls: true } : {}),
+        stream: true,
+        store: false
+      })
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Codex direct response failed (${res.status}): ${detail.slice(0, 500)}`);
+    }
+
+    const rawSse = await res.text();
+    const observedOutput = [];
+    let completed = null;
+
+    for (const block of rawSse.split('\n\n')) {
+      const dataLines = block
+        .split(/\r?\n/)
+        .filter((l) => l.startsWith('data:'))
+        .map((l) => l.slice(5).trimStart());
+      const dataStr = dataLines.join('\n').trim();
+      if (!dataStr || dataStr === '[DONE]') continue;
+      let evt;
+      try {
+        evt = JSON.parse(dataStr);
+      } catch {
+        continue;
+      }
+      if (evt.type === 'response.output_text.delta' && typeof evt.delta === 'string') {
+        finalText += evt.delta;
+      } else if (evt.type === 'response.output_item.done' && evt.item) {
+        observedOutput.push(evt.item);
+      } else if (evt.type === 'response.completed' && evt.response) {
+        completed = evt.response;
+      }
+    }
+
+    const outputItems =
+      Array.isArray(completed?.output) && completed.output.length > 0
+        ? completed.output
+        : observedOutput;
+    const functionCalls = outputItems.filter(
+      (item) => item?.type === 'function_call' && typeof item.name === 'string'
+    );
+
+    if (functionCalls.length === 0) {
+      return { text: finalText, model, provider: 'codex-direct' };
+    }
+    if (!executeTool) {
+      return { text: finalText, model, provider: 'codex-direct', pendingToolCalls: functionCalls };
+    }
+
+    const toolOutputs = [];
+    for (const call of functionCalls) {
+      const def = toolsByName.get(call.name);
+      if (!def) {
+        toolOutputs.push({
+          type: 'function_call_output',
+          call_id: call.call_id,
+          output: JSON.stringify({ isError: true, error: `Unknown tool: ${call.name}` })
+        });
+        continue;
+      }
+      let parsedArgs = {};
+      try {
+        parsedArgs = call.arguments ? JSON.parse(call.arguments) : {};
+      } catch {}
+      try {
+        const result = await executeTool(def, parsedArgs, call.call_id);
+        toolOutputs.push({
+          type: 'function_call_output',
+          call_id: call.call_id,
+          output: JSON.stringify(result ?? null)
+        });
+      } catch (err) {
+        toolOutputs.push({
+          type: 'function_call_output',
+          call_id: call.call_id,
+          output: JSON.stringify({ isError: true, error: err.message || String(err) })
+        });
+      }
+    }
+    input = [...input, ...outputItems, ...toolOutputs];
+  }
+
+  return { text: finalText, model, provider: 'codex-direct' };
+}
+
+/**
+ * Inspects local sign-in status across all supported agent CLIs & IDEs without requiring API keys.
+ */
+async function getZeroKeyAuthStatus() {
+  const [hasClaudeCli, hasCodexCli, hasOpenCodeCli, hasAgyCli] = await Promise.all([
+    commandExists('claude'),
+    commandExists('codex'),
+    commandExists('opencode'),
+    commandExists('agy')
+  ]);
+
+  const codexCreds = loadCodexCredentials();
+  const hasClaudeCreds =
+    existsSync(getClaudeCredentialsPath()) ||
+    existsSync(join(homedir(), '.claude.json')) ||
+    Boolean(process.env.ANTHROPIC_API_KEY);
+  const openCodeAuthPath = getOpenCodeAuthPath();
+  const hasOpenCodeAuth = existsSync(openCodeAuthPath);
+  const winAgyExe = join(
+    process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'),
+    'Programs',
+    'Antigravity',
+    'Antigravity.exe'
+  );
+  const hasAgyApp = hasAgyCli || existsSync(winAgyExe);
+
+  return {
+    codex: {
+      installed: hasCodexCli || Boolean(codexCreds),
+      authenticated: Boolean(codexCreds) || Boolean(process.env.OPENAI_API_KEY),
+      authMode: codexCreds ? 'chatgpt-oauth-session' : process.env.OPENAI_API_KEY ? 'api-key' : 'none',
+      accountId: codexCreds?.accountId || null,
+      loginCommand: 'codex login'
+    },
+    claude: {
+      installed: hasClaudeCli,
+      authenticated: hasClaudeCli && hasClaudeCreds,
+      authMode: existsSync(getClaudeCredentialsPath()) ? 'claude-oauth-session' : 'cli-session',
+      loginCommand: 'claude login'
+    },
+    opencode: {
+      installed: hasOpenCodeCli,
+      authenticated: hasOpenCodeCli,
+      authMode: hasOpenCodeAuth ? 'opencode-auth+free-zen' : 'free-models-ready',
+      loginCommand: 'opencode auth login'
+    },
+    antigravity: {
+      installed: hasAgyApp,
+      authenticated: hasAgyApp,
+      authMode: 'ide-built-in-session',
+      loginCommand: 'Open Antigravity IDE'
+    }
+  };
 }
 
 
@@ -917,16 +1239,21 @@ class AntigravityHarness {
 // --- MODULE: src/harnesses/claude-codex-harness.js ---
 
 /**
- * Claude Code (`claude -p`) and OpenAI Codex (`codex exec`) Harnesses.
+ * Claude Code (`claude -p`) and OpenAI Codex (`codex exec` + Direct ChatGPT Responses OAuth) Harnesses.
+ * Supports Zero-API-Key local session routing inspired by Grok Bot 0.18 (`provider-session.ts`)
+ * and Neko-Bot (`chatgpt-auth.ts`).
  */
 class ClaudeCodexHarness {
-  constructor({ id = 'claude', binary = 'claude' } = {}) {
+  constructor({ id = 'claude', binary = 'claude', mcpServerUrl = null } = {}) {
     this.id = id;
     this.binary = binary;
+    this.mcpServerUrl = mcpServerUrl;
   }
 
   async isAvailable() {
-    return commandExists(this.binary);
+    if (await commandExists(this.binary)) return true;
+    if (this.id === 'codex' && loadCodexCredentials() !== null) return true;
+    return false;
   }
 
   async discoverModels() {
@@ -941,10 +1268,60 @@ class ClaudeCodexHarness {
 
   async executeStep({ goal, journal = [], workspaceDir = process.cwd(), modelId }) {
     const prompt = buildHandoverPrompt(goal, journal);
+
+    // If Codex is signed in via ~/.codex/auth.json and CLI binary is absent (or direct mode is used),
+    // route directly over ChatGPT's Codex Responses SSE endpoint (Grok Bot 0.18 pattern).
+    if (this.id === 'codex' && !(await commandExists(this.binary)) && loadCodexCredentials()) {
+      try {
+        const directRes = await runCodexDirectTurn({
+          prompt,
+          model: modelId && modelId !== 'codex-default' ? modelId : 'gpt-5.4'
+        });
+        const parsed = parseStepTags(directRes.text || '');
+        return {
+          outcome: parsed.completed ? OUTCOME.GOAL_COMPLETED : OUTCOME.STEP_DONE,
+          summary: parsed.summary,
+          rawOutput: directRes.text || '',
+          harnessId: this.id,
+          modelId
+        };
+      } catch (err) {
+        const msg = err.message || String(err);
+        if (isRateLimitError(msg, 1)) {
+          return {
+            outcome: OUTCOME.RATE_LIMITED,
+            summary: 'codex direct OAuth session rate/usage limit reached',
+            harnessId: this.id,
+            modelId
+          };
+        }
+        return {
+          outcome: OUTCOME.ERROR,
+          summary: msg.slice(-400),
+          harnessId: this.id,
+          modelId
+        };
+      }
+    }
+
     const args =
       this.id === 'codex'
         ? ['exec', '--full-auto', prompt]
-        : ['-p', prompt, '--dangerously-skip-permissions'];
+        : [
+            '-p',
+            prompt,
+            '--dangerously-skip-permissions',
+            ...(this.mcpServerUrl
+              ? [
+                  '--mcp-config',
+                  JSON.stringify({
+                    mcpServers: {
+                      botautotask_mesh: { type: 'http', url: this.mcpServerUrl }
+                    }
+                  })
+                ]
+              : [])
+          ];
 
     try {
       const { stdout, stderr } = await runCliProcess(this.binary, args, {
@@ -964,6 +1341,7 @@ class ClaudeCodexHarness {
       return {
         outcome: parsed.completed ? OUTCOME.GOAL_COMPLETED : OUTCOME.STEP_DONE,
         summary: parsed.summary,
+        rawOutput: combined,
         harnessId: this.id,
         modelId
       };
@@ -1549,6 +1927,690 @@ class SupervisorLoop {
 }
 
 
+// --- MODULE: src/core/agent-mesh.js ---
+
+/**
+ * Multi-Agent Mesh & Routed Loopback MCP Bridge
+ * Combines:
+ * 1. Grok Bot 0.18 (`routed-mcp-bridge.ts`, `sand-agent-management-tools.ts`, `sand-subagent-management-tools.ts`)
+ *    - Loopback HTTP MCP Server (`http://127.0.0.1:<port>/mcp/<secret>`)
+ *    - Inter-agent tools: `CreateAgent`, `ListAgents`, `SendToAgent`, `CheckSubagent`, `MessageSubagent`, `StopSubagent`
+ * 2. Neko-Bot (`REQ-PB-006 Autonomous coworkers` + `session-handoff.ts`)
+ *    - Multi-bot persona roster, durable handoff envelopes, and priority steering under human commander control.
+ */
+
+const MESH_TOOLS = [
+  {
+    name: 'CreateAgent',
+    description:
+      'Create a new specialist teammate agent with a name, persona/description, and optional preferred core (claude, codex, opencode, antigravity, or auto). Returns the new agent id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Optional short slug id (e.g. "architect", "coder", "qa").' },
+        name: { type: 'string', description: 'Human-readable name for the teammate agent.' },
+        description: { type: 'string', description: 'Persona and instructions for this teammate.' },
+        preferred_core: {
+          type: 'string',
+          description: 'Optional preferred runtime: "claude", "codex", "opencode", "antigravity", or "auto".'
+        }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'ListAgents',
+    description:
+      'List all teammate agents in the mesh, including their id, name, role, preferred core, live status, and recent activity.',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    name: 'SendToAgent',
+    description:
+      'Send a task or message to another teammate agent by its target_id (or "all" for group broadcast). Pass priority=true to interrupt/steer its current work immediately.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target_id: { type: 'string', description: 'Target agent id from ListAgents.' },
+        message: { type: 'string', description: 'Actionable instruction or handoff message for the teammate.' },
+        priority: {
+          type: 'boolean',
+          description: 'When true, interrupts/steers the target agent immediately.'
+        },
+        wait: {
+          type: 'boolean',
+          description: 'When true (default), runs the target agent turn and returns its reply.'
+        }
+      },
+      required: ['target_id', 'message']
+    }
+  },
+  {
+    name: 'CheckSubagent',
+    description:
+      'Check how a running or completed teammate/subagent is doing, including elapsed time, tool call count, recent activity, and live IDE transcript.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subagent_id: {
+          type: 'string',
+          description: 'Agent ID to inspect. Omit to list all agents and their current status.'
+        }
+      }
+    }
+  },
+  {
+    name: 'MessageSubagent',
+    description:
+      'Inject a mid-run steering instruction into an agent without losing its context. The agent incorporates your message on its current/next step.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subagent_id: { type: 'string', description: 'Agent ID to steer.' },
+        message: { type: 'string', description: 'Course-correction instruction to inject.' }
+      },
+      required: ['subagent_id', 'message']
+    }
+  },
+  {
+    name: 'StopSubagent',
+    description: 'Abort a running agent that is stuck, looping, or no longer needed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subagent_id: { type: 'string', description: 'Agent ID to stop.' }
+      },
+      required: ['subagent_id']
+    }
+  }
+];
+
+function slugifyId(text) {
+  return (
+    String(text || 'agent')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32) || `agent-${randomUUID().slice(0, 6)}`
+  );
+}
+
+/**
+ * Parses inline agent tool directives emitted by CLI models that don't use HTTP MCP directly, e.g.:
+ * [AGENT_TOOL: {"tool":"SendToAgent","args":{"target_id":"coder","message":"..."}}]
+ */
+function parseInlineAgentToolCalls(outputText = '') {
+  const calls = [];
+  const regex = /\[AGENT_TOOL:\s*(\{[\s\S]*?\})\s*\]/g;
+  let match;
+  while ((match = regex.exec(outputText)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (parsed && typeof parsed.tool === 'string') {
+        calls.push({
+          name: parsed.tool,
+          args: parsed.args || {}
+        });
+      }
+    } catch {
+      // Ignore malformed inline JSON
+    }
+  }
+  return calls;
+}
+
+class AgentMesh {
+  constructor({
+    registry,
+    ranker,
+    workspaceDir = process.cwd(),
+    stateFile = join(homedir(), '.botautotask', 'mesh-state.json'),
+    onEvent = () => {}
+  } = {}) {
+    this.registry = registry;
+    this.ranker = ranker;
+    this.workspaceDir = workspaceDir;
+    this.stateFile = stateFile;
+    this.onEvent = onEvent;
+    this.agents = new Map();
+    this.handoffs = [];
+    this.mcpBridge = null;
+
+    this._seedDefaultTeam();
+  }
+
+  _seedDefaultTeam() {
+    this.createAgent({
+      id: 'lead',
+      name: 'Team Lead (Orchestrator)',
+      description:
+        'Coordinates tasks under the human commander, decomposes goals, delegates to coder/reviewer, and verifies completion.',
+      preferredCore: 'auto'
+    });
+    this.createAgent({
+      id: 'coder',
+      name: 'Senior Implementation Engineer',
+      description:
+        'Writes clean, minimal, production-ready code and unit tests in the workspace using Codex / Claude / OpenCode.',
+      preferredCore: 'auto'
+    });
+    this.createAgent({
+      id: 'reviewer',
+      name: 'Adversarial Reviewer & QA',
+      description:
+        'Reviews git diff, runs verification checks, inspects IDE logs, and sends surgical fix requests back to coder.',
+      preferredCore: 'auto'
+    });
+  }
+
+  createAgent({ id, name, description = '', preferredCore = 'auto' }) {
+    const cleanId = id ? slugifyId(id) : slugifyId(name);
+    const existing = this.agents.get(cleanId);
+    if (existing) {
+      if (name) existing.name = name;
+      if (description) existing.description = description;
+      if (preferredCore) existing.preferredCore = preferredCore;
+      this._persistState();
+      return existing;
+    }
+
+    const agent = {
+      id: cleanId,
+      name: name || cleanId,
+      description,
+      preferredCore: preferredCore || 'auto',
+      status: 'idle',
+      startedAtMs: null,
+      toolCallCount: 0,
+      recentActivity: [],
+      pendingSteers: [],
+      inbox: [],
+      transcript: [],
+      aborted: false
+    };
+    this.agents.set(cleanId, agent);
+    this._persistState();
+    this.onEvent({ type: 'agent_created', agentId: cleanId, name: agent.name });
+    return agent;
+  }
+
+  listAgents() {
+    return Array.from(this.agents.values()).map((a) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      preferredCore: a.preferredCore,
+      status: a.status,
+      elapsedMs: a.startedAtMs ? Date.now() - a.startedAtMs : 0,
+      toolCallCount: a.toolCallCount,
+      recentActivity: a.recentActivity.slice(-5),
+      pendingSteers: a.pendingSteers.length,
+      inboxCount: a.inbox.length
+    }));
+  }
+
+  steerAgent(agentId, message, from = 'commander') {
+    const agent = this.agents.get(agentId);
+    if (!agent) return { ok: false, reason: `No agent "${agentId}" found.` };
+    const steerNote = `[PRIORITY STEER from ${from}]: ${message}`;
+    agent.pendingSteers.push(steerNote);
+    agent.recentActivity.push(`Steered by ${from}: ${message.slice(0, 80)}`);
+    this._persistState();
+    this.onEvent({ type: 'agent_steered', agentId, from, message });
+    return {
+      ok: true,
+      status: agent.status,
+      message: `Delivered priority steer to ${agent.name} (${agent.id}). Context preserved.`
+    };
+  }
+
+  stopAgent(agentId) {
+    const agent = this.agents.get(agentId);
+    if (!agent) return { ok: false, reason: `No agent "${agentId}" found.` };
+    agent.aborted = true;
+    agent.status = 'aborted';
+    agent.recentActivity.push('Aborted by StopSubagent.');
+    this._persistState();
+    this.onEvent({ type: 'agent_stopped', agentId });
+    return { ok: true, message: `Stopped agent ${agent.name} (${agent.id}).` };
+  }
+
+  checkAgent(agentId) {
+    if (!agentId) {
+      return {
+        agents: this.listAgents(),
+        latestIdeLog: this._readLatestIdeSummary()
+      };
+    }
+    const agent = this.agents.get(agentId);
+    if (!agent) {
+      return { error: `No agent "${agentId}" found.`, available: this.listAgents().map((a) => a.id) };
+    }
+    return {
+      id: agent.id,
+      name: agent.name,
+      status: agent.status,
+      preferredCore: agent.preferredCore,
+      elapsedMs: agent.startedAtMs ? Date.now() - agent.startedAtMs : 0,
+      toolCallCount: agent.toolCallCount,
+      recentActivity: agent.recentActivity.slice(-10),
+      pendingSteers: agent.pendingSteers,
+      lastTranscriptEntry: agent.transcript.slice(-1)[0] || null,
+      latestIdeLog: this._readLatestIdeSummary()
+    };
+  }
+
+  _readLatestIdeSummary() {
+    try {
+      const info = findLatestAntigravityTranscript();
+      if (!info) return null;
+      return {
+        conversationId: info.conversationId,
+        status: info.summary.lastStatus,
+        toolCalls: info.summary.toolCalls.slice(-5),
+        lastResponse: (info.summary.lastAgentResponse || '').slice(0, 300)
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Selects the best execution harness & model for a given agent based on its `preferredCore`
+   * and the live `FreeModelRanker`.
+   */
+  async _resolveAgentHarness(agent) {
+    const candidates = await this.registry.getCandidates(this.ranker, agent.preferredCore || 'auto');
+    if (candidates.length > 0) {
+      return { harness: candidates[0].harness, modelId: candidates[0].modelId };
+    }
+    throw new Error('No available AI core found for AgentMesh execution.');
+  }
+
+  /**
+   * Sends a message from one agent (or the user commander) to another agent,
+   * creating a durable Neko-style SessionHandoff envelope and optionally running the target's turn.
+   */
+  async sendToAgent({ fromId = 'commander', targetId, message, priority = false, wait = true, depth = 0 }) {
+    if (targetId === 'all') {
+      const targets = Array.from(this.agents.keys()).filter((id) => id !== fromId);
+      const replies = [];
+      for (const id of targets) {
+        const res = await this.sendToAgent({
+          fromId,
+          targetId: id,
+          message,
+          priority,
+          wait,
+          depth
+        });
+        replies.push({ targetId: id, ...res });
+      }
+      return { delivered: true, broadcast: replies };
+    }
+
+    const target = this.agents.get(targetId);
+    if (!target) {
+      return {
+        delivered: false,
+        error: `Unknown target_id "${targetId}". Known agents: ${Array.from(this.agents.keys()).join(', ')}`
+      };
+    }
+
+    if (fromId === targetId) {
+      return {
+        delivered: false,
+        error: 'An agent cannot SendToAgent to itself. Pick a teammate id.'
+      };
+    }
+
+    const handoff = {
+      schema: 'neko.session-handoff/v1',
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+      fromAgentId: fromId,
+      targetAgentId: targetId,
+      priority: Boolean(priority),
+      summary: message
+    };
+    this.handoffs.push(handoff);
+
+    if (priority) {
+      target.pendingSteers.push(`[PRIORITY from ${fromId}]: ${message}`);
+    } else {
+      target.inbox.push({ fromId, message, timestamp: handoff.createdAt });
+    }
+    target.recentActivity.push(`Received message from ${fromId}: ${message.slice(0, 80)}`);
+    this._persistState();
+    this.onEvent({ type: 'agent_message', fromId, targetId, priority, message });
+
+    if (!wait) {
+      return {
+        delivered: true,
+        handoffId: handoff.id,
+        status: 'queued',
+        message: `Message queued for ${target.name} (${target.id}).`
+      };
+    }
+
+    const turnResult = await this.runAgentTurn(targetId, message, { fromId, depth });
+    return {
+      delivered: true,
+      handoffId: handoff.id,
+      status: turnResult.outcome,
+      reply: turnResult.summary,
+      harnessId: turnResult.harnessId,
+      modelId: turnResult.modelId
+    };
+  }
+
+  /**
+   * Executes a single turn for `agentId` using its resolved CLI/IDE harness,
+   * injecting teammate roster, pending steers, and processing any inter-agent tool calls.
+   */
+  async runAgentTurn(agentId, incomingPrompt, { fromId = 'commander', depth = 0, maxDepth = 3 } = {}) {
+    const agent = this.agents.get(agentId);
+    if (!agent) throw new Error(`Agent "${agentId}" does not exist.`);
+
+    agent.aborted = false;
+    agent.status = 'running';
+    agent.startedAtMs = Date.now();
+    agent.toolCallCount += 1;
+
+    const steers = agent.pendingSteers.splice(0, agent.pendingSteers.length);
+    const inboxItems = agent.inbox.splice(0, agent.inbox.length);
+
+    const teammatesList = this.listAgents()
+      .filter((a) => a.id !== agentId)
+      .map((a) => `- id: "${a.id}" | name: "${a.name}" | role: ${a.description}`)
+      .join('\n');
+
+    const promptLines = [
+      `# AGENT IDENTITY`,
+      `You are "${agent.name}" (id: "${agent.id}").`,
+      `Role & Instructions: ${agent.description}`,
+      ``,
+      `# TEAMMATES IN MESH (You can control/delegate to them)`,
+      teammatesList || '(No other teammates yet)',
+      ``,
+      `# INTER-AGENT CONTROL PROTOCOL`,
+      `If you need to create a teammate, delegate a task to another agent, or steer/check a subagent, you may either call the MCP tool directly OR output an inline directive on its own line:`,
+      `[AGENT_TOOL: {"tool":"SendToAgent","args":{"target_id":"coder","message":"Implement X"}}]`,
+      `[AGENT_TOOL: {"tool":"CreateAgent","args":{"id":"security","name":"Security Auditor","description":"Audits auth code"}}]`,
+      `[AGENT_TOOL: {"tool":"MessageSubagent","args":{"subagent_id":"coder","message":"Use node:crypto instead"}}]`,
+      ``
+    ];
+
+    if (steers.length > 0) {
+      promptLines.push(`# URGENT STEERING DIRECTIVES (HIGHEST PRIORITY — APPLY IMMEDIATELY)`);
+      promptLines.push(...steers);
+      promptLines.push(``);
+    }
+
+    if (inboxItems.length > 0) {
+      promptLines.push(`# PENDING TEAMMATE MESSAGES`);
+      for (const item of inboxItems) {
+        promptLines.push(`- From ${item.fromId}: ${item.message}`);
+      }
+      promptLines.push(``);
+    }
+
+    promptLines.push(`# CURRENT DIRECTIVE (from ${fromId})`);
+    promptLines.push(incomingPrompt);
+
+    const fullPrompt = promptLines.join('\n');
+    const { harness, modelId } = await this._resolveAgentHarness(agent);
+
+    agent.recentActivity.push(`Running turn on ${harness.id}:${modelId}`);
+    this._persistState();
+
+    const stepResult = await harness.executeStep({
+      goal: fullPrompt,
+      journal: agent.transcript.slice(-5),
+      workspaceDir: this.workspaceDir,
+      modelId
+    });
+
+    if (agent.aborted) {
+      return {
+        outcome: OUTCOME.ERROR,
+        summary: `Agent ${agent.id} was aborted mid-turn.`,
+        harnessId: harness.id,
+        modelId
+      };
+    }
+
+    const rawOutput = stepResult.rawOutput || stepResult.summary || '';
+    const inlineCalls = depth < maxDepth ? parseInlineAgentToolCalls(rawOutput) : [];
+    const subResults = [];
+
+    for (const call of inlineCalls) {
+      agent.toolCallCount += 1;
+      const toolOut = await this.executeMeshTool(call.name, call.args, {
+        callerAgentId: agentId,
+        depth: depth + 1
+      });
+      subResults.push(`[Tool ${call.name} -> ${JSON.stringify(toolOut).slice(0, 300)}]`);
+    }
+
+    const combinedSummary =
+      subResults.length > 0
+        ? `${stepResult.summary}\n${subResults.join('\n')}`
+        : stepResult.summary;
+
+    const entry = {
+      step: agent.transcript.length + 1,
+      fromId,
+      harnessId: harness.id,
+      modelId,
+      outcome: stepResult.outcome,
+      summary: combinedSummary,
+      timestamp: new Date().toISOString()
+    };
+    agent.transcript.push(entry);
+    agent.status = stepResult.outcome === OUTCOME.ERROR ? 'error' : 'idle';
+    agent.recentActivity.push(`Completed turn (${stepResult.outcome})`);
+    this._persistState();
+
+    return {
+      ...stepResult,
+      summary: combinedSummary,
+      harnessId: harness.id,
+      modelId
+    };
+  }
+
+  /**
+   * Executes one of the 6 GrokBot/NekoBot inter-agent tools (`CreateAgent`, `ListAgents`,
+   * `SendToAgent`, `CheckSubagent`, `MessageSubagent`, `StopSubagent`).
+   */
+  async executeMeshTool(toolName, args = {}, { callerAgentId = 'commander', depth = 0 } = {}) {
+    switch (toolName) {
+      case 'CreateAgent': {
+        const created = this.createAgent({
+          id: args.id,
+          name: args.name,
+          description: args.description || '',
+          preferredCore: args.preferred_core || 'auto'
+        });
+        return {
+          created: true,
+          id: created.id,
+          name: created.name,
+          message: `Created agent "${created.name}" (id: ${created.id}). Message it with SendToAgent.`
+        };
+      }
+      case 'ListAgents': {
+        return { agents: this.listAgents() };
+      }
+      case 'SendToAgent': {
+        return await this.sendToAgent({
+          fromId: callerAgentId,
+          targetId: args.target_id,
+          message: args.message,
+          priority: Boolean(args.priority),
+          wait: args.wait !== false,
+          depth
+        });
+      }
+      case 'CheckSubagent': {
+        return this.checkAgent(args.subagent_id);
+      }
+      case 'MessageSubagent': {
+        return this.steerAgent(args.subagent_id, args.message, callerAgentId);
+      }
+      case 'StopSubagent': {
+        return this.stopAgent(args.subagent_id);
+      }
+      default:
+        throw new Error(`Unknown AgentMesh tool: ${toolName}`);
+    }
+  }
+
+  /**
+   * Starts a local loopback HTTP MCP Server (`http://127.0.0.1:<port>/mcp/<secret>`)
+   * modeled after Grok Bot's `createRoutedMcpBridge` (`routed-mcp-bridge.ts`).
+   * Any local agent (Claude Code, Codex, OpenCode, Antigravity) can connect and invoke
+   * the 6 inter-agent orchestration tools over standard MCP JSON-RPC 2.0.
+   */
+  async startMcpBridgeServer() {
+    if (this.mcpBridge) return this.mcpBridge;
+    const secret = randomUUID();
+
+    const server = createServer(async (req, res) => {
+      if (req.method !== 'POST' || !req.url?.startsWith(`/mcp/${secret}`)) {
+        res.writeHead(404).end();
+        return;
+      }
+
+      let body = '';
+      for await (const chunk of req) {
+        body += String(chunk);
+        if (body.length > 1_048_576) {
+          res.writeHead(413).end();
+          return;
+        }
+      }
+
+      let msg;
+      try {
+        msg = JSON.parse(body);
+      } catch {
+        res.writeHead(400).end();
+        return;
+      }
+
+      if (msg.method === 'notifications/initialized') {
+        res.writeHead(202).end();
+        return;
+      }
+
+      const reply = (result) => {
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }));
+      };
+
+      try {
+        if (msg.method === 'initialize') {
+          reply({
+            protocolVersion: '2025-03-26',
+            capabilities: { tools: { listChanged: false } },
+            serverInfo: { name: 'botautotask-agent-mesh', version: '1.0.0' }
+          });
+          return;
+        }
+        if (msg.method === 'tools/list') {
+          reply({ tools: MESH_TOOLS });
+          return;
+        }
+        if (msg.method === 'tools/call') {
+          const name = msg.params?.name;
+          const toolArgs = msg.params?.arguments || {};
+          const callerId = req.headers['x-agent-id'] || 'mcp-peer';
+          const out = await this.executeMeshTool(name, toolArgs, {
+            callerAgentId: String(callerId)
+          });
+          reply({
+            isError: false,
+            content: [{ type: 'text', text: JSON.stringify(out, null, 2) }]
+          });
+          return;
+        }
+        reply({});
+      } catch (err) {
+        reply({
+          isError: true,
+          content: [{ type: 'text', text: err.message || String(err) }]
+        });
+      }
+    });
+
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+
+    const addr = server.address();
+    const url = `http://127.0.0.1:${addr.port}/mcp/${secret}`;
+    this.mcpBridge = {
+      url,
+      port: addr.port,
+      close: () =>
+        new Promise((resolve) => {
+          server.closeAllConnections?.();
+          server.close(() => resolve());
+          this.mcpBridge = null;
+        })
+    };
+    return this.mcpBridge;
+  }
+
+  _persistState() {
+    try {
+      mkdirSync(dirname(this.stateFile), { recursive: true });
+      const snapshot = {
+        updatedAt: new Date().toISOString(),
+        workspaceDir: this.workspaceDir,
+        agents: Array.from(this.agents.values()),
+        handoffs: this.handoffs.slice(-50)
+      };
+      writeFileSync(this.stateFile, JSON.stringify(snapshot, null, 2), 'utf8');
+    } catch {
+      // Non-fatal in read-only environments
+    }
+  }
+
+  loadPersistedState() {
+    try {
+      if (!existsSync(this.stateFile)) return false;
+      const raw = JSON.parse(readFileSync(this.stateFile, 'utf8'));
+      if (Array.isArray(raw?.agents)) {
+        for (const a of raw.agents) {
+          if (a && typeof a.id === 'string') {
+            this.agents.set(a.id, {
+              ...a,
+              pendingSteers: Array.isArray(a.pendingSteers) ? a.pendingSteers : [],
+              inbox: Array.isArray(a.inbox) ? a.inbox : [],
+              transcript: Array.isArray(a.transcript) ? a.transcript : [],
+              recentActivity: Array.isArray(a.recentActivity) ? a.recentActivity : []
+            });
+          }
+        }
+      }
+      if (Array.isArray(raw?.handoffs)) {
+        this.handoffs = raw.handoffs;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+
 // --- MODULE: src/daemon/network-monitor.js ---
 /**
  * Network availability gate.
@@ -1826,7 +2888,7 @@ function parseCliFlags(tokens) {
       positional.push(t);
     }
   }
-  return { flags, text: positional.join(' ').trim() };
+  return { flags, text: positional.join(' ').trim(), positional };
 }
 
 async function main() {
@@ -1837,6 +2899,20 @@ async function main() {
     for (const h of registry.list()) {
       const ok = await h.isAvailable();
       console.log(`- ${h.id.padEnd(15)} : ${ok ? 'READY (Available)' : 'OFFLINE / NOT INSTALLED'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'auth' || subcommand === 'login') {
+    console.log('=== Zero-API-Key Local Session Status (GrokBot + Neko-Bot Bridge) ===');
+    const auth = await getZeroKeyAuthStatus();
+    for (const [provider, info] of Object.entries(auth)) {
+      const state = info.authenticated
+        ? `SIGNED IN (${info.authMode})`
+        : info.installed
+          ? `INSTALLED — Run: ${info.loginCommand}`
+          : `NOT INSTALLED — Run: ${info.loginCommand}`;
+      console.log(`- ${provider.padEnd(14)} : ${state}`);
     }
     return;
   }
@@ -1853,6 +2929,77 @@ async function main() {
     }
     for (const c of candidates.slice(0, 15)) {
       console.log(`- [${c.harnessId}] ${c.modelId.padEnd(42)} (score: ${c.score})`);
+    }
+    return;
+  }
+
+  if (subcommand === 'agents') {
+    const mesh = new AgentMesh({ registry, ranker });
+    mesh.loadPersistedState();
+    console.log('=== Multi-Agent Mesh Roster (GrokBot + Neko-Bot Coworkers) ===');
+    for (const a of mesh.listAgents()) {
+      console.log(
+        `- [${a.id.padEnd(10)}] ${a.name.padEnd(32)} | core: ${a.preferredCore.padEnd(10)} | status: ${a.status.padEnd(8)} | steers: ${a.pendingSteers}`
+      );
+    }
+    return;
+  }
+
+  if (subcommand === 'steer') {
+    const { positional } = parseCliFlags(rest);
+    const [targetId, ...msgParts] = positional;
+    const message = msgParts.join(' ').trim();
+    if (!targetId || !message) {
+      console.error('Usage: botautotask steer <agentId> "<steering instruction>"');
+      process.exit(1);
+    }
+    const mesh = new AgentMesh({ registry, ranker });
+    mesh.loadPersistedState();
+    const res = mesh.steerAgent(targetId, message, 'commander');
+    console.log(res.ok ? `[Steer] ${res.message}` : `[Steer Error] ${res.reason}`);
+    return;
+  }
+
+  if (subcommand === 'team') {
+    const { flags, text } = parseCliFlags(rest);
+    if (!text) {
+      console.error(
+        'Usage: botautotask team "<goal>" [--path D:\\repo] [--lead opencode] [--coder codex] [--reviewer claude]'
+      );
+      process.exit(1);
+    }
+    const mesh = new AgentMesh({
+      registry,
+      ranker,
+      workspaceDir: flags.path || process.cwd(),
+      onEvent: (evt) => {
+        if (evt.type === 'agent_message') {
+          console.log(`[Mesh] ${evt.fromId} -> ${evt.targetId}: ${evt.message.slice(0, 120)}`);
+        } else if (evt.type === 'agent_steered') {
+          console.log(`[Mesh Steer] ${evt.from} -> ${evt.agentId}: ${evt.message}`);
+        } else if (evt.type === 'agent_created') {
+          console.log(`[Mesh] Created agent "${evt.name}" (${evt.agentId})`);
+        }
+      }
+    });
+    mesh.loadPersistedState();
+    if (flags.lead) mesh.createAgent({ id: 'lead', preferredCore: flags.lead });
+    if (flags.coder) mesh.createAgent({ id: 'coder', preferredCore: flags.coder });
+    if (flags.reviewer) mesh.createAgent({ id: 'reviewer', preferredCore: flags.reviewer });
+
+    const bridge = await mesh.startMcpBridgeServer();
+    console.log(`[Mesh] Routed Loopback MCP Bridge active at ${bridge.url}`);
+    try {
+      const res = await mesh.sendToAgent({
+        fromId: 'commander',
+        targetId: 'lead',
+        message: text,
+        priority: true,
+        wait: true
+      });
+      console.log(`[Mesh Lead Reply (${res.harnessId}:${res.modelId})]:\n${res.reply}`);
+    } finally {
+      await bridge.close();
     }
     return;
   }
@@ -1944,7 +3091,11 @@ async function main() {
   console.log(`BotAutoTask CLI — Pluggable Multi-Core & Free-Model Orchestrator
 Commands:
   botautotask cores                                         List all pluggable AI cores & health
+  botautotask auth                                          Inspect Zero-API-Key local login sessions
   botautotask models                                        Discover & rank best free/idle models
+  botautotask agents                                        List Multi-Agent Mesh coworkers & status
+  botautotask team "<goal>" [--path <dir>]                  Run GrokBot+NekoBot multi-agent coworker mesh
+  botautotask steer <agentId> "<instruction>"               Inject priority mid-run steer into an agent
   botautotask logs [--conv <id>]                            Read latest Antigravity IDE transcript.jsonl
   botautotask supervise "<goal>" [--worker <id>] [--check]  Supervisor reads IDE logs & issues directives
   botautotask submit "<goal>" [--core <id>]                 Queue a goal persistently (runs when online)

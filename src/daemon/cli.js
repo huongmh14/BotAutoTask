@@ -2,6 +2,8 @@
 import { createRuntime, LocalDaemon } from './local-daemon.js';
 import { findLatestAntigravityTranscript } from '../core/log-reader.js';
 import { SupervisorLoop } from '../core/supervisor.js';
+import { getZeroKeyAuthStatus } from '../core/auth-bridge.js';
+import { AgentMesh } from '../core/agent-mesh.js';
 
 const [, , subcommand = 'help', ...rest] = process.argv;
 
@@ -18,7 +20,7 @@ function parseCliFlags(tokens) {
       positional.push(t);
     }
   }
-  return { flags, text: positional.join(' ').trim() };
+  return { flags, text: positional.join(' ').trim(), positional };
 }
 
 async function main() {
@@ -29,6 +31,20 @@ async function main() {
     for (const h of registry.list()) {
       const ok = await h.isAvailable();
       console.log(`- ${h.id.padEnd(15)} : ${ok ? 'READY (Available)' : 'OFFLINE / NOT INSTALLED'}`);
+    }
+    return;
+  }
+
+  if (subcommand === 'auth' || subcommand === 'login') {
+    console.log('=== Zero-API-Key Local Session Status (GrokBot + Neko-Bot Bridge) ===');
+    const auth = await getZeroKeyAuthStatus();
+    for (const [provider, info] of Object.entries(auth)) {
+      const state = info.authenticated
+        ? `SIGNED IN (${info.authMode})`
+        : info.installed
+          ? `INSTALLED — Run: ${info.loginCommand}`
+          : `NOT INSTALLED — Run: ${info.loginCommand}`;
+      console.log(`- ${provider.padEnd(14)} : ${state}`);
     }
     return;
   }
@@ -45,6 +61,77 @@ async function main() {
     }
     for (const c of candidates.slice(0, 15)) {
       console.log(`- [${c.harnessId}] ${c.modelId.padEnd(42)} (score: ${c.score})`);
+    }
+    return;
+  }
+
+  if (subcommand === 'agents') {
+    const mesh = new AgentMesh({ registry, ranker });
+    mesh.loadPersistedState();
+    console.log('=== Multi-Agent Mesh Roster (GrokBot + Neko-Bot Coworkers) ===');
+    for (const a of mesh.listAgents()) {
+      console.log(
+        `- [${a.id.padEnd(10)}] ${a.name.padEnd(32)} | core: ${a.preferredCore.padEnd(10)} | status: ${a.status.padEnd(8)} | steers: ${a.pendingSteers}`
+      );
+    }
+    return;
+  }
+
+  if (subcommand === 'steer') {
+    const { positional } = parseCliFlags(rest);
+    const [targetId, ...msgParts] = positional;
+    const message = msgParts.join(' ').trim();
+    if (!targetId || !message) {
+      console.error('Usage: botautotask steer <agentId> "<steering instruction>"');
+      process.exit(1);
+    }
+    const mesh = new AgentMesh({ registry, ranker });
+    mesh.loadPersistedState();
+    const res = mesh.steerAgent(targetId, message, 'commander');
+    console.log(res.ok ? `[Steer] ${res.message}` : `[Steer Error] ${res.reason}`);
+    return;
+  }
+
+  if (subcommand === 'team') {
+    const { flags, text } = parseCliFlags(rest);
+    if (!text) {
+      console.error(
+        'Usage: botautotask team "<goal>" [--path D:\\repo] [--lead opencode] [--coder codex] [--reviewer claude]'
+      );
+      process.exit(1);
+    }
+    const mesh = new AgentMesh({
+      registry,
+      ranker,
+      workspaceDir: flags.path || process.cwd(),
+      onEvent: (evt) => {
+        if (evt.type === 'agent_message') {
+          console.log(`[Mesh] ${evt.fromId} -> ${evt.targetId}: ${evt.message.slice(0, 120)}`);
+        } else if (evt.type === 'agent_steered') {
+          console.log(`[Mesh Steer] ${evt.from} -> ${evt.agentId}: ${evt.message}`);
+        } else if (evt.type === 'agent_created') {
+          console.log(`[Mesh] Created agent "${evt.name}" (${evt.agentId})`);
+        }
+      }
+    });
+    mesh.loadPersistedState();
+    if (flags.lead) mesh.createAgent({ id: 'lead', preferredCore: flags.lead });
+    if (flags.coder) mesh.createAgent({ id: 'coder', preferredCore: flags.coder });
+    if (flags.reviewer) mesh.createAgent({ id: 'reviewer', preferredCore: flags.reviewer });
+
+    const bridge = await mesh.startMcpBridgeServer();
+    console.log(`[Mesh] Routed Loopback MCP Bridge active at ${bridge.url}`);
+    try {
+      const res = await mesh.sendToAgent({
+        fromId: 'commander',
+        targetId: 'lead',
+        message: text,
+        priority: true,
+        wait: true
+      });
+      console.log(`[Mesh Lead Reply (${res.harnessId}:${res.modelId})]:\n${res.reply}`);
+    } finally {
+      await bridge.close();
     }
     return;
   }
@@ -136,7 +223,11 @@ async function main() {
   console.log(`BotAutoTask CLI — Pluggable Multi-Core & Free-Model Orchestrator
 Commands:
   botautotask cores                                         List all pluggable AI cores & health
+  botautotask auth                                          Inspect Zero-API-Key local login sessions
   botautotask models                                        Discover & rank best free/idle models
+  botautotask agents                                        List Multi-Agent Mesh coworkers & status
+  botautotask team "<goal>" [--path <dir>]                  Run GrokBot+NekoBot multi-agent coworker mesh
+  botautotask steer <agentId> "<instruction>"               Inject priority mid-run steer into an agent
   botautotask logs [--conv <id>]                            Read latest Antigravity IDE transcript.jsonl
   botautotask supervise "<goal>" [--worker <id>] [--check]  Supervisor reads IDE logs & issues directives
   botautotask submit "<goal>" [--core <id>]                 Queue a goal persistently (runs when online)

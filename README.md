@@ -125,7 +125,23 @@ Agent của Bot đóng vai **Supervisor** (dùng model free nhẹ), giao việc 
 botautotask supervise "Hoàn thiện tính năng X và đảm bảo pass toàn bộ test" --path "D:\my-project" --check "npm test"
 ```
 
-### 6. Đưa mục tiêu vào Hàng đợi Bền vững (Chờ có mạng / Bật máy tự chạy)
+### 6. Chế độ GrokBot + Neko-Bot: Đăng nhập 0-API-Key & Mạng lưới Đa Agent Tự Điều Khiển (`team` / `steer`)
+Không cần mua API key rời — chỉ cần đăng nhập sẵn vào `codex` (`~/.codex/auth.json` ChatGPT OAuth), `claude` (`~/.claude/.credentials.json`), `opencode` hoặc `Antigravity`:
+```powershell
+# 1. Kiểm tra trạng thái đăng nhập Local OAuth (Zero-API-Key):
+botautotask auth
+
+# 2. Xem danh sách biệt đội Agent (lead, coder, reviewer...):
+botautotask agents
+
+# 3. Giao mục tiêu cho Biệt đội Đa Agent (Lead tự tạo/nhắn tin điều khiển Coder & Reviewer qua Loopback MCP Bridge):
+botautotask team "Thiết kế và code module X, giao coder viết code và reviewer kiểm tra" --path "D:\my-project"
+
+# 4. Bơm chỉ thị khẩn cấp (Priority Steer) trực tiếp từ bạn vào bất kỳ Agent nào đang chạy mà không mất ngữ cảnh:
+botautotask steer coder "Không dùng thư viện ngoài, chỉ dùng node:crypto"
+```
+
+### 7. Đưa mục tiêu vào Hàng đợi Bền vững (Chờ có mạng / Bật máy tự chạy)
 ```powershell
 botautotask submit "Refactor toàn bộ thư mục api/" --path "D:\my-project"
 ```
@@ -143,27 +159,29 @@ flowchart TD
         CloudWorker["⚙️ GitHub Actions Cloud Worker\n(Tự chạy bằng OpenCode Free khi PC tắt)"]
     end
 
-    subgraph LocalPC ["💻 MÁY TÍNH CỦA BẠN (Local Daemon + Supervisor Loop)"]
+    subgraph LocalPC ["💻 MÁY TÍNH CỦA BẠN (Local Daemon + Supervisor + AgentMesh)"]
         NetGate["🌐 Network Gate & Offline Queue\n(~/.botautotask/queue.json)"]
+        Mesh["🕸️ AgentMesh + Loopback HTTP MCP Bridge\n(CreateAgent, SendToAgent, CheckSubagent, MessageSubagent, StopSubagent)"]
         Supervisor["👁️ SupervisorLoop + LogReader\n(Đọc transcript.jsonl / JSON stream / git diff -> Sinh DIRECTIVE.md)"]
         Orchestrator["🔄 GoalOrchestrator & FreeModelRanker\n(Tự động đổi Model/Lõi khi gặp 429 Limit)"]
-        Contract["🔌 AgentHarness Contract (Chuẩn cắm Lõi)"]
+        AuthBridge["🔐 Zero-Key AuthBridge\n(ChatGPT/Codex OAuth SSE, Claude Session, OpenCode Zen)"]
     end
 
     subgraph Cores ["🤖 Pluggable AI Cores (Tách bạch 100%)"]
         OC["OpenCode CLI (--format json)\n(deepseek-v4.1-flash-free, claude-sonnet-4-6, gpt-5.6-luna...)"]
         AGY["Antigravity IDE\n(transcript.jsonl + DIRECTIVE.md)"]
-        CC["Claude / Codex CLI"]
+        CC["Claude Code / Codex Direct OAuth\n(~/.codex/auth.json & ~/.claude)"]
         NK["Neko Core\n(HTTP/SSE Adapter)"]
         CUST["Custom AI Core\n(Lõi tự phát triển)"]
     end
 
     CloudCore <-->|"1. Heartbeat / Poll (30s)\nKhi PC bật & có mạng"| NetGate
     CloudCore -.->|"2. Khi PC tắt (>90s Lease hết hạn)\nTrigger workflow_dispatch"| CloudWorker
-    NetGate --> Supervisor
+    NetGate --> Mesh & Supervisor
+    Mesh <--> Orchestrator
     Supervisor <--> Orchestrator
-    Orchestrator --> Contract
-    Contract --> OC & AGY & CC & NK & CUST
+    Orchestrator --> AuthBridge
+    AuthBridge --> OC & AGY & CC & NK & CUST
 ```
 
 ### Cấu trúc Thư mục Mã nguồn
@@ -172,6 +190,8 @@ flowchart TD
 | :--- | :--- |
 | [`dist/botautotask.mjs`](dist/botautotask.mjs) | **File thực thi độc lập duy nhất** (đã đóng gói toàn bộ mã nguồn, 0 dependency). |
 | [`config/default-config.json`](config/default-config.json) | Cấu hình thứ tự ưu tiên model free, thời gian cooldown, bật/tắt hoặc thêm lõi AI mới. |
+| [`src/core/auth-bridge.js`](src/core/auth-bridge.js) | **Cầu nối Đăng nhập 0-API-Key** (kiểu GrokBot + Neko-Bot): đọc trực tiếp phiên đăng nhập `~/.codex/auth.json` (tự refresh OAuth & gọi thẳng `chatgpt.com/backend-api/codex/responses`), `~/.claude`, và OpenCode. |
+| [`src/core/agent-mesh.js`](src/core/agent-mesh.js) | **Mạng lưới Đa Agent (`AgentMesh`) & Loopback HTTP MCP Server**: cho phép các Agent tự tạo đồng đội (`CreateAgent`), giao việc (`SendToAgent`), kiểm tra (`CheckSubagent`) và bẻ lái giữa chừng (`MessageSubagent`). |
 | [`src/core/model-discovery.js`](src/core/model-discovery.js) | Bộ quét động và chấm điểm xếp hạng các model miễn phí (`FreeModelRanker`). |
 | [`src/core/log-reader.js`](src/core/log-reader.js) | Bộ đọc log thời gian thực từ `transcript.jsonl` của Antigravity, luồng `--format json` của OpenCode và cầu nối `.botautotask/DIRECTIVE.md`. |
 | [`src/core/supervisor.js`](src/core/supervisor.js) | Vòng lặp **Supervisor $\leftrightarrow$ Worker IDE** (`SupervisorLoop`): đọc log + `git status/diff` + test, tự chấm điểm và ra chỉ thị sửa lỗi tiếp theo. |
