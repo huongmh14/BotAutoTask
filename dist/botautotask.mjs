@@ -3985,13 +3985,12 @@ async function waitForNetwork({
 
 // --- MODULE: src/ui/dashboard-html.js ---
 /**
- * BotAutoTask — "52Hz Whale Pod" Original Messenger / Telegram UI.
- * Inspired by the 52-Hertz Whale (the unique acoustic frequency in the deep ocean)
- * combined with the effortless everyday usability of Telegram & Messenger:
- *   - Bespoke SVG Whale & 52Hz Sonar visual identity (Arctic Ocean Light + Deep Trench Dark themes)
- *   - Live 52.0 Hz acoustic waveform indicator that pulses when agents transmit/work
- *   - Telegram-style pinned mission bar, left/right chat bubbles, @route sonar pills,
- *     and floating acoustic composer.
+ * BotAutoTask — Web Dashboard UI.
+ * Clean 2-column chat layout (Messenger / Telegram style):
+ *   - Left sidebar: chat list (group channel + AI coworkers), search, connection state
+ *   - Right: conversation with left/right bubbles, typing indicator, composer
+ *   - Ocean-blue primary palette (#0284C7) with light / deep-ocean dark themes
+ *   - Original friendly whale mascot (pure inline SVG, no external assets)
  */
 
 function renderDashboardHtml() {
@@ -4000,58 +3999,61 @@ function renderDashboardHtml() {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>52Hz — BotAutoTask — Tactical Coworker Mesh</title>
+<title>BotAutoTask — Tactical Coworker Mesh</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230284C7'/%3E%3Cpath d='M23 30.5C18.5 27.5 13 21.5 10.5 15C12.5 20.5 14 27 16.2 33.5C14 40 12.5 46.5 10.5 52.5C13 46 18.5 40.5 23 37.5Z' fill='%23fff'/%3E%3Cpath d='M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z' fill='%23fff'/%3E%3Ccircle cx='49.5' cy='27.5' r='2.2' fill='%230369A1'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root, [data-theme="ocean-light"] {
-    --bg-sidebar: #EBF3F9;
-    --bg-sidebar-card: #FFFFFF;
-    --bg-main: #F5F9FC;
-    --bg-header: rgba(245, 249, 252, 0.88);
-    --bg-bubble-in: #FFFFFF;
-    --bg-bubble-out: linear-gradient(135deg, #0369A1 0%, #0D9488 100%);
-    --bg-hover: rgba(14, 116, 144, 0.08);
-    --bg-pill: #E0EEF7;
-    --text-primary: #0C2536;
-    --text-secondary: #47677D;
-    --text-muted: #7B97AB;
+    --bg-sidebar: #EFF5FA;
+    --bg-card: #FFFFFF;
+    --bg-main: #FFFFFF;
+    --bg-header: rgba(255, 255, 255, 0.92);
+    --bg-hover: rgba(2, 132, 199, 0.07);
+    --bg-active: #DCEEFA;
+    --bg-bubble-in: #EEF3F8;
+    --bg-bubble-out: #0284C7;
+    --bg-pill: #E3F0FA;
+    --text-primary: #12293B;
+    --text-secondary: #51708A;
+    --text-muted: #8FA9BD;
     --text-out: #FFFFFF;
-    --border: #D5E5F0;
-    --border-strong: #B8D2E3;
+    --border: #E2ECF4;
+    --border-strong: #C6DAEA;
     --accent: #0284C7;
-    --accent-teal: #0D9488;
-    --accent-glow: rgba(2, 132, 199, 0.16);
-    --ok: #10B981;
-    --warn: #F59E0B;
-    --err: #EF4444;
-    --shadow-sm: 0 2px 8px rgba(12, 37, 54, 0.05);
-    --shadow-md: 0 12px 32px rgba(12, 37, 54, 0.12);
+    --accent-strong: #0369A1;
+    --accent-soft: rgba(2, 132, 199, 0.12);
+    --ok: #16A34A;
+    --warn: #D97706;
+    --err: #DC2626;
+    --shadow-sm: 0 1px 3px rgba(16, 42, 60, 0.07);
+    --shadow-md: 0 16px 40px rgba(16, 42, 60, 0.18);
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
   }
 
-  [data-theme="deep-trench"] {
-    --bg-sidebar: #07131E;
-    --bg-sidebar-card: #0D2133;
-    --bg-main: #0A1929;
-    --bg-header: rgba(10, 25, 41, 0.88);
-    --bg-bubble-in: #10263C;
-    --bg-bubble-out: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
-    --bg-hover: rgba(56, 189, 248, 0.1);
-    --bg-pill: #132F4C;
-    --text-primary: #E6F4FE;
-    --text-secondary: #8AB4D0;
-    --text-muted: #567D99;
+  [data-theme="ocean-deep"] {
+    --bg-sidebar: #0A1B2B;
+    --bg-card: #12293E;
+    --bg-main: #0D2236;
+    --bg-header: rgba(13, 34, 54, 0.92);
+    --bg-hover: rgba(56, 189, 248, 0.09);
+    --bg-active: rgba(56, 189, 248, 0.16);
+    --bg-bubble-in: #173650;
+    --bg-bubble-out: #0284C7;
+    --bg-pill: #16334D;
+    --text-primary: #E8F4FD;
+    --text-secondary: #93B7D2;
+    --text-muted: #5E82A0;
     --text-out: #FFFFFF;
-    --border: #17344F;
-    --border-strong: #234E73;
-    --accent: #38BDF8;
-    --accent-teal: #2DD4BF;
-    --accent-glow: rgba(56, 189, 248, 0.2);
-    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.28);
-    --shadow-md: 0 16px 40px rgba(0, 0, 0, 0.55);
+    --border: #1B3A57;
+    --border-strong: #28506F;
+    --accent: #4DB8EC;
+    --accent-strong: #7CCBF2;
+    --accent-soft: rgba(77, 184, 236, 0.16);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 16px 40px rgba(0, 0, 0, 0.5);
   }
 
   * {
@@ -4076,102 +4078,81 @@ function renderDashboardHtml() {
     color: inherit;
   }
 
-  /* 2-Column Ocean Messenger Layout */
-  .whale-app {
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ===== 2-column chat layout ===== */
+  .app-shell {
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr);
     height: 100dvh;
     width: 100vw;
-    position: relative;
   }
-  .whale-app.sidebar-collapsed {
+  .app-shell.sidebar-collapsed {
     grid-template-columns: 0px minmax(0, 1fr);
   }
-  .whale-app.sidebar-collapsed .pod-sidebar {
+  .app-shell.sidebar-collapsed .sidebar {
     overflow: hidden;
     border-right: none;
   }
 
-  /* ================= LEFT SIDEBAR: THE 52Hz POD ================= */
-  .pod-sidebar {
+  /* ===== LEFT SIDEBAR ===== */
+  .sidebar {
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     height: 100%;
-    user-select: none;
     min-width: 0;
-    position: relative;
+    user-select: none;
   }
 
-  .pod-brand-bar {
+  .brand-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 16px 12px;
+    padding: 14px 14px 10px;
   }
-
-  .whale-brand {
+  .brand {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
   }
-
-  .whale-crest {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
-    color: #FFFFFF;
+  .brand-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #38BDF8, #0369A1);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px var(--accent-glow);
     flex-shrink: 0;
+    box-shadow: 0 4px 12px var(--accent-soft);
   }
-  .whale-crest svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .brand-text-wrap {
-    display: flex;
-    flex-direction: column;
+  .brand-logo svg {
+    width: 27px;
+    height: 27px;
   }
   .brand-name {
-    font-size: 16px;
+    font-size: 15.5px;
     font-weight: 800;
-    letter-spacing: -0.02em;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .hz-tag {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: var(--accent-glow);
-    color: var(--accent);
-    border: 1px solid var(--border-strong);
+    letter-spacing: -0.01em;
   }
   .brand-sub {
     font-size: 11px;
     color: var(--text-secondary);
-    font-weight: 500;
   }
-
-  .top-icon-group {
+  .brand-actions {
     display: flex;
-    align-items: center;
-    gap: 4px;
+    gap: 2px;
   }
 
   .icon-btn {
     width: 32px;
     height: 32px;
-    border-radius: 10px;
+    border-radius: 9px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
@@ -4179,7 +4160,7 @@ function renderDashboardHtml() {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, transform 0.12s;
+    transition: background 0.15s, color 0.15s;
   }
   .icon-btn:hover {
     background: var(--bg-hover);
@@ -4190,72 +4171,25 @@ function renderDashboardHtml() {
     height: 17px;
   }
 
-  /* 52Hz Live Sonar Frequency Strip */
-  .sonar-strip {
-    margin: 0 14px 10px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    background: var(--bg-sidebar-card);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    box-shadow: var(--shadow-sm);
+  .search-wrap {
+    padding: 2px 12px 10px;
   }
-  .sonar-freq-label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--accent);
-  }
-  .sonar-wave-bars {
-    display: inline-flex;
-    align-items: center;
-    gap: 2.5px;
-    height: 14px;
-  }
-  .sonar-wave-bars i {
-    width: 2.5px;
-    border-radius: 2px;
-    background: var(--accent);
-    display: block;
-    height: 5px;
-    transition: height 0.2s;
-  }
-  .sonar-wave-bars.active i:nth-child(1) { animation: wave52 0.9s infinite ease-in-out 0.0s; }
-  .sonar-wave-bars.active i:nth-child(2) { animation: wave52 0.9s infinite ease-in-out 0.15s; }
-  .sonar-wave-bars.active i:nth-child(3) { animation: wave52 0.9s infinite ease-in-out 0.3s; }
-  .sonar-wave-bars.active i:nth-child(4) { animation: wave52 0.9s infinite ease-in-out 0.45s; }
-  @keyframes wave52 {
-    0%, 100% { height: 4px; opacity: 0.55; }
-    50% { height: 14px; opacity: 1; }
-  }
-
-  /* Search Input */
-  .pod-search-wrap {
-    padding: 0 14px 10px;
-  }
-  .pod-search {
+  .search-box {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: var(--bg-sidebar-card);
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 7px 13px;
-    box-shadow: var(--shadow-sm);
+    border-radius: 10px;
+    padding: 7px 12px;
   }
-  .pod-search svg {
+  .search-box svg {
     width: 14px;
     height: 14px;
     color: var(--text-muted);
     flex-shrink: 0;
   }
-  .pod-search input {
+  .search-box input {
     border: none;
     outline: none;
     background: transparent;
@@ -4263,229 +4197,196 @@ function renderDashboardHtml() {
     font-size: 13px;
     color: var(--text-primary);
   }
-  .pod-search input::placeholder {
+  .search-box input::placeholder {
     color: var(--text-muted);
   }
 
-  /* Pod Roster Scroll */
-  .pod-scroll {
+  .chat-list-scroll {
     flex: 1;
     overflow-y: auto;
-    padding: 0 10px 12px;
+    padding: 0 8px 10px;
   }
-
-  .pod-sec-title {
+  .list-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 8px 5px;
+    padding: 10px 8px 4px;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     color: var(--text-secondary);
   }
-
-  .pod-list {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    margin-bottom: 12px;
+  .list-title .count {
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
   }
 
-  .pod-item {
+  .chat-item {
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 10px;
     width: 100%;
-    padding: 10px 12px;
-    border-radius: 15px;
-    border: 1px solid transparent;
+    padding: 8px;
+    border-radius: 12px;
+    border: none;
     background: transparent;
     cursor: pointer;
     text-align: left;
-    transition: background 0.15s, border-color 0.15s, transform 0.12s;
+    transition: background 0.13s;
   }
-  .pod-item:hover {
+  .chat-item:hover {
     background: var(--bg-hover);
   }
-  .pod-item.active {
-    background: var(--bg-sidebar-card);
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow-sm);
+  .chat-item.active {
+    background: var(--bg-active);
   }
 
-  /* Whale Avatar per Coworker */
-  .whale-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
+  .avatar {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: #FFFFFF;
     flex-shrink: 0;
-    position: relative;
-    box-shadow: 0 3px 10px rgba(2, 132, 199, 0.18);
+    color: #FFFFFF;
   }
-  .whale-avatar.sm {
-    width: 36px;
-    height: 36px;
-    border-radius: 12px;
+  .avatar svg {
+    width: 27px;
+    height: 27px;
   }
-  .whale-avatar svg {
-    width: 22px;
-    height: 22px;
+  .avatar.sm {
+    width: 34px;
+    height: 34px;
   }
-  .whale-avatar.sm svg {
-    width: 19px;
-    height: 19px;
+  .avatar.sm svg {
+    width: 21px;
+    height: 21px;
   }
 
-  .beacon-dot {
+  .status-dot {
     position: absolute;
-    right: -2px;
-    bottom: -2px;
-    width: 12px;
-    height: 12px;
+    right: 0;
+    bottom: 1px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
     border: 2px solid var(--bg-sidebar);
     background: var(--ok);
   }
-  .pod-item.active .beacon-dot {
-    border-color: var(--bg-sidebar-card);
+  .chat-item.active .status-dot {
+    border-color: var(--bg-active);
   }
-  .beacon-dot.working {
+  .status-dot.working {
     background: var(--warn);
-    animation: sonarPulse 1.3s infinite ease-in-out;
+    animation: pulse 1.4s infinite ease-in-out;
   }
-  .beacon-dot.queued { background: var(--accent); }
-  .beacon-dot.error { background: var(--err); }
+  .status-dot.queued { background: var(--accent); }
+  .status-dot.error { background: var(--err); }
 
-  @keyframes sonarPulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
-    50% { transform: scale(1.18); box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.22); }
   }
 
-  .pod-meta {
+  .chat-item-main {
     min-width: 0;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
-  .pod-row-top {
+  .chat-item-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 6px;
   }
-  .pod-name {
+  .chat-item-name {
     font-size: 13.5px;
     font-weight: 700;
-    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .pod-freq-tag {
-    font-family: var(--font-mono);
+  .role-tag {
     font-size: 10px;
-    padding: 1px 6px;
+    font-weight: 700;
+    padding: 1px 7px;
     border-radius: 999px;
     background: var(--bg-pill);
     color: var(--accent);
-    font-weight: 600;
+    letter-spacing: 0.02em;
     flex-shrink: 0;
   }
-  .pod-preview {
+  .chat-item-preview {
     font-size: 12px;
     color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-top: 2px;
   }
 
-  /* Bottom Ocean Control Dock */
-  .pod-footer {
+  .sidebar-footer {
     border-top: 1px solid var(--border);
-    padding: 10px 12px;
+    padding: 8px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
+  }
+  .footer-icons {
+    display: flex;
+    gap: 2px;
   }
 
-  .dock-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-sidebar-card);
-    color: var(--text-primary);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: border-color 0.14s, background 0.14s;
-  }
-  .dock-btn:hover {
-    border-color: var(--accent);
-  }
-  .dock-btn svg {
-    width: 14px;
-    height: 14px;
-    color: var(--accent);
-  }
-
-  /* Connection state pill */
   .conn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    font-weight: 600;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     color: var(--text-secondary);
   }
   .conn-dot {
-    width: 7px;
-    height: 7px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--err);
   }
   .conn.LIVE .conn-dot { background: var(--ok); }
   .conn.POLLING .conn-dot { background: var(--warn); }
 
-  /* ================= RIGHT MAIN CHAT: 52Hz SONAR STREAM ================= */
-  .ocean-main {
+  /* ===== RIGHT MAIN CHAT ===== */
+  .chat-main {
     display: flex;
     flex-direction: column;
     height: 100dvh;
-    background:
-      radial-gradient(circle at 85% 12%, var(--accent-glow), transparent 38%),
-      var(--bg-main);
     min-width: 0;
+    background: var(--bg-main);
   }
 
-  .ocean-header {
-    height: 64px;
-    padding: 0 22px;
+  .chat-header {
+    height: 62px;
+    padding: 0 18px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-header);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(10px);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
     flex-shrink: 0;
   }
-
-  .ocean-header-left {
+  .chat-header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     min-width: 0;
   }
-
   .header-info {
     min-width: 0;
   }
@@ -4495,9 +4396,11 @@ function renderDashboardHtml() {
     gap: 8px;
   }
   .header-title {
-    font-size: 15.5px;
+    font-size: 15px;
     font-weight: 800;
-    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .header-sub {
     font-size: 12px;
@@ -4506,171 +4409,130 @@ function renderDashboardHtml() {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
-  .ocean-header-actions {
+  .header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
-  .action-pill-btn {
+  .pill-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
     border-radius: 999px;
     border: 1px solid var(--border-strong);
-    background: var(--bg-sidebar-card);
+    background: var(--bg-card);
     color: var(--text-primary);
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.14s;
+    transition: border-color 0.14s, color 0.14s;
+    white-space: nowrap;
   }
-  .action-pill-btn:hover {
+  .pill-btn:hover {
     border-color: var(--accent);
     color: var(--accent);
   }
-  .action-pill-btn svg {
+  .pill-btn svg {
     width: 14px;
     height: 14px;
   }
 
-  /* Telegram-style Pinned Mission / Branch Bar */
-  .pinned-sonar-bar {
-    padding: 7px 22px;
-    background: var(--bg-pill);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
-  .pinned-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .pinned-bar-indicator {
-    width: 3px;
-    height: 18px;
-    border-radius: 2px;
-    background: var(--accent);
-    flex-shrink: 0;
-  }
-
-  /* Chat Stream */
   .chat-stream {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 28px;
+    padding: 22px 26px;
     display: flex;
     flex-direction: column;
     gap: 14px;
   }
 
-  /* 52Hz Whale Empty State */
-  .whale-welcome {
-    margin: auto;
-    max-width: 510px;
-    text-align: center;
-    padding: 28px 18px;
-  }
-  .whale-hero-art {
-    width: 108px;
-    height: 108px;
-    margin: 0 auto 16px;
-    border-radius: 50%;
-    background: var(--bg-pill);
-    border: 1px solid var(--border-strong);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent);
-    position: relative;
-    box-shadow: 0 0 0 10px var(--accent-glow);
-  }
-  .whale-hero-art svg {
-    width: 58px;
-    height: 58px;
-  }
-  .whale-welcome h2 {
-    font-size: 23px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
-    margin-bottom: 8px;
-  }
-  .whale-welcome p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 22px;
-  }
-
-  .sonar-quick-grid {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 9px;
-  }
-  .sonar-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 9px 15px;
-    border-radius: 999px;
-    background: var(--bg-sidebar-card);
-    border: 1px solid var(--border-strong);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-    cursor: pointer;
-    box-shadow: var(--shadow-sm);
-    transition: transform 0.14s, border-color 0.14s, color 0.14s;
-  }
-  .sonar-chip:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .sonar-chip svg {
-    width: 15px;
-    height: 15px;
-    color: var(--accent);
-  }
-
-  /* Day Separator */
   .day-sep {
     align-self: center;
     font-size: 11.5px;
     font-weight: 600;
     color: var(--text-secondary);
     background: var(--bg-pill);
-    border: 1px solid var(--border);
-    padding: 3px 13px;
+    padding: 3px 12px;
     border-radius: 999px;
-    margin: 4px 0;
   }
 
-  /* Telegram / Messenger Chat Bubbles */
+  /* ===== Welcome / empty state ===== */
+  .welcome {
+    margin: auto;
+    max-width: 480px;
+    text-align: center;
+    padding: 20px 10px;
+  }
+  .hero-art {
+    width: 130px;
+    height: 130px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    background: var(--bg-pill);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 12px var(--accent-soft);
+  }
+  .hero-art svg {
+    width: 88px;
+    height: 88px;
+  }
+  .welcome h2 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .welcome p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin-bottom: 20px;
+  }
+  .quick-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .quick-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 14px;
+    border-radius: 999px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.14s, color 0.14s;
+  }
+  .quick-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .quick-chip svg {
+    width: 15px;
+    height: 15px;
+    color: var(--accent);
+  }
+
+  /* ===== Messages ===== */
   .msg-row {
     display: flex;
     align-items: flex-end;
-    gap: 10px;
-    max-width: 78%;
+    gap: 8px;
+    max-width: 76%;
   }
-  .msg-row.outgoing {
+  .msg-row.out {
     align-self: flex-end;
     flex-direction: row-reverse;
   }
-  .msg-row.incoming {
+  .msg-row.in {
     align-self: flex-start;
   }
 
@@ -4680,29 +4542,32 @@ function renderDashboardHtml() {
     gap: 4px;
     min-width: 0;
   }
-  .msg-row.outgoing .msg-stack {
+  .msg-row.out .msg-stack {
     align-items: flex-end;
   }
 
-  .msg-meta-line {
+  .msg-meta {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 0 4px;
     font-size: 12px;
+    flex-wrap: wrap;
   }
   .msg-author {
     font-weight: 700;
-    color: var(--text-primary);
   }
-  .msg-route-tag {
-    font-family: var(--font-mono);
+  .route-tag {
     font-size: 10.5px;
+    font-weight: 700;
     padding: 1px 7px;
     border-radius: 999px;
     background: var(--bg-pill);
     color: var(--accent);
-    font-weight: 600;
+  }
+  .msg-core {
+    font-size: 11px;
+    color: var(--text-muted);
   }
   .msg-time {
     font-size: 11px;
@@ -4710,63 +4575,75 @@ function renderDashboardHtml() {
   }
 
   .msg-bubble {
-    padding: 11px 16px;
-    border-radius: 18px;
+    padding: 10px 14px;
+    border-radius: 16px;
     font-size: 14px;
-    line-height: 1.56;
+    line-height: 1.55;
     word-break: break-word;
     white-space: pre-wrap;
-    box-shadow: var(--shadow-sm);
   }
-  .msg-row.incoming .msg-bubble {
+  .msg-row.in .msg-bubble {
     background: var(--bg-bubble-in);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
     border-bottom-left-radius: 5px;
   }
-  .msg-row.outgoing .msg-bubble {
+  .msg-row.out .msg-bubble {
     background: var(--bg-bubble-out);
     color: var(--text-out);
     border-bottom-right-radius: 5px;
+    box-shadow: 0 2px 8px var(--accent-soft);
   }
   .msg-bubble.priority {
     border: 2px solid var(--warn);
   }
 
-  /* Sonar Ripple Typing Bubble */
-  .sonar-typing {
+  /* Typing indicator */
+  .typing-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    max-width: 76%;
+  }
+  .typing-bubble {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px 15px;
+    gap: 9px;
     background: var(--bg-bubble-in);
-    border: 1px solid var(--border-strong);
-    border-radius: 18px;
+    border-radius: 16px;
+    border-bottom-left-radius: 5px;
+    padding: 10px 14px;
     font-size: 12.5px;
     color: var(--text-secondary);
-    align-self: flex-start;
-    box-shadow: var(--shadow-sm);
   }
-  .sonar-rings {
-    width: 10px;
-    height: 10px;
+  .typing-dots {
+    display: inline-flex;
+    gap: 3px;
+    flex-shrink: 0;
+  }
+  .typing-dots i {
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: var(--accent);
-    box-shadow: 0 0 0 0 var(--accent-glow);
-    animation: sonarPulse 1.2s infinite;
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .typing-dots i:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots i:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.55; }
+    30% { transform: translateY(-4px); opacity: 1; }
   }
 
-  /* ================= BOTTOM COMPOSER BAR ================= */
-  .composer-dock {
-    padding: 10px 22px 16px;
-    background: var(--bg-header);
+  /* ===== Composer ===== */
+  .composer {
+    padding: 8px 18px 14px;
     border-top: 1px solid var(--border);
+    background: var(--bg-header);
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
-
-  .composer-controls-row {
+  .composer-controls {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -4776,36 +4653,32 @@ function renderDashboardHtml() {
   }
   .ctrl-label {
     font-weight: 600;
-    color: var(--text-secondary);
   }
-  .ocean-select {
+  .select {
     padding: 4px 10px;
     border-radius: 8px;
     border: 1px solid var(--border-strong);
-    background: var(--bg-sidebar-card);
+    background: var(--bg-card);
     color: var(--text-primary);
     font-size: 12px;
     font-weight: 500;
     outline: none;
     cursor: pointer;
   }
-
   .composer-capsule {
     display: flex;
     align-items: center;
-    gap: 10px;
-    background: var(--bg-sidebar-card);
+    gap: 8px;
+    background: var(--bg-card);
     border: 1.5px solid var(--border-strong);
     border-radius: 999px;
-    padding: 6px 8px 6px 12px;
-    box-shadow: var(--shadow-sm);
+    padding: 5px 6px 5px 16px;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
   .composer-capsule:focus-within {
     border-color: var(--accent);
-    box-shadow: 0 0 0 4px var(--accent-glow);
+    box-shadow: 0 0 0 4px var(--accent-soft);
   }
-
   .composer-input {
     flex: 1;
     border: none;
@@ -4813,43 +4686,42 @@ function renderDashboardHtml() {
     background: transparent;
     font-size: 14px;
     color: var(--text-primary);
-    padding: 4px 0;
+    padding: 5px 0;
   }
   .composer-input::placeholder {
     color: var(--text-muted);
   }
-
-  .sonar-send-btn {
-    width: 36px;
-    height: 36px;
+  .send-btn {
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     border: none;
-    background: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
+    background: linear-gradient(135deg, #38BDF8, #0369A1);
     color: #FFFFFF;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
-    box-shadow: 0 3px 10px var(--accent-glow);
-    transition: transform 0.12s, opacity 0.12s;
+    box-shadow: 0 3px 10px var(--accent-soft);
+    transition: transform 0.12s;
   }
-  .sonar-send-btn:hover {
+  .send-btn:hover {
     transform: scale(1.05);
   }
-  .sonar-send-btn.stop-btn {
+  .send-btn.stop-btn {
     background: var(--err);
   }
-  .sonar-send-btn svg {
+  .send-btn svg {
     width: 17px;
     height: 17px;
   }
 
-  /* ================= MODALS ================= */
-  .tele-drawer-backdrop {
+  /* ===== Modals ===== */
+  .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(7, 19, 30, 0.45);
+    background: rgba(9, 27, 43, 0.45);
     backdrop-filter: blur(4px);
     display: none;
     align-items: center;
@@ -4857,14 +4729,13 @@ function renderDashboardHtml() {
     z-index: 100;
     padding: 16px;
   }
-  .tele-drawer-backdrop.open {
+  .modal-backdrop.open {
     display: flex;
   }
-
-  .tele-modal {
-    background: var(--bg-sidebar-card);
+  .modal {
+    background: var(--bg-card);
     border: 1px solid var(--border-strong);
-    border-radius: 20px;
+    border-radius: 16px;
     width: 100%;
     max-width: 560px;
     max-height: 82vh;
@@ -4873,8 +4744,8 @@ function renderDashboardHtml() {
     box-shadow: var(--shadow-md);
     overflow: hidden;
   }
-  .tele-head {
-    padding: 15px 18px;
+  .modal-head {
+    padding: 14px 18px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -4882,20 +4753,20 @@ function renderDashboardHtml() {
     font-weight: 800;
     font-size: 15px;
   }
-  .tele-body {
+  .modal-body {
     padding: 16px 18px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 14px;
   }
-  .tele-card {
+  .modal-card {
     background: var(--bg-main);
     border: 1px solid var(--border);
-    border-radius: 14px;
+    border-radius: 12px;
     padding: 12px 14px;
   }
-  .tele-card h4 {
+  .modal-card h4 {
     font-size: 11.5px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -4906,6 +4777,7 @@ function renderDashboardHtml() {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
     padding: 7px 0;
     border-bottom: 1px solid var(--border);
     font-size: 13px;
@@ -4926,15 +4798,19 @@ function renderDashboardHtml() {
     padding: 8px 12px;
     border-radius: 10px;
     border: 1px solid var(--border-strong);
-    background: var(--bg-sidebar-card);
+    background: var(--bg-card);
     color: var(--text-primary);
     font-size: 13px;
+    outline: none;
+  }
+  .form-input:focus {
+    border-color: var(--accent);
   }
   .primary-btn {
     padding: 9px 16px;
     border-radius: 10px;
     border: none;
-    background: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
+    background: linear-gradient(135deg, #38BDF8, #0369A1);
     color: #FFFFFF;
     font-weight: 700;
     font-size: 13px;
@@ -4942,10 +4818,10 @@ function renderDashboardHtml() {
   }
 
   @media (max-width: 760px) {
-    .whale-app {
+    .app-shell {
       grid-template-columns: 1fr;
     }
-    .pod-sidebar {
+    .sidebar {
       position: fixed;
       inset: 0 auto 0 0;
       width: 290px;
@@ -4953,108 +4829,94 @@ function renderDashboardHtml() {
       transform: translateX(-100%);
       transition: transform 0.2s ease;
     }
-    .pod-sidebar.mobile-open {
+    .sidebar.mobile-open {
       transform: translateX(0);
     }
   }
 </style>
 </head>
 <body>
-  <div class="whale-app" id="appLayout">
-    <!-- LEFT SIDEBAR: 52Hz WHALE POD -->
-    <aside class="pod-sidebar" id="sidebar">
-      <div class="pod-brand-bar">
-        <div class="whale-brand">
-          <div class="whale-crest" title="Cá Voi 52Hz — Tần số độc bản">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2 16c2.5-3.5 6.5-5.5 11-5.5 4.2 0 7.2 2 8.5 4.5-2.2 1.5-5.5 2.5-9.5 2.5-4.2 0-7.5-1-10-1.5Z"/>
-              <path d="M12 10.5C12 7.5 14.5 5 18 4c-.5 2.2-.2 4 1.5 5.5"/>
-              <circle cx="16.5" cy="13.5" r="1" fill="currentColor"/>
+  <div class="app-shell" id="appLayout">
+    <!-- LEFT SIDEBAR: CHAT LIST -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-bar">
+        <div class="brand">
+          <div class="brand-logo" title="BotAutoTask">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M23 30.5C18.5 27.5 13 21.5 10.5 15C12.5 20.5 14 27 16.2 33.5C14 40 12.5 46.5 10.5 52.5C13 46 18.5 40.5 23 37.5Z" fill="#FFFFFF"/>
+              <path d="M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z" fill="#FFFFFF"/>
+              <g clip-path="url(#brandbelly)"><ellipse cx="39" cy="46" rx="19" ry="8.5" fill="rgba(255,255,255,0.38)"/></g>
+              <defs><clipPath id="brandbelly"><path d="M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z"/></clipPath></defs>
+              <path d="M37 37.5C41 38.5 43.2 42.5 41.2 47C37.6 49 33.4 47.6 32.4 44C33.6 40.5 35 37.9 37 37.5Z" fill="rgba(255,255,255,0.82)"/>
+              <circle cx="49.5" cy="27.5" r="2.2" fill="rgba(3,105,161,0.8)"/>
+              <path d="M52 33.5C53.3 35.1 55.3 35.3 56.7 34" stroke="rgba(3,105,161,0.8)" stroke-width="1.7" stroke-linecap="round" fill="none"/>
             </svg>
           </div>
-          <div class="brand-text-wrap">
-            <div class="brand-name">
-              <span>Whale 52Hz</span>
-              <span class="hz-tag">52.0 Hz</span>
-            </div>
-            <div class="brand-sub">Deep Ocean Multi-Agent Pod</div>
+          <div class="brand-text">
+            <div class="brand-name">BotAutoTask</div>
+            <div class="brand-sub">Multi-Agent Chat</div>
           </div>
         </div>
 
-        <div class="top-icon-group">
-          <button class="icon-btn" onclick="toggleOceanTheme()" title="Đổi giao diện Sáng / Đại dương sâu (Dark)">
+        <div class="brand-actions">
+          <button class="icon-btn" onclick="toggleOceanTheme()" title="Đổi giao diện sáng / tối">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
-          <button class="icon-btn" onclick="openModal('spawnModal')" title="Triệu hồi cá voi đồng hành mới">
+          <button class="icon-btn" onclick="openModal('spawnModal')" title="Thêm đồng sự mới">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
       </div>
 
-      <!-- 52Hz Live Acoustic Frequency Strip -->
-      <div class="sonar-strip">
-        <div class="sonar-freq-label">
-          <div class="sonar-wave-bars active" id="sonarBars"><i></i><i></i><i></i><i></i></div>
-          <span id="freqStatusText">SONAR 52.0 Hz</span>
-        </div>
-        <span class="conn LIVE" id="connPill"><span class="conn-dot"></span><span id="sseText">LIVE</span></span>
-      </div>
-
-      <!-- Search -->
-      <div class="pod-search-wrap">
-        <div class="pod-search">
+      <div class="search-wrap">
+        <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
-          <input id="searchInput" type="text" placeholder="Dò tìm cá voi đồng hành..." oninput="renderRoster()" />
+          <input id="searchInput" type="text" placeholder="Tìm đồng sự..." oninput="renderRoster()" />
         </div>
       </div>
 
-      <div class="pod-scroll">
-        <div class="pod-sec-title">
-          <span>Kênh Đàn Cá Voi (Pod Group)</span>
-          <span>52 Hz</span>
-        </div>
-        <div class="pod-list" id="groupRoster"></div>
+      <div class="chat-list-scroll">
+        <div class="list-title"><span>Kênh nhóm</span></div>
+        <div id="groupRoster"></div>
 
-        <div class="pod-sec-title">
-          <span>Cá Voi Đồng Hành (1-1 Sonar)</span>
-          <span id="podCountLabel">3 thành viên</span>
-        </div>
-        <div class="pod-list" id="coworkerRoster"></div>
+        <div class="list-title"><span>Đồng sự</span><span class="count" id="podCountLabel">3 thành viên</span></div>
+        <div id="coworkerRoster"></div>
       </div>
 
-      <div class="pod-footer">
-        <button class="dock-btn" onclick="openModal('runtimeModal')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
-          <span>Radar Runtime</span>
-        </button>
-        <button class="dock-btn" onclick="openModal('connModal')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-          <span>Tần số Core</span>
-        </button>
+      <div class="sidebar-footer">
+        <span class="conn" id="connPill"><span class="conn-dot"></span><span id="sseText">…</span></span>
+        <div class="footer-icons">
+          <button class="icon-btn" onclick="openModal('runtimeModal')" title="Cài đặt & lệnh kiểm thử">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="icon-btn" onclick="openModal('connModal')" title="Trạng thái AI Cores">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          </button>
+        </div>
       </div>
     </aside>
 
-    <!-- RIGHT MAIN CHAT: 52Hz SONAR STREAM -->
-    <main class="ocean-main">
-      <header class="ocean-header">
-        <div class="ocean-header-left">
-          <button class="icon-btn" onclick="toggleSidebar()" title="Đóng/mở danh sách đàn cá voi">
+    <!-- RIGHT MAIN: CONVERSATION -->
+    <main class="chat-main">
+      <header class="chat-header">
+        <div class="chat-header-left">
+          <button class="icon-btn" onclick="toggleSidebar()" title="Đóng/mở danh sách chat">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
           </button>
-          <div class="whale-avatar sm" id="headerAvatar" style="background:linear-gradient(135deg,#0284C7,#0D9488);"></div>
+          <span class="avatar sm" id="headerAvatar" style="background:linear-gradient(135deg,#38BDF8,#0369A1);"></span>
           <div class="header-info">
             <div class="header-title-row">
-              <span class="header-title" id="headerTitle">Đàn Cá Voi 52Hz</span>
-              <span class="hz-tag" id="headerFreqBadge">52.0 Hz · Pod</span>
+              <span class="header-title" id="headerTitle">Nhóm BotAutoTask</span>
+              <span class="role-tag" id="headerRoleTag">Nhóm</span>
             </div>
-            <div class="header-sub" id="headerSubtitle">Kênh phối hợp chung (#mesh-command-room)</div>
+            <div class="header-sub" id="headerSubtitle">Kênh phối hợp chung · #mesh-command-room</div>
           </div>
         </div>
 
-        <div class="ocean-header-actions">
-          <button class="action-pill-btn" onclick="mergeAgentWorktree(currentChannel === 'all' ? 'coder' : currentChannel)" title="Kiểm thử & Gộp nhánh Git Worktree">
+        <div class="header-actions">
+          <button class="pill-btn" onclick="mergeAgentWorktree(currentChannel === 'all' ? 'coder' : currentChannel)" title="Kiểm thử & gộp nhánh Git Worktree của đồng sự">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
-            <span>Gộp nhánh (Merge)</span>
+            <span>Gộp nhánh</span>
           </button>
           <button class="icon-btn" onclick="clearCurrentView()" title="Xóa lịch sử hiển thị">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -5062,52 +4924,36 @@ function renderDashboardHtml() {
         </div>
       </header>
 
-      <!-- Telegram-style Pinned Active Sonar Bar -->
-      <div class="pinned-sonar-bar">
-        <div class="pinned-left">
-          <span class="pinned-bar-indicator"></span>
-          <span><strong>Hải trình 52Hz:</strong> Mọi thay đổi code của <code>@coder</code> được cô lập trong Git Worktree và tự động kiểm thử trước khi gộp.</span>
-        </div>
-        <button class="icon-btn" style="width:24px;height:24px;" onclick="openModal('runtimeModal')" title="Cấu hình lệnh kiểm thử">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
-      </div>
-
-      <!-- Chat Stream -->
       <section class="chat-stream" id="chatStream"></section>
 
-      <!-- Bottom Composer -->
-      <footer class="composer-dock">
-        <div class="composer-controls-row">
-          <span class="ctrl-label">Nguồn sóng AI:</span>
-          <select class="ocean-select" id="coreSelect" onchange="onCoreSelectChange(this.value)">
-            <option value="auto">Tự động dò tần số tốt nhất (Zero-Key Free Model)</option>
-            <option value="opencode">OpenCode Zen — Free Models (deepseek / big-pickle / mimo)</option>
-            <option value="codex">Codex CLI — ChatGPT OAuth (gpt-5.4)</option>
-            <option value="claude">Claude Code CLI — Local Session</option>
-            <option value="antigravity">Antigravity IDE — Local Session</option>
-            <option value="neko-core">Local Custom Core</option>
+      <footer class="composer">
+        <div class="composer-controls">
+          <span class="ctrl-label">AI Core:</span>
+          <select class="select" id="coreSelect" onchange="onCoreSelectChange(this.value)">
+            <option value="auto">Tự động (Free model tốt nhất)</option>
+            <option value="opencode">OpenCode Zen (Free Models)</option>
+            <option value="codex">Codex CLI (ChatGPT OAuth)</option>
+            <option value="claude">Claude Code CLI</option>
+            <option value="antigravity">Antigravity IDE</option>
+            <option value="neko-core">Custom Core</option>
           </select>
-          <span class="ctrl-label" style="margin-left:6px;">Kiểu phát:</span>
-          <select class="ocean-select" id="deliverySelect">
-            <option value="send">Sóng trực tiếp (Send)</option>
-            <option value="interrupt">Sóng khẩn cấp 52Hz (Interrupt Steer)</option>
-            <option value="queue">Đưa vào hàng đợi (Queue)</option>
+          <span class="ctrl-label">Gửi:</span>
+          <select class="select" id="deliverySelect">
+            <option value="send">Gửi ngay</option>
+            <option value="interrupt">Ngắt & điều hướng (Steer)</option>
+            <option value="queue">Vào hàng đợi</option>
           </select>
         </div>
 
         <div class="composer-capsule">
-          <button class="icon-btn" onclick="openModal('runtimeModal')" title="Cấu hình lệnh kiểm thử & Radar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
           <input
             id="msgInput"
             class="composer-input"
             type="text"
-            placeholder="Phát tín hiệu 52Hz tới Đàn Cá Voi..."
+            placeholder="Nhập tin nhắn cho cả nhóm..."
             onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendComposerMessage();}"
           />
-          <button class="sonar-send-btn" id="sendOrStopBtn" onclick="onSendOrStopClick()" title="Phát tín hiệu 52Hz">
+          <button class="send-btn" id="sendOrStopBtn" onclick="onSendOrStopClick()" title="Gửi tin nhắn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
           </button>
         </div>
@@ -5115,128 +4961,172 @@ function renderDashboardHtml() {
     </main>
   </div>
 
-  <!-- MODAL 1: RADAR RUNTIME -->
-  <div class="tele-drawer-backdrop" id="runtimeModal" onclick="if(event.target===this)closeTelemetry()">
-    <div class="tele-modal">
-      <div class="tele-head">
-        <span>Radar 52Hz — Trạng thái Đàn Cá Voi & Kiểm thử</span>
+  <!-- MODAL: SETTINGS & RUNTIME -->
+  <div class="modal-backdrop" id="runtimeModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="modal">
+      <div class="modal-head">
+        <span>Cài đặt & trạng thái</span>
         <button class="icon-btn" onclick="closeTelemetry()">✕</button>
       </div>
-      <div class="tele-body">
-        <div class="tele-card">
-          <h4>Lệnh kiểm thử tự động trước khi Merge (Verify Command)</h4>
+      <div class="modal-body">
+        <div class="modal-card">
+          <h4>Lệnh kiểm thử trước khi gộp nhánh (Verify Command)</h4>
           <div class="form-row" style="margin-bottom:0;">
             <input
               id="checkInput"
               class="form-input"
               type="text"
+              style="font-family:var(--font-mono);font-size:12px;"
               value='python -m unittest discover -s tests -p "test_*.py" -v; python scripts/query_engine.py --test; python scripts/evaluate.py --check'
               oninput="currentVerifyCmd = this.value"
             />
           </div>
         </div>
-        <div class="tele-card">
-          <h4>Trạng thái các thành viên trong đàn</h4>
+        <div class="modal-card">
+          <h4>Trạng thái đồng sự</h4>
           <div id="runtimeAgentsSummary" style="font-size:13px;color:var(--text-secondary);">Đang tải...</div>
         </div>
-        <div class="tele-card">
-          <h4>Tín hiệu IDE / Antigravity gần nhất</h4>
+        <div class="modal-card">
+          <h4>Log IDE gần nhất</h4>
           <div id="ideLogBox" style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);white-space:pre-wrap;">Chưa có dữ liệu</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODAL 2: TẦN SỐ KẾT NỐI -->
-  <div class="tele-drawer-backdrop" id="connModal" onclick="if(event.target===this)closeTelemetry()">
-    <div class="tele-modal">
-      <div class="tele-head">
-        <span>Tần số Kết nối AI Cores (Zero-API-Key)</span>
+  <!-- MODAL: AI CORES -->
+  <div class="modal-backdrop" id="connModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="modal">
+      <div class="modal-head">
+        <span>Trạng thái AI Cores</span>
         <button class="icon-btn" onclick="closeTelemetry()">✕</button>
       </div>
-      <div class="tele-body">
-        <div class="tele-card">
-          <h4>Các trạm phát sóng локаl trên máy</h4>
+      <div class="modal-body">
+        <div class="modal-card">
+          <h4>Các core trên máy này (Zero-API-Key)</h4>
           <div id="authList">Đang kiểm tra...</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODAL 3: TRIỆU HỒI CÁ VOI MỚI -->
-  <div class="tele-drawer-backdrop" id="spawnModal" onclick="if(event.target===this)closeTelemetry()">
-    <div class="tele-modal">
-      <div class="tele-head">
-        <span>Triệu hồi Cá Voi Đồng Hành mới vào đàn 52Hz</span>
+  <!-- MODAL: NEW COWORKER -->
+  <div class="modal-backdrop" id="spawnModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="modal">
+      <div class="modal-head">
+        <span>Thêm đồng sự mới</span>
         <button class="icon-btn" onclick="closeTelemetry()">✕</button>
       </div>
-      <div class="tele-body">
+      <div class="modal-body">
         <div class="form-row">
-          <label>Mã định danh (@handle)</label>
-          <input id="spawnId" class="form-input" placeholder="Ví dụ: sonar-sec" />
+          <label>Tên đăng nhập (@handle)</label>
+          <input id="spawnId" class="form-input" placeholder="Ví dụ: qa-bot" />
         </div>
         <div class="form-row">
-          <label>Biệt danh cá voi</label>
-          <input id="spawnName" class="form-input" placeholder="Ví dụ: Cá Voi Bảo Mật" />
+          <label>Tên hiển thị</label>
+          <input id="spawnName" class="form-input" placeholder="Ví dụ: Bot Kiểm Thử" />
         </div>
         <div class="form-row">
-          <label>Vai trò trong đàn</label>
+          <label>Vai trò</label>
           <select id="spawnRole" class="form-input">
-            <option value="writer">Thợ Lặn Code (Writer — Git Worktree độc lập)</option>
-            <option value="reader">Hoa Tiêu / Sonar QA (Reader — Phân tích & Kiểm định)</option>
+            <option value="writer">Writer — viết code (Git Worktree riêng)</option>
+            <option value="reader">Reader — phân tích & review</option>
           </select>
         </div>
         <div class="form-row">
-          <label>Nhiệm vụ chuyên môn</label>
-          <input id="spawnDesc" class="form-input" placeholder="Kiểm định bảo mật và viết kiểm thử tự động..." />
+          <label>Mô tả công việc</label>
+          <input id="spawnDesc" class="form-input" placeholder="Ví dụ: Kiểm tra bảo mật và viết kiểm thử tự động..." />
         </div>
-        <button class="primary-btn" onclick="spawnNewCoworker()">Triệu hồi vào đàn 52Hz</button>
+        <button class="primary-btn" onclick="spawnNewCoworker()">Tạo đồng sự</button>
       </div>
     </div>
   </div>
 
 <script>
-  const WHALE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16c2.5-3.5 6.5-5.5 11-5.5 4.2 0 7.2 2 8.5 4.5-2.2 1.5-5.5 2.5-9.5 2.5-4.2 0-7.5-1-10-1.5Z"/><path d="M12 10.5C12 7.5 14.5 5 18 4c-.5 2.2-.2 4 1.5 5.5"/><circle cx="16.5" cy="13.5" r="1" fill="currentColor"/></svg>';
+  // ===== Original whale mascot (pure SVG, parameterized colors) =====
+  let __whaleUid = 0;
+  function whaleSvg(opts) {
+    opts = opts || {};
+    const uid = 'wh' + (++__whaleUid);
+    const BODY = 'M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z';
+    const FLUKE = 'M23 30.5C18.5 27.5 13 21.5 10.5 15C12.5 20.5 14 27 16.2 33.5C14 40 12.5 46.5 10.5 52.5C13 46 18.5 40.5 23 37.5Z';
+    const FIN = 'M37 37.5C41 38.5 43.2 42.5 41.2 47C37.6 49 33.4 47.6 32.4 44C33.6 40.5 35 37.9 37 37.5Z';
+    let body = opts.body || 'currentColor';
+    let defs = '<defs><clipPath id="wc-' + uid + '"><path d="' + BODY + '"/></clipPath>';
+    if (opts.gradient) {
+      defs += '<linearGradient id="wg-' + uid + '" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="' + opts.gradient[0] + '"/>' +
+        '<stop offset="1" stop-color="' + opts.gradient[1] + '"/></linearGradient>';
+      body = 'url(#wg-' + uid + ')';
+    }
+    defs += '</defs>';
+    const fin = opts.fin || body;
+    const belly = (opts.belly !== undefined) ? opts.belly : 'rgba(255,255,255,0.4)';
+    const ink = opts.ink || 'rgba(255,255,255,0.9)';
+    let spout = '';
+    if (opts.spout) {
+      const mist = opts.mist || 'rgba(255,255,255,0.65)';
+      spout = '<g stroke="' + mist + '" stroke-width="2.4" stroke-linecap="round" fill="none">' +
+        '<path d="M44.5 15.5C44.5 11.5 46.5 8.8 50 6.2"/>' +
+        '<path d="M43 15.5C42 11.6 40 9.2 37 7.2"/></g>' +
+        '<circle cx="52" cy="10.2" r="1.5" fill="' + mist + '"/>' +
+        '<circle cx="35.4" cy="10.8" r="1.5" fill="' + mist + '"/>' +
+        '<circle cx="44.2" cy="4.6" r="1.5" fill="' + mist + '"/>';
+    }
+    return '<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + defs +
+      spout +
+      '<path d="' + FLUKE + '" fill="' + body + '"/>' +
+      '<path d="' + BODY + '" fill="' + body + '"/>' +
+      '<g clip-path="url(#wc-' + uid + ')"><ellipse cx="39" cy="46" rx="19" ry="8.5" fill="' + belly + '"/></g>' +
+      '<path d="' + FIN + '" fill="' + fin + '"/>' +
+      '<circle cx="49.5" cy="27.5" r="2.2" fill="' + ink + '"/>' +
+      '<path d="M52 33.5C53.3 35.1 55.3 35.3 56.7 34" stroke="' + ink + '" stroke-width="1.7" stroke-linecap="round" fill="none"/>' +
+      '</svg>';
+  }
+
+  // White whale for colored avatars; gradient whale with water spout for the welcome art
+  const WHALE_MARK = whaleSvg({ body: '#FFFFFF', fin: 'rgba(255,255,255,0.82)', belly: 'rgba(255,255,255,0.38)', ink: 'rgba(3,105,161,0.8)' });
+  const WHALE_HERO = whaleSvg({ gradient: ['#5BC4F9', '#0284C7'], fin: '#0369A1', belly: 'rgba(255,255,255,0.62)', ink: '#0B3D5F', mist: 'rgba(2,132,199,0.5)', spout: true });
 
   const ICONS = {
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
     stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
   };
 
-  const WHALE_PERSONAS = {
+  const PERSONAS = {
     all: {
-      title: 'Đàn Cá Voi 52Hz',
-      badge: '52.0 Hz · Pod',
-      grad: 'linear-gradient(135deg, #0369A1 0%, #0D9488 100%)',
-      sub: 'Kênh phối hợp cả đàn (#mesh-command-room)'
+      title: 'Nhóm BotAutoTask',
+      tag: 'Nhóm',
+      grad: 'linear-gradient(135deg, #38BDF8, #0369A1)',
+      sub: 'Kênh phối hợp chung · #mesh-command-room'
     },
     lead: {
-      title: 'Hoa Tiêu 52Hz (@lead)',
-      badge: '52.1 Hz · Lead',
-      grad: 'linear-gradient(135deg, #0D9488 0%, #0284C7 100%)',
-      sub: 'Cá voi dẫn đàn · Phân rã kiến trúc & điều phối'
+      title: '@lead · Trưởng nhóm',
+      tag: 'Lead',
+      grad: 'linear-gradient(135deg, #0EA5E9, #075985)',
+      sub: 'Điều phối & phân công công việc'
     },
     coder: {
-      title: 'Thợ Lặn Sâu (@coder)',
-      badge: '52.4 Hz · Writer',
-      grad: 'linear-gradient(135deg, #2563EB 0%, #0284C7 100%)',
-      sub: 'Cá voi thực thi · Viết code & test trong Git Worktree'
+      title: '@coder · Lập trình viên',
+      tag: 'Writer',
+      grad: 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
+      sub: 'Viết code & kiểm thử trong Git Worktree riêng'
     },
     reviewer: {
-      title: 'Sonar Giám Định (@reviewer)',
-      badge: '52.8 Hz · QA',
-      grad: 'linear-gradient(135deg, #4F46E5 0%, #0E7490 100%)',
-      sub: 'Cá voi kiểm định · Soát diff & bảo vệ chất lượng'
+      title: '@reviewer · Kiểm duyệt',
+      tag: 'QA',
+      grad: 'linear-gradient(135deg, #6366F1, #4338CA)',
+      sub: 'Review code & đảm bảo chất lượng'
     }
   };
 
-  function getWhalePersona(id) {
-    if (WHALE_PERSONAS[id]) return WHALE_PERSONAS[id];
+  function getPersona(id) {
+    if (PERSONAS[id]) return PERSONAS[id];
     return {
-      title: 'Cá Voi @' + id,
-      badge: '52 Hz · Specialist',
-      grad: 'linear-gradient(135deg, #0284C7 0%, #4F46E5 100%)',
-      sub: 'Chuyên gia đồng hành trong đàn 52Hz'
+      title: '@' + id,
+      tag: 'Đồng sự',
+      grad: 'linear-gradient(135deg, #38BDF8, #0284C7)',
+      sub: 'Chuyên gia đồng hành'
     };
   }
 
@@ -5273,9 +5163,16 @@ function renderDashboardHtml() {
 
   function toggleOceanTheme() {
     const html = document.documentElement;
-    const next = html.getAttribute('data-theme') === 'deep-trench' ? 'ocean-light' : 'deep-trench';
+    const next = html.getAttribute('data-theme') === 'ocean-deep' ? 'ocean-light' : 'ocean-deep';
     html.setAttribute('data-theme', next);
+    try { localStorage.setItem('botautotask-theme', next); } catch {}
   }
+  try {
+    const savedTheme = localStorage.getItem('botautotask-theme');
+    if (savedTheme === 'ocean-deep' || savedTheme === 'ocean-light') {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+  } catch {}
 
   async function apiFetch(path, options = {}) {
     const headers = { ...(options.headers || {}) };
@@ -5376,12 +5273,6 @@ function renderDashboardHtml() {
         if (added) renderStream();
       }
 
-      const anyRunning = agentsState.some((a) => a.status === 'running');
-      const freqTxt = document.getElementById('freqStatusText');
-      if (freqTxt) {
-        freqTxt.textContent = anyRunning ? '52.0 Hz · ĐANG PHÁT SÓNG' : 'SONAR 52.0 Hz · ỔN ĐỊNH';
-      }
-
       renderRoster();
       renderHeader();
       renderRuntimeModal(data);
@@ -5394,34 +5285,34 @@ function renderDashboardHtml() {
     const coworkerEl = document.getElementById('coworkerRoster');
     const countEl = document.getElementById('podCountLabel');
     if (!groupEl || !coworkerEl) return;
-    if (countEl) countEl.textContent = agentsState.length + ' cá voi';
+    if (countEl) countEl.textContent = agentsState.length + ' thành viên';
 
     const runningCount = agentsState.filter((a) => a.status === 'running').length;
     const lastGroupMsg = feedItems[feedItems.length - 1];
     const groupPreview = runningCount > 0
-      ? ('🌊 ' + runningCount + ' cá voi đang phát sóng 52Hz...')
-      : (lastGroupMsg ? ('@' + lastGroupMsg.from + ': ' + lastGroupMsg.text.slice(0, 38)) : 'Phòng phối hợp chung @lead · @coder · @reviewer');
+      ? (runningCount + ' đồng sự đang xử lý...')
+      : (lastGroupMsg ? ('@' + lastGroupMsg.from + ': ' + lastGroupMsg.text.slice(0, 40)) : 'Kênh chung của nhóm');
 
-    const podPersona = getWhalePersona('all');
+    const groupPersona = getPersona('all');
     groupEl.innerHTML = \`
-      <button class="pod-item \${currentChannel === 'all' ? 'active' : ''}" onclick="selectChannel('all')">
-        <div class="whale-avatar" style="background:\${podPersona.grad}">
-          \${WHALE_SVG}
-          <span class="beacon-dot \${runningCount > 0 ? 'working' : 'online'}"></span>
-        </div>
-        <div class="pod-meta">
-          <div class="pod-row-top">
-            <span class="pod-name">\${escapeHtml(podPersona.title)}</span>
-            <span class="pod-freq-tag">52.0 Hz</span>
-          </div>
-          <div class="pod-preview">\${escapeHtml(groupPreview)}</div>
-        </div>
+      <button class="chat-item \${currentChannel === 'all' ? 'active' : ''}" onclick="selectChannel('all')">
+        <span class="avatar" style="background:\${groupPersona.grad}">
+          \${WHALE_MARK}
+          <i class="status-dot \${runningCount > 0 ? 'working' : 'online'}"></i>
+        </span>
+        <span class="chat-item-main">
+          <span class="chat-item-top">
+            <span class="chat-item-name">\${escapeHtml(groupPersona.title)}</span>
+            <span class="role-tag">\${groupPersona.tag}</span>
+          </span>
+          <span class="chat-item-preview">\${escapeHtml(groupPreview)}</span>
+        </span>
       </button>
     \`;
 
     const filtered = agentsState.filter((a) => {
       if (!q) return true;
-      const p = getWhalePersona(a.id);
+      const p = getPersona(a.id);
       return (
         a.id.toLowerCase().includes(q) ||
         p.title.toLowerCase().includes(q) ||
@@ -5431,27 +5322,25 @@ function renderDashboardHtml() {
     });
 
     coworkerEl.innerHTML = filtered.map((a) => {
-      const p = getWhalePersona(a.id);
+      const p = getPersona(a.id);
       const isRunning = a.status === 'running';
       const isQueued = (a.inboxCount || 0) > 0 || (a.pendingSteers || 0) > 0;
       const dotCls = isRunning ? 'working' : (a.status === 'error' ? 'error' : (isQueued ? 'queued' : 'online'));
-      const subText = isRunning
-        ? '🌊 Đang lặn sâu xử lý nhiệm vụ...'
-        : (p.sub || a.description || ('@' + a.id));
+      const preview = isRunning ? 'Đang xử lý nhiệm vụ...' : (a.description || p.sub);
 
       return \`
-        <button class="pod-item \${currentChannel === a.id ? 'active' : ''}" onclick="selectChannel('\${escapeHtml(a.id)}')">
-          <div class="whale-avatar" style="background:\${p.grad}">
-            \${WHALE_SVG}
-            <span class="beacon-dot \${dotCls}"></span>
-          </div>
-          <div class="pod-meta">
-            <div class="pod-row-top">
-              <span class="pod-name">\${escapeHtml(p.title)}</span>
-              <span class="pod-freq-tag">\${escapeHtml(p.badge)}</span>
-            </div>
-            <div class="pod-preview">\${escapeHtml(subText)}</div>
-          </div>
+        <button class="chat-item \${currentChannel === a.id ? 'active' : ''}" onclick="selectChannel('\${escapeHtml(a.id)}')">
+          <span class="avatar" style="background:\${p.grad}">
+            \${WHALE_MARK}
+            <i class="status-dot \${dotCls}"></i>
+          </span>
+          <span class="chat-item-main">
+            <span class="chat-item-top">
+              <span class="chat-item-name">\${escapeHtml(p.title)}</span>
+              <span class="role-tag">\${escapeHtml(p.tag)}</span>
+            </span>
+            <span class="chat-item-preview">\${escapeHtml(preview)}</span>
+          </span>
         </button>
       \`;
     }).join('');
@@ -5460,31 +5349,29 @@ function renderDashboardHtml() {
   function renderHeader() {
     const avatar = document.getElementById('headerAvatar');
     const title = document.getElementById('headerTitle');
-    const badge = document.getElementById('headerFreqBadge');
+    const tag = document.getElementById('headerRoleTag');
     const sub = document.getElementById('headerSubtitle');
     const input = document.getElementById('msgInput');
     const sendBtn = document.getElementById('sendOrStopBtn');
     const coreSelect = document.getElementById('coreSelect');
 
-    const p = getWhalePersona(currentChannel);
+    const p = getPersona(currentChannel);
     if (avatar) {
       avatar.style.background = p.grad;
-      avatar.innerHTML = WHALE_SVG;
+      avatar.innerHTML = WHALE_MARK;
     }
     if (title) title.textContent = p.title;
-    if (badge) badge.textContent = p.badge;
+    if (tag) tag.textContent = p.tag;
 
     if (currentChannel === 'all') {
-      if (sub) sub.textContent = 'Kênh phối hợp toàn đàn (@lead · @coder · @reviewer) · #mesh-command-room';
-      if (input) input.placeholder = 'Phát tín hiệu 52Hz giao nhiệm vụ cho cả đàn cá voi...';
+      if (sub) sub.textContent = p.sub;
+      if (input) input.placeholder = 'Nhập tin nhắn cho cả nhóm...';
     } else {
       const a = agentsState.find((x) => x.id === currentChannel);
       if (sub) {
-        sub.textContent = a && a.status === 'running'
-          ? '🌊 Đang phát tín hiệu phản hồi trên tần số 52Hz...'
-          : p.sub;
+        sub.textContent = a && a.status === 'running' ? 'Đang xử lý...' : p.sub;
       }
-      if (input) input.placeholder = 'Phát tín hiệu 52Hz tới ' + p.title + '...';
+      if (input) input.placeholder = 'Nhập tin nhắn cho ' + p.title + '...';
       if (a && coreSelect && document.activeElement !== coreSelect) {
         coreSelect.value = a.preferredCore || 'auto';
       }
@@ -5496,13 +5383,13 @@ function renderDashboardHtml() {
 
     if (sendBtn) {
       if (activeRunning) {
-        sendBtn.className = 'sonar-send-btn stop-btn';
+        sendBtn.className = 'send-btn stop-btn';
         sendBtn.innerHTML = ICONS.stop;
-        sendBtn.title = 'Ngắt sóng (Stop)';
+        sendBtn.title = 'Dừng';
       } else {
-        sendBtn.className = 'sonar-send-btn';
+        sendBtn.className = 'send-btn';
         sendBtn.innerHTML = ICONS.up;
-        sendBtn.title = 'Phát tín hiệu 52Hz';
+        sendBtn.title = 'Gửi tin nhắn';
       }
     }
   }
@@ -5523,22 +5410,22 @@ function renderDashboardHtml() {
 
     if (msgs.length === 0 && runningAgents.length === 0) {
       stream.innerHTML = \`
-        <div class="whale-welcome">
-          <div class="whale-hero-art">\${WHALE_SVG}</div>
-          <h2>Tần số 52Hz đang lắng nghe đại dương</h2>
-          <p>Bạn không cô độc giữa biển code. Hãy phát tín hiệu sonar cho một cá voi đồng hành, hoặc gọi cả đàn 52Hz cùng lặn sâu hoàn thiện dự án của bạn.</p>
-          <div class="sonar-quick-grid">
-            <button class="sonar-chip" onclick="prefillPrompt('Hãy dò sóng kiến trúc dự án hiện tại và đề xuất các hạng mục cần hoàn thiện tiếp theo.')">
+        <div class="welcome">
+          <div class="hero-art">\${WHALE_HERO}</div>
+          <h2>Chào mừng đến BotAutoTask</h2>
+          <p>Không gian chat để bạn cùng các trợ lý AI phân tích, lập kế hoạch và hoàn thành công việc — mọi thay đổi code đều được kiểm thử trong Git Worktree trước khi gộp.</p>
+          <div class="quick-grid">
+            <button class="quick-chip" onclick="prefillPrompt('Hãy phân tích kiến trúc dự án hiện tại và đề xuất các việc cần làm tiếp theo.')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
-              <span>Dò sóng kiến trúc</span>
+              <span>Phân tích dự án</span>
             </button>
-            <button class="sonar-chip" onclick="prefillPrompt('Lập hải trình chi tiết từng bước để triển khai tính năng tiếp theo và kiểm thử tự động.')">
+            <button class="quick-chip" onclick="prefillPrompt('Lập kế hoạch chi tiết từng bước để triển khai tính năng tiếp theo và kiểm thử tự động.')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
-              <span>Lập hải trình 52Hz</span>
+              <span>Lập kế hoạch</span>
             </button>
-            <button class="sonar-chip" onclick="prefillPrompt('Chạy toàn bộ bộ kiểm thử, rà soát lỗi và xuất báo cáo chất lượng dự án.')">
+            <button class="quick-chip" onclick="prefillPrompt('Chạy toàn bộ bộ kiểm thử, rà soát lỗi và xuất báo cáo chất lượng dự án.')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              <span>Kiểm định Sonar QA</span>
+              <span>Kiểm thử & báo cáo</span>
             </button>
           </div>
         </div>
@@ -5546,27 +5433,27 @@ function renderDashboardHtml() {
       return;
     }
 
-    let html = '<div class="day-sep">Tần số 52.0 Hz · Hôm nay</div>';
+    let html = '<div class="day-sep">Hôm nay</div>';
     for (const m of msgs) {
       const isOut = m.from === 'commander';
-      const senderPersona = getWhalePersona(m.from);
-      const senderLabel = isOut ? 'Bạn (52Hz Captain)' : senderPersona.title;
+      const senderPersona = getPersona(m.from);
+      const senderLabel = isOut ? 'Bạn' : senderPersona.title;
       const routeTag = (!isOut && m.to && m.to !== 'commander' && m.to !== 'all')
-        ? \`<span class="msg-route-tag">〰 @\${escapeHtml(m.to)}</span>\`
+        ? \`<span class="route-tag">@\${escapeHtml(m.to)}</span>\`
         : (isOut && currentChannel === 'all' && m.to && m.to !== 'all'
-          ? \`<span class="msg-route-tag">〰 @\${escapeHtml(m.to)}</span>\`
+          ? \`<span class="route-tag">@\${escapeHtml(m.to)}</span>\`
           : '');
-      const coreTag = m.core ? \`<span class="msg-time">· \${escapeHtml(m.core)}</span>\` : '';
+      const coreTag = m.core ? \`<span class="msg-core">\${escapeHtml(m.core)}</span>\` : '';
 
       html += \`
-        <div class="msg-row \${isOut ? 'outgoing' : 'incoming'}">
+        <div class="msg-row \${isOut ? 'out' : 'in'}">
           \${!isOut ? \`
-            <div class="whale-avatar sm" style="background:\${senderPersona.grad}">
-              \${WHALE_SVG}
-            </div>
+            <span class="avatar sm" style="background:\${senderPersona.grad}">
+              \${WHALE_MARK}
+            </span>
           \` : ''}
           <div class="msg-stack">
-            <div class="msg-meta-line">
+            <div class="msg-meta">
               <span class="msg-author">\${escapeHtml(senderLabel)}</span>
               \${routeTag}
               \${coreTag}
@@ -5579,12 +5466,17 @@ function renderDashboardHtml() {
     }
 
     for (const a of runningAgents) {
-      const p = getWhalePersona(a.id);
-      const lastAct = (a.recentActivity || []).slice(-1)[0] || 'Đang phát sóng 52Hz...';
+      const p = getPersona(a.id);
+      const lastAct = (a.recentActivity || []).slice(-1)[0] || 'Đang xử lý...';
       html += \`
-        <div class="sonar-typing">
-          <span class="sonar-rings"></span>
-          <span><strong>\${escapeHtml(p.title)}</strong>: \${escapeHtml(lastAct.slice(0, 95))}</span>
+        <div class="typing-row">
+          <span class="avatar sm" style="background:\${p.grad}">
+            \${WHALE_MARK}
+          </span>
+          <div class="typing-bubble">
+            <span class="typing-dots"><i></i><i></i><i></i></span>
+            <span><strong>\${escapeHtml(p.title)}</strong> · \${escapeHtml(lastAct.slice(0, 80))}</span>
+          </div>
         </div>
       \`;
     }
@@ -5597,8 +5489,8 @@ function renderDashboardHtml() {
     const sumEl = document.getElementById('runtimeAgentsSummary');
     if (sumEl) {
       sumEl.innerHTML = agentsState.map((a) => {
-        const p = getWhalePersona(a.id);
-        const act = (a.recentActivity || []).slice(-1)[0] || 'Đang lắng nghe trên tần số 52Hz';
+        const p = getPersona(a.id);
+        const act = (a.recentActivity || []).slice(-1)[0] || 'Đang lắng nghe...';
         return \`<div class="auth-row">
           <span><strong>\${escapeHtml(p.title)}</strong></span>
           <span>\${escapeHtml(a.status.toUpperCase())} · \${escapeHtml(act.slice(0, 48))}</span>
@@ -5612,7 +5504,7 @@ function renderDashboardHtml() {
         <div class="auth-row">
           <span><strong>\${escapeHtml(k)}</strong> (\${escapeHtml(v.authMode || 'cli')})</span>
           <span style="color:\${v.authenticated ? 'var(--ok)' : 'var(--text-muted)'};font-weight:700;">
-            \${v.authenticated ? 'SÓNG 52Hz SẴN SÀNG' : (v.installed ? 'CHƯA ĐĂNG NHẬP' : 'CHƯA CÀI ĐẶT')}
+            \${v.authenticated ? 'Sẵn sàng' : (v.installed ? 'Chưa đăng nhập' : 'Chưa cài đặt')}
           </span>
         </div>
       \`).join('');
@@ -5660,7 +5552,7 @@ function renderDashboardHtml() {
   }
 
   function closeTelemetry() {
-    document.querySelectorAll('.tele-drawer-backdrop').forEach((el) => el.classList.remove('open'));
+    document.querySelectorAll('.modal-backdrop').forEach((el) => el.classList.remove('open'));
   }
 
   async function onCoreSelectChange(val) {
