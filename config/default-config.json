@@ -1,0 +1,48 @@
+{
+  "priorityModels": [
+    "deepseek-v4.1-flash-free",
+    "opencode/deepseek-v4.1-flash-free",
+    "gpt-luna",
+    "opencode/gpt-luna",
+    "opencode/grok-code",
+    "opencode/big-pickle",
+    "openrouter/deepseek/deepseek-r1:free",
+    "openrouter/qwen/qwen-2.5-coder-32b-instruct:free",
+    "google/gemini-2.5-pro",
+    "google/gemini-2.5-flash",
+    "claude-sonnet",
+    "codex-default",
+    "agy-default",
+    "neko-core-default"
+  ],
+  "cooldownMs": 1800000,
+  "leaseDurationMs": 90000,
+  "heartbeatIntervalMs": 30000,
+  "networkPollIntervalMs": 15000,
+  "harnesses": {
+    "opencode": {
+      "enabled": true,
+      "binary": "opencode",
+      "discoverFromCli": true,
+      "discoverFromOpenRouterFree": true
+    },
+    "antigravity": {
+      "enabled": true,
+      "binary": "agy"
+    },
+    "claude": {
+      "enabled": true,
+      "binary": "claude"
+    },
+    "codex": {
+      "enabled": true,
+      "binary": "codex"
+    },
+    "neko-core": {
+      "enabled": true,
+      "endpoint": "http://127.0.0.1:19820/api/run",
+      "binary": "neko-core"
+    }
+  },
+  "customHarnesses": []
+}
