@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { createRuntime, LocalDaemon } from './local-daemon.js';
+import { findLatestAntigravityTranscript } from '../core/log-reader.js';
+import { SupervisorLoop } from '../core/supervisor.js';
 
 const [, , subcommand = 'help', ...rest] = process.argv;
 
@@ -47,6 +49,54 @@ async function main() {
     return;
   }
 
+  if (subcommand === 'logs') {
+    const { flags } = parseCliFlags(rest);
+    const info = findLatestAntigravityTranscript({ conversationId: flags.conv || null });
+    if (!info) {
+      console.log('No Antigravity transcript.jsonl found.');
+      return;
+    }
+    console.log(`=== Antigravity IDE Real-Time Log (${info.conversationId}) ===`);
+    console.log(`File         : ${info.transcriptPath}`);
+    console.log(`Total Steps  : ${info.summary.stepCount} | Latest Status: ${info.summary.lastStatus}`);
+    console.log(`Last Prompt  : ${info.summary.lastUserPrompt.slice(0, 200)}`);
+    console.log(`Tools Called : ${info.summary.toolCalls.slice(-8).join(', ') || 'none'}`);
+    console.log(`Last Response: ${info.summary.lastAgentResponse.slice(0, 400)}`);
+    return;
+  }
+
+  if (subcommand === 'supervise') {
+    const { flags, text } = parseCliFlags(rest);
+    if (!text) {
+      console.error(
+        'Usage: botautotask supervise "<goal>" [--path D:\\repo] [--supervisor opencode/deepseek-v4.1-flash-free] [--worker opencode:freemodel/claude-sonnet-4-6] [--check "npm test"]'
+      );
+      process.exit(1);
+    }
+    const candidates = await registry.getCandidates(ranker, flags.worker || 'auto');
+    if (candidates.length === 0) {
+      console.error('No available worker harness found.');
+      process.exit(1);
+    }
+    const chosen = candidates[0];
+    const loop = new SupervisorLoop({
+      workerHarness: chosen.harness,
+      workerModelId: chosen.modelId,
+      supervisorModelId: flags.supervisor || 'opencode/deepseek-v4.1-flash-free',
+      onNotify: (msg) => console.log(msg)
+    });
+    const res = await loop.runSupervisedGoal({
+      id: `sup-${Date.now().toString(36)}`,
+      title: text.slice(0, 70),
+      target_prompt: text,
+      repo_path: flags.path || process.cwd(),
+      acceptance_cmd: flags.check || null,
+      max_steps: Number(flags.steps || 8)
+    });
+    console.log(`[SupervisorLoop] Result: ${res.status} (${res.stepsRun} steps)`);
+    return;
+  }
+
   if (subcommand === 'submit' || subcommand === 'run') {
     const { flags, text } = parseCliFlags(rest);
     if (!text) {
@@ -85,11 +135,13 @@ async function main() {
 
   console.log(`BotAutoTask CLI — Pluggable Multi-Core & Free-Model Orchestrator
 Commands:
-  node src/daemon/cli.js cores                              List all pluggable AI cores & health
-  node src/daemon/cli.js models                             Discover & rank best free/idle models
-  node src/daemon/cli.js submit "<goal>" [--core <id>]      Queue a goal persistently (runs when online)
-  node src/daemon/cli.js run "<goal>" [--core <id>]         Queue and immediately execute a goal
-  node src/daemon/cli.js daemon [--once] [--goal-id <id>]   Run background daemon / Cloud Worker
+  botautotask cores                                         List all pluggable AI cores & health
+  botautotask models                                        Discover & rank best free/idle models
+  botautotask logs [--conv <id>]                            Read latest Antigravity IDE transcript.jsonl
+  botautotask supervise "<goal>" [--worker <id>] [--check]  Supervisor reads IDE logs & issues directives
+  botautotask submit "<goal>" [--core <id>]                 Queue a goal persistently (runs when online)
+  botautotask run "<goal>" [--core <id>]                    Queue and immediately execute a goal
+  botautotask daemon [--once] [--goal-id <id>]              Run background daemon / Cloud Worker
 `);
 }
 

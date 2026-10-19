@@ -1,0 +1,34 @@
+name: Build Standalone Executables (Windows .exe / Linux / macOS)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Build Single-File JS Bundle
+        run: node scripts/build-single-file.js
+
+      - name: Compile Native Standalone Binaries (like opencode)
+        run: |
+          bun build ./dist/botautotask.mjs --compile --target=bun-windows-x64 --outfile ./dist/botautotask-windows-x64.exe
+          bun build ./dist/botautotask.mjs --compile --target=bun-linux-x64 --outfile ./dist/botautotask-linux-x64
+          bun build ./dist/botautotask.mjs --compile --target=bun-darwin-arm64 --outfile ./dist/botautotask-macos-arm64
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: botautotask-standalone-binaries
+          path: |
+            dist/botautotask.mjs
+            dist/botautotask-windows-x64.exe
+            dist/botautotask-linux-x64
+            dist/botautotask-macos-arm64

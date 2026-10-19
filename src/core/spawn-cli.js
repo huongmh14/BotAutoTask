@@ -1,8 +1,43 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+function quoteArg(arg, isWin) {
+  const s = String(arg ?? '').replace(/\r?\n/g, ' ');
+  if (!/[\s"&|<>^()]/.test(s)) return s;
+  if (isWin) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Fast, zero-overhead check whether a CLI binary exists on system PATH.
+ * @param {string} binary
+ * @returns {boolean}
+ */
+export function commandExists(binary) {
+  if (!binary) return false;
+  if (existsSync(binary)) return true;
+  const isWin = process.platform === 'win32';
+  const pathEnv = process.env.PATH || process.env.Path || '';
+  const sep = isWin ? ';' : ':';
+  const dirs = pathEnv.split(sep).filter(Boolean);
+  const exts = isWin ? ['', '.cmd', '.exe', '.bat', '.ps1'] : [''];
+
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      if (existsSync(join(dir, binary + ext))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 /**
  * Safely executes a CLI command across Windows and POSIX without Node 24 DEP0190 warnings
- * and without corrupting multi-line prompt arguments.
+ * and properly resolves .cmd/.ps1/.exe shims (opencode, agy, claude, codex).
  * @param {string} binary
  * @param {string[]} args
  * @param {{ cwd?: string, timeoutMs?: number }} [options]
@@ -11,25 +46,12 @@ import { spawn } from 'node:child_process';
 export function runCliProcess(binary, args = [], { cwd = process.cwd(), timeoutMs = 15 * 60 * 1000 } = {}) {
   return new Promise((resolve, reject) => {
     const isWin = process.platform === 'win32';
-    // On Windows, global npm/bun CLIs are .cmd shims; run via cmd.exe /d /s /c with proper quoting or direct .cmd
-    let command = binary;
-    let spawnArgs = args;
-    let windowsVerbatimArguments = false;
+    const fullCommand = [quoteArg(binary, isWin), ...args.map((a) => quoteArg(a, isWin))].join(' ');
 
-    if (isWin && !/\.(exe|cmd|bat)$/i.test(binary)) {
-      const escapedArgs = [binary, ...args].map((arg) => {
-        const s = String(arg).replace(/\r?\n/g, ' ');
-        return `"${s.replace(/"/g, '\\"')}"`;
-      });
-      command = process.env.ComSpec || 'cmd.exe';
-      spawnArgs = ['/d', '/s', '/c', `"${escapedArgs.join(' ')}"`];
-      windowsVerbatimArguments = true;
-    }
-
-    const child = spawn(command, spawnArgs, {
+    const child = spawn(fullCommand, [], {
       cwd,
+      shell: true,
       windowsHide: true,
-      windowsVerbatimArguments,
       stdio: ['ignore', 'pipe', 'pipe']
     });
 

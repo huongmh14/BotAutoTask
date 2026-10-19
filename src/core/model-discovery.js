@@ -1,27 +1,29 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
+import { runCliProcess } from './spawn-cli.js';
 
 /**
  * Dynamic Free-Model Discovery & Ranker.
  * Discovers free/idle models from OpenCode CLI (`opencode models`), OpenRouter public API,
  * and registered harnesses, then scores them so the strongest free models (e.g. deepseek-v4.1-flash-free,
- * gpt-luna, gemini-2.5-pro, deepseek-r1:free, qwen-coder:free) are always chosen first.
+ * gpt-6-luna, freemodel/claude-opus-4-8, freemodel/gpt-5.3-codex, gemini-2.5-pro) are always chosen first.
  */
 export class FreeModelRanker {
   constructor(config = {}, options = {}) {
     this.priorityModels = config.priorityModels || [
       'deepseek-v4.1-flash-free',
+      'gpt-6-luna',
+      'gpt-5.6-luna',
       'gpt-luna',
-      'opencode/deepseek-v4.1-flash-free',
-      'opencode/gpt-luna',
+      'freemodel/claude-opus-4-8',
+      'freemodel/claude-sonnet-4-6',
+      'freemodel/gpt-5.3-codex',
+      'opencode/glm-5.3-flash-free',
+      'opencode/nemotron-3-ultra-free',
       'google/gemini-2.5-pro',
       'google/gemini-2.5-flash'
     ];
     this.defaultCooldownMs = config.cooldownMs ?? 30 * 60 * 1000;
     this.cooldowns = new Map(); // key: `${harnessId}:${modelId}` -> expiresAtMs
-    this.execFn = options.execFn || execFileAsync;
+    this.runCliFn = options.runCliFn || runCliProcess;
     this.fetchFn = options.fetchFn || globalThis.fetch;
   }
 
@@ -53,7 +55,6 @@ export class FreeModelRanker {
     const id = String(modelId).toLowerCase();
     let score = isFree ? 100 : 20;
 
-    // Check explicit priority list in order (top item gets highest bonus)
     for (let i = 0; i < this.priorityModels.length; i++) {
       const target = this.priorityModels[i].toLowerCase();
       if (id === target || id.endsWith('/' + target) || id.includes(target)) {
@@ -62,9 +63,9 @@ export class FreeModelRanker {
       }
     }
 
-    // Heuristic boosts for top free coding & reasoning models
     if (id.includes('deepseek') && id.includes('v4')) score += 300;
-    if (id.includes('gpt-luna') || id.includes('luna')) score += 280;
+    if (id.includes('luna')) score += 280;
+    if (id.includes('freemodel/')) score += 260;
     if (id.includes('free')) score += 150;
     if (id.includes('coder') || id.includes('codex') || id.includes('claude')) score += 100;
     if (id.includes('gemini-2.5-pro')) score += 90;
@@ -91,26 +92,25 @@ export class FreeModelRanker {
    */
   async discoverOpenCodeCliModels(binary = 'opencode') {
     try {
-      const { stdout } = await this.execFn(binary, ['models'], { timeout: 8000, windowsHide: true });
+      const { stdout } = await this.runCliFn(binary, ['models'], { timeoutMs: 8000 });
       const lines = String(stdout || '')
         .split(/\r?\n/)
         .map((l) => l.trim())
-        .filter((l) => l && !l.startsWith('Available') && !l.startsWith('---'));
+        .filter((l) => l && /^[a-z0-9_.-]+\/[a-z0-9_./:-]+$/i.test(l));
+
+      if (lines.length === 0) throw new Error('No model lines parsed');
 
       return lines.map((modelId) => ({
         harnessId: 'opencode',
         modelId,
-        isFree: /free|opencode\/|luna|pickle|grok|gemini/i.test(modelId)
+        isFree: /free|freemodel\/|opencode\/|luna|pickle|grok|gemini/i.test(modelId)
       }));
     } catch {
-      // Fallback to well-known free OpenCode models when CLI is not yet installed or fails
       return [
         { harnessId: 'opencode', modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true },
-        { harnessId: 'opencode', modelId: 'opencode/gpt-luna', isFree: true },
-        { harnessId: 'opencode', modelId: 'opencode/grok-code', isFree: true },
-        { harnessId: 'opencode', modelId: 'opencode/big-pickle', isFree: true },
-        { harnessId: 'opencode', modelId: 'google/gemini-2.5-pro', isFree: true },
-        { harnessId: 'opencode', modelId: 'google/gemini-2.5-flash', isFree: true }
+        { harnessId: 'opencode', modelId: 'openai/gpt-6-luna', isFree: true },
+        { harnessId: 'opencode', modelId: 'freemodel/claude-opus-4-8', isFree: true },
+        { harnessId: 'opencode', modelId: 'freemodel/gpt-5.3-codex', isFree: true }
       ];
     }
   }

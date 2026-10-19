@@ -1,5 +1,6 @@
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { FreeModelRanker } from '../core/model-discovery.js';
 import { HarnessRegistry } from '../core/harness-registry.js';
@@ -12,10 +13,55 @@ import { waitForNetwork } from './network-monitor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '..', '..');
+const USER_HOME_DIR = join(homedir(), '.botautotask');
 
-export function loadConfig(configPath = join(ROOT_DIR, 'config', 'default-config.json')) {
-  if (!existsSync(configPath)) return {};
-  return JSON.parse(readFileSync(configPath, 'utf8'));
+export const BUILTIN_DEFAULT_CONFIG = {
+  priorityModels: [
+    'deepseek-v4.1-flash-free',
+    'opencode/deepseek-v4.1-flash-free',
+    'gpt-luna',
+    'opencode/gpt-luna',
+    'opencode/grok-code',
+    'opencode/big-pickle',
+    'openrouter/deepseek/deepseek-r1:free',
+    'openrouter/qwen/qwen-2.5-coder-32b-instruct:free',
+    'google/gemini-2.5-pro',
+    'google/gemini-2.5-flash',
+    'claude-sonnet',
+    'codex-default',
+    'agy-default',
+    'neko-core-default'
+  ],
+  cooldownMs: 1800000,
+  leaseDurationMs: 90000,
+  heartbeatIntervalMs: 30000,
+  networkPollIntervalMs: 15000,
+  harnesses: {
+    opencode: { enabled: true, binary: 'opencode', discoverFromCli: true, discoverFromOpenRouterFree: true },
+    antigravity: { enabled: true, binary: 'agy' },
+    claude: { enabled: true, binary: 'claude' },
+    codex: { enabled: true, binary: 'codex' },
+    'neko-core': { enabled: true, endpoint: 'http://127.0.0.1:19820/api/run', binary: 'neko-core' }
+  },
+  customHarnesses: []
+};
+
+export function loadConfig(customPath = null) {
+  const candidates = [
+    customPath,
+    join(process.cwd(), '.botautotask.json'),
+    join(USER_HOME_DIR, 'config.json'),
+    join(ROOT_DIR, 'config', 'default-config.json')
+  ].filter(Boolean);
+
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      try {
+        return { ...BUILTIN_DEFAULT_CONFIG, ...JSON.parse(readFileSync(p, 'utf8')) };
+      } catch {}
+    }
+  }
+  return BUILTIN_DEFAULT_CONFIG;
 }
 
 /**
@@ -50,9 +96,18 @@ export function createRuntime(config = loadConfig()) {
   return { config, ranker, registry };
 }
 
+function resolveDefaultQueueFile() {
+  try {
+    mkdirSync(USER_HOME_DIR, { recursive: true });
+    return join(USER_HOME_DIR, 'queue.json');
+  } catch {
+    return join(ROOT_DIR, '.botautotask-queue.json');
+  }
+}
+
 /**
  * Local & Cloud Worker Daemon.
- * Connects to Cloud Core (or runs local persistent queue `.botautotask-queue.json`),
+ * Connects to Cloud Core (or runs local persistent queue `~/.botautotask/queue.json`),
  * waits for internet connection, and executes goals across pluggable cores.
  */
 export class LocalDaemon {
@@ -60,7 +115,7 @@ export class LocalDaemon {
     workerId = 'local-pc',
     cloudUrl = process.env.BOTAUTOTASK_CLOUD_URL || '',
     apiToken = process.env.BOTAUTOTASK_API_TOKEN || '',
-    queueFile = join(ROOT_DIR, '.botautotask-queue.json')
+    queueFile = resolveDefaultQueueFile()
   } = {}) {
     this.workerId = workerId;
     this.cloudUrl = cloudUrl.replace(/\/$/, '');

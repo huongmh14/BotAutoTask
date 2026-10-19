@@ -1,9 +1,13 @@
+import { join } from 'node:path';
 import { OUTCOME, parseStepTags, buildHandoverPrompt } from '../core/types.js';
 import { isRateLimitError } from '../core/rate-limit-detector.js';
-import { runCliProcess } from '../core/spawn-cli.js';
+import { runCliProcess, commandExists } from '../core/spawn-cli.js';
+import { findLatestAntigravityTranscript, writeIdeDirectiveBridge } from '../core/log-reader.js';
 
 /**
- * Antigravity Harness (`agy` / `agentapi new-conversation`).
+ * Antigravity Harness (`agy` / `antigravity` / `agentapi new-conversation` + `transcript.jsonl` reader).
+ * Supports Strategy 2: writes directives to `.botautotask/DIRECTIVE.md` and reads real-time execution
+ * logs from `~/.gemini/antigravity/brain/<conv-id>/.system_generated/logs/transcript.jsonl`.
  */
 export class AntigravityHarness {
   constructor({ binary = 'agy' } = {}) {
@@ -12,12 +16,20 @@ export class AntigravityHarness {
   }
 
   async isAvailable() {
-    for (const cmd of [this.binary, 'agentapi']) {
-      try {
-        await runCliProcess(cmd, ['--help'], { timeoutMs: 4000 });
+    const localAppData = process.env.LOCALAPPDATA || '';
+    const candidates = [
+      this.binary,
+      'agentapi',
+      'antigravity',
+      localAppData ? join(localAppData, 'Programs', 'Antigravity', 'bin', 'antigravity.cmd') : '',
+      localAppData ? join(localAppData, 'Programs', 'Antigravity', 'Antigravity.exe') : ''
+    ].filter(Boolean);
+
+    for (const cmd of candidates) {
+      if (commandExists(cmd)) {
         this.activeBinary = cmd;
         return true;
-      } catch {}
+      }
     }
     return false;
   }
@@ -28,6 +40,13 @@ export class AntigravityHarness {
 
   async executeStep({ goal, journal = [], workspaceDir = process.cwd(), modelId = 'agy-default' }) {
     const prompt = buildHandoverPrompt(goal, journal);
+    writeIdeDirectiveBridge(workspaceDir, {
+      goalId: goal.id || 'goal',
+      stepNumber: (journal?.length || 0) + 1,
+      directive: prompt,
+      reasoning: 'Dispatched to Antigravity IDE / CLI'
+    });
+
     const bin = this.activeBinary || this.binary;
     const args = bin === 'agentapi' ? ['new-conversation', '--', prompt] : ['--', prompt];
 
@@ -37,20 +56,27 @@ export class AntigravityHarness {
         timeoutMs: 15 * 60 * 1000
       });
       const combined = `${stdout || ''}\n${stderr || ''}`;
+      const latestTranscript = findLatestAntigravityTranscript();
+      const rawLog = latestTranscript
+        ? `Tools: ${latestTranscript.summary.toolCalls.join(', ')}\nResponse: ${latestTranscript.summary.lastAgentResponse}`
+        : combined.slice(-800);
+
       if (isRateLimitError(combined, 0)) {
         return {
           outcome: OUTCOME.RATE_LIMITED,
           summary: 'Antigravity quota/rate limit reached',
           harnessId: this.id,
-          modelId
+          modelId,
+          rawLog
         };
       }
-      const parsed = parseStepTags(stdout || stderr);
+      const parsed = parseStepTags(stdout || latestTranscript?.summary?.lastAgentResponse || stderr);
       return {
         outcome: parsed.completed ? OUTCOME.GOAL_COMPLETED : OUTCOME.STEP_DONE,
         summary: parsed.summary,
         harnessId: this.id,
-        modelId
+        modelId,
+        rawLog
       };
     } catch (err) {
       const combined = `${err.stdout || ''}\n${err.stderr || ''}\n${err.message || ''}`;
@@ -59,14 +85,16 @@ export class AntigravityHarness {
           outcome: OUTCOME.RATE_LIMITED,
           summary: 'Antigravity rate limit reached',
           harnessId: this.id,
-          modelId
+          modelId,
+          rawLog: combined.slice(-800)
         };
       }
       return {
         outcome: OUTCOME.ERROR,
         summary: combined.slice(-400).trim() || 'Antigravity execution error',
         harnessId: this.id,
-        modelId
+        modelId,
+        rawLog: combined.slice(-800)
       };
     }
   }

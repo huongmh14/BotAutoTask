@@ -1,6 +1,6 @@
 import { OUTCOME, parseStepTags, buildHandoverPrompt } from '../core/types.js';
 import { isRateLimitError } from '../core/rate-limit-detector.js';
-import { runCliProcess } from '../core/spawn-cli.js';
+import { runCliProcess, commandExists } from '../core/spawn-cli.js';
 
 /**
  * Claude Code (`claude -p`) and OpenAI Codex (`codex exec`) Harnesses.
@@ -12,12 +12,7 @@ export class ClaudeCodexHarness {
   }
 
   async isAvailable() {
-    try {
-      await runCliProcess(this.binary, ['--version'], { timeoutMs: 4000 });
-      return true;
-    } catch {
-      return false;
-    }
+    return commandExists(this.binary);
   }
 
   async discoverModels() {
