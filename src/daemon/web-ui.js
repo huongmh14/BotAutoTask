@@ -331,6 +331,7 @@ export class LocalWebUiServer {
                 targetId,
                 message: body.text || '',
                 delivery: body.delivery || 'send',
+                parallel: Boolean(body.parallel),
                 wait: true
               })
               .catch((err) => {
@@ -350,6 +351,7 @@ export class LocalWebUiServer {
               targetId,
               message: body.text || '',
               delivery: body.delivery || 'send',
+              parallel: Boolean(body.parallel),
               wait: false
             });
             res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out));
@@ -428,7 +430,45 @@ export class LocalWebUiServer {
         return;
       }
 
-      // 10. POST /api/team/start — Dispatch autonomous squad mission (@lead -> @coder -> @reviewer -> merge)
+      // 10. POST /api/arena/start — Fan one goal out to N parallel runners, verify & rank
+      if (req.method === 'POST' && url.pathname === '/api/arena/start') {
+        const body = await readJson().catch(() => ({}));
+        if (this._checkDuplicateNonce(body.nonce, res)) return;
+        const goal = String(body.goal || '').trim();
+        if (!goal) {
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Missing goal' }));
+          return;
+        }
+        const participants = Math.max(2, Math.min(6, Number(body.participants) || 3));
+
+        if (this.mesh) {
+          this.mesh
+            .runArena({ goal, verifyCmd: body.check || null, participants })
+            .then((out) => {
+              this.broadcastEvent('arena_result', {
+                arenaId: out.arenaId,
+                winner: out.winner ? out.winner.runnerId : null,
+                message: out.winner
+                  ? `Arena winner: @${out.winner.runnerId} (${out.winner.verified ? 'verified' : 'best outcome'}) · ${out.winner.spec}`
+                  : `Arena finished with no usable result (${out.participants} runners)`,
+                results: out.results
+              });
+            })
+            .catch((err) => {
+              this.broadcastEvent('arena_result', {
+                arenaId: null,
+                winner: null,
+                message: `Arena error: ${err.message}`
+              });
+            });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(
+          JSON.stringify({ status: 'dispatched', arena: true, participants, goal })
+        );
+        return;
+      }
+
+      // 11. POST /api/team/start — Dispatch autonomous squad mission to @lead
       if (req.method === 'POST' && url.pathname === '/api/team/start') {
         const body = await readJson().catch(() => ({}));
         if (this._checkDuplicateNonce(body.nonce, res)) return;

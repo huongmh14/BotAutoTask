@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import { randomUUID, createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { OUTCOME } from './types.js';
 import { findLatestAntigravityTranscript } from './log-reader.js';
 import { WorktreeManager } from './worktree-manager.js';
@@ -441,6 +443,116 @@ export class AgentMesh {
     return { ok: true, message: `Stopped agent ${agent.name} (${agent.id}).` };
   }
 
+  /**
+   * Arena: fans one goal out to N ephemeral writer agents running in PARALLEL,
+   * each in its own isolated worktree, then verifies every result (when a
+   * verify command is given) and ranks: verified > GOAL_COMPLETED > STEP_DONE.
+   * Losing runners are stopped so only the winner keeps an active worktree.
+   */
+  async runArena({ goal, verifyCmd = null, participants = 3, fromId = 'commander' }) {
+    const n = Math.max(2, Math.min(6, Number(participants) || 3));
+    const arenaId = `ar-${Date.now().toString(36)}`;
+
+    let specs = [];
+    try {
+      const cands = await this.registry.getCandidates(this.ranker, 'auto');
+      const seen = new Set();
+      for (const c of cands) {
+        const spec = `${c.harness.id}:${c.modelId}`;
+        if (!seen.has(spec)) {
+          seen.add(spec);
+          specs.push(spec);
+        }
+        if (specs.length >= n) break;
+      }
+    } catch {}
+    while (specs.length < n) specs.push('auto');
+
+    const runners = [];
+    for (let i = 0; i < n; i++) {
+      const id = `${arenaId}-${i + 1}`;
+      this.createAgent({
+        id,
+        name: `Arena runner ${i + 1}`,
+        role: 'writer',
+        preferredCore: specs[i],
+        description: `Ephemeral parallel arena runner (core ${specs[i]})`
+      });
+      runners.push(id);
+    }
+    this.onEvent({ type: 'arena_started', arenaId, runners, goal: String(goal).slice(0, 200), verifyCmd, participants: n });
+
+    const settled = await Promise.allSettled(
+      runners.map((id) =>
+        this.sendToAgent({
+          fromId,
+          targetId: id,
+          message: `# ARENA TASK (1 trong ${n} lời giải song song, độc lập)\n${goal}\n\nBạn là một trong ${n} bản hiện thực chạy song song. Đưa ra kết quả hoàn chỉnh, độc lập; bản tốt nhất sẽ được chọn.`,
+          delivery: 'send',
+          wait: true
+        })
+      )
+    );
+
+    const results = [];
+    for (let i = 0; i < runners.length; i++) {
+      const id = runners[i];
+      const agent = this.agents.get(id);
+      const turn = settled[i].status === 'fulfilled' ? settled[i].value : null;
+      const outcome = turn ? turn.status : OUTCOME.ERROR;
+      const summary = turn ? String(turn.reply || '') : String(settled[i].reason?.message || settled[i].reason);
+      let verified = false;
+      if (verifyCmd && agent && agent.worktreePath) {
+        verified = await this._verifyInDir(agent.worktreePath, verifyCmd);
+      }
+      const rank = verified
+        ? 3
+        : outcome === OUTCOME.GOAL_COMPLETED
+          ? 2
+          : outcome === OUTCOME.STEP_DONE
+            ? 1
+            : 0;
+      results.push({
+        runnerId: id,
+        spec: specs[i],
+        outcome,
+        summary: summary.slice(0, 400),
+        worktreePath: agent ? agent.worktreePath : null,
+        verified,
+        rank
+      });
+      if (agent) agent.recentActivity.push(`Arena result: ${outcome}${verified ? ' (verified)' : ''}`);
+    }
+
+    results.sort((a, b) => b.rank - a.rank);
+    const winner = results[0].rank > 0 ? results[0] : null;
+
+    for (const r of results.slice(1)) {
+      const agent = this.agents.get(r.runnerId);
+      if (agent && agent.status !== 'aborted') this.stopAgent(r.runnerId);
+    }
+
+    this.onEvent({
+      type: 'arena_finished',
+      arenaId,
+      winner: winner ? winner.runnerId : null,
+      participants: n,
+      results: results.map((r) => ({ runnerId: r.runnerId, spec: r.spec, outcome: r.outcome, verified: r.verified, rank: r.rank }))
+    });
+    this._persistState();
+    return { arenaId, winner, results, participants: n };
+  }
+
+  async _verifyInDir(dir, cmd) {
+    const execFileAsync = promisify(execFile);
+    try {
+      await execFileAsync(cmd, [], { cwd: dir, shell: true, timeout: 120_000, windowsHide: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   _checkAgentSync(agentId) {
     if (!agentId) {
       return {
@@ -535,10 +647,24 @@ export class AgentMesh {
     priority = false,
     wait = true,
     depth = 0,
-    nowMs = null
+    nowMs = null,
+    parallel = false
   }) {
     if (targetId === 'all') {
       const targets = Array.from(this.agents.keys()).filter((id) => id !== fromId);
+      if (parallel && targets.length > 1) {
+        const settled = await Promise.allSettled(
+          targets.map((id) =>
+            this.sendToAgent({ fromId, targetId: id, message, delivery, priority, wait, depth })
+          )
+        );
+        const replies = settled.map((r, i) =>
+          r.status === 'fulfilled'
+            ? { targetId: targets[i], ...r.value }
+            : { targetId: targets[i], delivered: false, error: String(r.reason?.message || r.reason) }
+        );
+        return { delivered: true, broadcast: replies, parallel: true };
+      }
       const replies = [];
       for (const id of targets) {
         const res = await this.sendToAgent({
@@ -806,13 +932,19 @@ export class AgentMesh {
     this._persistState();
     this.onEvent({ type: 'agent_status', agentId, status: 'running' });
 
-    // Isolated Worktree for writers
+    // Isolated Worktree for writers. Serialized through a gate: parallel
+    // runners must not run `git worktree add` concurrently (shared .git
+    // admin state), while the turns themselves still overlap freely.
     let runDir = this.workspaceDir;
     if (agent.role === 'writer') {
-      try {
+      const ensureTask = () => {
         const wtInfo = this.worktreeManager.ensure(agent.id, agent.baseBranch || undefined);
         runDir = wtInfo.path;
         agent.worktreePath = wtInfo.path;
+      };
+      this._worktreeGate = (this._worktreeGate || Promise.resolve()).then(ensureTask, ensureTask);
+      try {
+        await this._worktreeGate;
       } catch (err) {
         agent.recentActivity.push(`Worktree ensure warning: ${err.message}`);
       }

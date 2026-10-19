@@ -3459,6 +3459,116 @@ class AgentMesh {
     return { ok: true, message: `Stopped agent ${agent.name} (${agent.id}).` };
   }
 
+  /**
+   * Arena: fans one goal out to N ephemeral writer agents running in PARALLEL,
+   * each in its own isolated worktree, then verifies every result (when a
+   * verify command is given) and ranks: verified > GOAL_COMPLETED > STEP_DONE.
+   * Losing runners are stopped so only the winner keeps an active worktree.
+   */
+  async runArena({ goal, verifyCmd = null, participants = 3, fromId = 'commander' }) {
+    const n = Math.max(2, Math.min(6, Number(participants) || 3));
+    const arenaId = `ar-${Date.now().toString(36)}`;
+
+    let specs = [];
+    try {
+      const cands = await this.registry.getCandidates(this.ranker, 'auto');
+      const seen = new Set();
+      for (const c of cands) {
+        const spec = `${c.harness.id}:${c.modelId}`;
+        if (!seen.has(spec)) {
+          seen.add(spec);
+          specs.push(spec);
+        }
+        if (specs.length >= n) break;
+      }
+    } catch {}
+    while (specs.length < n) specs.push('auto');
+
+    const runners = [];
+    for (let i = 0; i < n; i++) {
+      const id = `${arenaId}-${i + 1}`;
+      this.createAgent({
+        id,
+        name: `Arena runner ${i + 1}`,
+        role: 'writer',
+        preferredCore: specs[i],
+        description: `Ephemeral parallel arena runner (core ${specs[i]})`
+      });
+      runners.push(id);
+    }
+    this.onEvent({ type: 'arena_started', arenaId, runners, goal: String(goal).slice(0, 200), verifyCmd, participants: n });
+
+    const settled = await Promise.allSettled(
+      runners.map((id) =>
+        this.sendToAgent({
+          fromId,
+          targetId: id,
+          message: `# ARENA TASK (1 trong ${n} lời giải song song, độc lập)\n${goal}\n\nBạn là một trong ${n} bản hiện thực chạy song song. Đưa ra kết quả hoàn chỉnh, độc lập; bản tốt nhất sẽ được chọn.`,
+          delivery: 'send',
+          wait: true
+        })
+      )
+    );
+
+    const results = [];
+    for (let i = 0; i < runners.length; i++) {
+      const id = runners[i];
+      const agent = this.agents.get(id);
+      const turn = settled[i].status === 'fulfilled' ? settled[i].value : null;
+      const outcome = turn ? turn.status : OUTCOME.ERROR;
+      const summary = turn ? String(turn.reply || '') : String(settled[i].reason?.message || settled[i].reason);
+      let verified = false;
+      if (verifyCmd && agent && agent.worktreePath) {
+        verified = await this._verifyInDir(agent.worktreePath, verifyCmd);
+      }
+      const rank = verified
+        ? 3
+        : outcome === OUTCOME.GOAL_COMPLETED
+          ? 2
+          : outcome === OUTCOME.STEP_DONE
+            ? 1
+            : 0;
+      results.push({
+        runnerId: id,
+        spec: specs[i],
+        outcome,
+        summary: summary.slice(0, 400),
+        worktreePath: agent ? agent.worktreePath : null,
+        verified,
+        rank
+      });
+      if (agent) agent.recentActivity.push(`Arena result: ${outcome}${verified ? ' (verified)' : ''}`);
+    }
+
+    results.sort((a, b) => b.rank - a.rank);
+    const winner = results[0].rank > 0 ? results[0] : null;
+
+    for (const r of results.slice(1)) {
+      const agent = this.agents.get(r.runnerId);
+      if (agent && agent.status !== 'aborted') this.stopAgent(r.runnerId);
+    }
+
+    this.onEvent({
+      type: 'arena_finished',
+      arenaId,
+      winner: winner ? winner.runnerId : null,
+      participants: n,
+      results: results.map((r) => ({ runnerId: r.runnerId, spec: r.spec, outcome: r.outcome, verified: r.verified, rank: r.rank }))
+    });
+    this._persistState();
+    return { arenaId, winner, results, participants: n };
+  }
+
+  async _verifyInDir(dir, cmd) {
+    
+    try {
+      await execFileAsync(cmd, [], { cwd: dir, shell: true, timeout: 120_000, windowsHide: true });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   _checkAgentSync(agentId) {
     if (!agentId) {
       return {
@@ -3553,10 +3663,24 @@ class AgentMesh {
     priority = false,
     wait = true,
     depth = 0,
-    nowMs = null
+    nowMs = null,
+    parallel = false
   }) {
     if (targetId === 'all') {
       const targets = Array.from(this.agents.keys()).filter((id) => id !== fromId);
+      if (parallel && targets.length > 1) {
+        const settled = await Promise.allSettled(
+          targets.map((id) =>
+            this.sendToAgent({ fromId, targetId: id, message, delivery, priority, wait, depth })
+          )
+        );
+        const replies = settled.map((r, i) =>
+          r.status === 'fulfilled'
+            ? { targetId: targets[i], ...r.value }
+            : { targetId: targets[i], delivered: false, error: String(r.reason?.message || r.reason) }
+        );
+        return { delivered: true, broadcast: replies, parallel: true };
+      }
       const replies = [];
       for (const id of targets) {
         const res = await this.sendToAgent({
@@ -3824,13 +3948,19 @@ class AgentMesh {
     this._persistState();
     this.onEvent({ type: 'agent_status', agentId, status: 'running' });
 
-    // Isolated Worktree for writers
+    // Isolated Worktree for writers. Serialized through a gate: parallel
+    // runners must not run `git worktree add` concurrently (shared .git
+    // admin state), while the turns themselves still overlap freely.
     let runDir = this.workspaceDir;
     if (agent.role === 'writer') {
-      try {
+      const ensureTask = () => {
         const wtInfo = this.worktreeManager.ensure(agent.id, agent.baseBranch || undefined);
         runDir = wtInfo.path;
         agent.worktreePath = wtInfo.path;
+      };
+      this._worktreeGate = (this._worktreeGate || Promise.resolve()).then(ensureTask, ensureTask);
+      try {
+        await this._worktreeGate;
       } catch (err) {
         agent.recentActivity.push(`Worktree ensure warning: ${err.message}`);
       }
@@ -7258,13 +7388,9 @@ class LocalWebUiServer {
           if (body.length > 1_048_576) throw new Error('Body too large');
         }
         return JSON.parse(body || '{}');
-      };
+	      };
 
-<<<<<<< HEAD
-      // 3. GET /api/state — Full Roster, Handoffs, Approvals, 0-Key Auth & IDE Transcript
-=======
-      // 3. GET /api/state — Full Roster, Handoffs, Cores/Limits, 0-Key Auth & IDE Transcript
->>>>>>> 520c301 (feat(ui): add Orca-style Cores & Limits panel with usage tracking)
+      // 3. GET /api/state — Full Roster, Handoffs, Approvals, Cores/Limits, 0-Key Auth & IDE Transcript
       if (req.method === 'GET' && url.pathname === '/api/state') {
         const agents = this.mesh ? this.mesh.listAgents() : [];
         const handoffs = this.mesh ? this.mesh.handoffs.slice(-40) : [];
@@ -7284,8 +7410,7 @@ class LocalWebUiServer {
         } catch {}
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-<<<<<<< HEAD
-        res.end(JSON.stringify({ agents, handoffs, approvals, auth, latestIdeLog }));
+        res.end(JSON.stringify({ agents, handoffs, approvals, cores, auth, latestIdeLog }));
         return;
       }
 
@@ -7343,9 +7468,6 @@ class LocalWebUiServer {
           note: body.note
         });
         res.writeHead(out.status || 200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out));
-=======
-        res.end(JSON.stringify({ agents, handoffs, cores, auth, latestIdeLog }));
->>>>>>> 520c301 (feat(ui): add Orca-style Cores & Limits panel with usage tracking)
         return;
       }
 
@@ -7389,6 +7511,7 @@ class LocalWebUiServer {
                 targetId,
                 message: body.text || '',
                 delivery: body.delivery || 'send',
+                parallel: Boolean(body.parallel),
                 wait: true
               })
               .catch((err) => {
@@ -7408,6 +7531,7 @@ class LocalWebUiServer {
               targetId,
               message: body.text || '',
               delivery: body.delivery || 'send',
+              parallel: Boolean(body.parallel),
               wait: false
             });
             res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out));
@@ -7486,7 +7610,45 @@ class LocalWebUiServer {
         return;
       }
 
-      // 10. POST /api/team/start — Dispatch autonomous squad mission (@lead -> @coder -> @reviewer -> merge)
+      // 10. POST /api/arena/start — Fan one goal out to N parallel runners, verify & rank
+      if (req.method === 'POST' && url.pathname === '/api/arena/start') {
+        const body = await readJson().catch(() => ({}));
+        if (this._checkDuplicateNonce(body.nonce, res)) return;
+        const goal = String(body.goal || '').trim();
+        if (!goal) {
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Missing goal' }));
+          return;
+        }
+        const participants = Math.max(2, Math.min(6, Number(body.participants) || 3));
+
+        if (this.mesh) {
+          this.mesh
+            .runArena({ goal, verifyCmd: body.check || null, participants })
+            .then((out) => {
+              this.broadcastEvent('arena_result', {
+                arenaId: out.arenaId,
+                winner: out.winner ? out.winner.runnerId : null,
+                message: out.winner
+                  ? `Arena winner: @${out.winner.runnerId} (${out.winner.verified ? 'verified' : 'best outcome'}) · ${out.winner.spec}`
+                  : `Arena finished with no usable result (${out.participants} runners)`,
+                results: out.results
+              });
+            })
+            .catch((err) => {
+              this.broadcastEvent('arena_result', {
+                arenaId: null,
+                winner: null,
+                message: `Arena error: ${err.message}`
+              });
+            });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(
+          JSON.stringify({ status: 'dispatched', arena: true, participants, goal })
+        );
+        return;
+      }
+
+      // 11. POST /api/team/start — Dispatch autonomous squad mission to @lead
       if (req.method === 'POST' && url.pathname === '/api/team/start') {
         const body = await readJson().catch(() => ({}));
         if (this._checkDuplicateNonce(body.nonce, res)) return;
