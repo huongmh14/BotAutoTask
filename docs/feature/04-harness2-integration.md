@@ -85,3 +85,21 @@ Module `Harness2Engine` trong `BotAutoTask`:
 2. Kiểm tra trần token `always_on_max` (mặc định 24,000 ký tự cho OpenCode, 8,000 cho Codex) để không làm cạn kiệt context window của model.
 3. Điều phối các lượt chạy `Propose – Probe – Compose` kết hợp với `WorktreeManager`.
 4. Cung cấp API đọc/ghi thư viện kinh nghiệm cho cả Local PC và Cloudflare Worker D1.
+
+---
+
+## 5. Cải tiến v2 (sau khi đối chiếu GrokBot + Neko)
+
+| Cải tiến | Nguồn | Chi tiết |
+|---|---|---|
+| **Ngân sách cố định theo `k`** | `harness2/core/ledger.py` | Mỗi task: R = 4k rollouts (k base + 2k probe + k final), P = 3k phiên cải tiến (k INV + k DOM + k compose). Ghi vào `journal_entries` để Cloud/PWA hiển thị chi phí; vượt ngân sách → dừng, không âm thầm chạy tiếp |
+| **Probe Invariant = validator độc lập** | Neko completion-supervisor | Nhánh $I$ chạy trên **core khác** worker, chỉ đọc + bash foreground; implementer chỉ nhận *gap* mức outcome, không nhận nội dung test (chống "học thuộc" test) — xem Spec 05 |
+| **Retry proposal không hợp lệ đúng 1 lần** rồi kế thừa harness hiện tại | `harness2/core/recursion.py` (`STAGE_ATTEMPTS=2`) | Tránh vòng lặp tốn token khi model free sinh cây $c_1..c_8$ sai định dạng |
+| **Validate cây trước khi nhận** | `harness2/core/tree.py` (`normalize_rel`, `is_allowed`) | Từ chối path thoát thư mục (`..`, tuyệt đối), file ngoài surface, `always_on` vượt trần (24k OpenCode / 8k Codex) |
+| **Thư viện kinh nghiệm theo domain, task trong domain chạy tuần tự** | `harness2/core/library.py`, `EXPERIMENTS.md` | Domain khác nhau chạy song song (worktree), cùng domain tuần tự để entry sau đọc được entry trước |
+| **Không có kinh nghiệm thì không ghi** | `library.has_experience` | Entry thiếu `cue/lesson/evidence` bị loại |
+
+### Tiêu chí chấp nhận
+- [ ] `--k 1` tạo đúng 4 rollout + 3 phiên, ghi ledger.
+- [ ] Cây đề xuất có path `../x` hoặc vượt trần `always_on` bị từ chối và retry đúng 1 lần.
+- [ ] Entry thư viện thiếu trường bị loại; entry hợp lệ đồng bộ lên D1 bảng `experience_library`.

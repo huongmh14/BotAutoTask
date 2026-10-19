@@ -43,6 +43,24 @@ export function shouldTriggerCloudFallback(goal, nowMs = Date.now()) {
   return expiresAt < nowMs;
 }
 
+/**
+ * Constant-time bearer check. Hashing both sides first gives equal-length buffers, so the
+ * comparison time does not leak the token length or a matching prefix.
+ */
+export async function isAuthorized(authHeader, expectedToken) {
+  if (!expectedToken) return false;
+  const enc = new TextEncoder();
+  const [a, b] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(String(authHeader || ''))),
+    crypto.subtle.digest('SHA-256', enc.encode(`Bearer ${expectedToken}`))
+  ]);
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
+
 async function sendTelegramMessage(env, text, chatId = env.TELEGRAM_ALLOWED_CHAT_ID) {
   if (!env.TELEGRAM_BOT_TOKEN || !chatId) return;
   await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -194,9 +212,8 @@ export default {
       return new Response('OK');
     }
 
-    // Authenticate Worker Lease API requests
-    const authHeader = request.headers.get('Authorization') || '';
-    if (env.BOTAUTOTASK_API_TOKEN && authHeader !== `Bearer ${env.BOTAUTOTASK_API_TOKEN}`) {
+    // Authenticate Worker Lease API requests (fail-closed: no configured token => nothing is authorized)
+    if (!(await isAuthorized(request.headers.get('Authorization'), env.BOTAUTOTASK_API_TOKEN))) {
       return new Response('Unauthorized', { status: 401 });
     }
 

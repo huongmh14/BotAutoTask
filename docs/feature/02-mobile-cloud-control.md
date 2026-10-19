@@ -1,120 +1,116 @@
-# Đặc Tả Tính Năng: Điều Khiển Độc Lập 100% Từ Điện Thoại & Cloudflare D1 24/7
+# Spec 02 — Điều Khiển Từ Điện Thoại & Cloud 24/7 (Cloudflare Worker + D1 + Durable Object Relay)
 
-## 1. Bài Toán & Triết Lý Thiết Kế
-Người dùng muốn có khả năng **TẮT HOÀN TOÀN MÁY TÍNH Ở NHÀ**, chỉ cầm điện thoại di động ra ngoài nhưng vẫn mở được bảng điều khiển, giao việc cho đội Agent, bấm nút Steer bẻ lái và hệ thống tự động chạy code, test và push lên GitHub trên Cloud.
+| Mục | Giá trị |
+|---|---|
+| Trạng thái | 📝 Spec v2 · phần auth fail-closed ✅ đã sửa · provisioning ✅ (Spec 06) |
+| Module dự kiến | `cloud-core/relay.js` (DO `RelayHub`), `cloud-core/migrations/0002_*.sql`, `src/daemon/relay-client.js`, `src/daemon/mobile-notify.js` |
+| Ràng buộc | Cloudflare free plan (SQLite Durable Object), Node built-in (`WebSocket` global Node ≥22, fallback long-poll) |
 
-### So Sánh Kênh Điều Khiển Mobile
-| Kênh Điều Khiển | Cách hoạt động | Ưu điểm đối với BotAutoTask | Nhược điểm |
-| :--- | :--- | :--- | :--- |
-| **Mobile PWA (Cloudflare Worker 24/7)** | Mở link Worker trên trình duyệt điện thoại | Có đầy đủ giao diện trực quan, khung chat, nút Steer, đổi model, 0 cần cài app bên thứ 3. | Cần mở màn hình để tương tác. |
-| **ntfy.sh (App iOS/Android)** | Cài app `ntfy` miễn phí $\rightarrow$ theo dõi tên kênh (topic) tự đặt | **0 cần đăng ký tài khoản, 0 cần API Key**, thông báo rung tức thì, nhắn lệnh 2 chiều qua HTTP POST, không bao giờ bị chặn mạng tại Việt Nam. | Giao diện dạng thông báo / dòng text. |
-| **Telegram Bot** | Webhook qua Cloudflare Worker | Quen thuộc với nhiều người dùng. | Tại Việt Nam đôi khi bị chặn mạng hoặc phải dùng VPN, cần tạo bot qua `@BotFather`. |
-| **Discord Webhook/Bot** | Webhook vào Discord Server | Không bị chặn mạng, chia kênh/thread cho từng Agent rất rõ ràng. | Cần tạo bot token trên Discord Developer Portal. |
+## 1. Mục tiêu
+- Điện thoại điều khiển đội agent **khi PC bật** (lệnh tới PC < 1s) và **khi PC tắt** (tự chuyển GitHub Actions ngay, không chờ cron 2 phút).
+- Không mở cổng inbound trên PC, không cần Tailscale.
+- Cloud không đọc được nội dung hội thoại (E2E).
 
-=> **Chiến lược v2.0:** Tích hợp **bộ đôi tối ưu**: **Mobile PWA trên Cloudflare Worker** (để có đầy đủ nút bấm điều khiển đồ hoạ) + **`ntfy.sh`** (để rung chuông báo hoàn thành & nhận lệnh nhanh không cần API Key) và giữ tuỳ chọn mở rộng cho Telegram/Discord.
+## 2. Cơ sở nghiên cứu → cải tiến
+| Quan sát | Nguồn | Áp dụng |
+|---|---|---|
+| Host **dial-out** WebSocket tới Worker của chính người dùng; DO hibernation ngủ giữa các tin (free plan); token trong subprotocol `t.<token>` | Neko relay v2–v5 (`worker.js:256-275`) | DO `RelayHub`, PC dial-out `/relay/ws` |
+| Hàng đợi bền khi host offline (≤100 job, quá → 429), xả khi host nối lại | Neko `/send`, `flushQueueTo` | Lệnh gửi khi PC đang khởi động không mất |
+| `/interrupt` (nút Stop trên điện thoại), `/control` approval **không bao giờ xếp hàng**, offline → 409 | Neko | Approval cũ không bị áp dụng muộn |
+| E2E AES-256-GCM, key PBKDF2 từ secret nằm trong **URL fragment** `#k=`; strict mode cấm plaintext sau ghép cặp; `kid` phát hiện sai khoá | Neko `relay-crypto.ts`, security review | `node:crypto` (host) ↔ WebCrypto (browser) |
+| Push chỉ là **"chuông cửa"**, dữ liệu lấy qua `poll({ackIds})` → giao ít nhất một lần; safety poll 30s; backoff full-jitter 1→60s; `rehello` khi capability đổi | GrokBot `local-exec-daemon` (report §3) | `relay-client.js`: WS báo có việc → pull + ack; watchdog 35s |
+| Lease SELECT-rồi-UPDATE cho phép 2 worker cùng nhận goal | Đối chiếu Neko `INSERT OR IGNORE`/CAS | **Bug hiện tại** → CAS + `lease_epoch` |
+| Webhook chỉ kiểm chat_id | Đối chiếu Neko ratelimits | Secret header Telegram + `[[ratelimits]]` |
 
----
-
-## 2. Kiến Trúc Đồng Bộ Giữa Cloud 24/7 và Local PC
-
+## 3. Kiến trúc
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User as 📱 Người Dùng (Điện Thoại)
-    participant CF as ☁️ Cloudflare Worker (D1 24/7)
-    participant GHA as 🚀 GitHub Actions Runner
-    participant PC as 💻 Local PC (Nhà)
-
-    alt Trường hợp 1: Máy tính ở nhà ĐANG BẬT
-        User->>CF: Gửi lệnh qua Mobile UI: /team "Xây dựng tính năng X"
-        CF->>CF: Lưu goal vào D1 (status: QUEUED)
-        PC->>CF: Heartbeat định kỳ 25s (/api/lease/heartbeat)
-        CF-->>PC: Trả về Goal mới + Remote Steer Commands
-        PC->>PC: Chạy Multi-Agent Mesh & Worktree song song
-        PC->>CF: Gửi cập nhật từng bước (/api/lease/step)
-        CF-->>User: Đẩy log real-time lên Mobile UI + Thông báo ntfy
-    else Trường hợp 2: Máy tính ở nhà ĐÃ TẮT NGUỒN (Cloud Fallback tức thì)
-        User->>CF: Bấm "Giao việc (Chế độ Cloud)" trên điện thoại
-        CF->>CF: Nhận thấy PC không heartbeat > 30s
-        CF->>GHA: Kích hoạt tức thì 0s qua GitHub Workflow Dispatch
-        GHA->>GHA: Khởi động Ubuntu Runner, clone repo
-        GHA->>GHA: Chạy BotAutoTask Multi-Agent + Git Worktree
-        GHA->>CF: Báo cáo từng StepReceipt về D1
-        CF-->>User: Báo rung qua ntfy: "✅ Đã pass test và git push lên nhánh dev!"
-    end
+flowchart LR
+    Phone["📱 PWA / Telegram / ntfy"] -->|HTTPS + E2E| W["Worker (fetch)"]
+    W --> D1[("D1: goals, journal,\napprovals, remote_commands")]
+    W --> DO["DO RelayHub\n(SQLite, hibernation)"]
+    PC["💻 relay-client.js\n(dial-out WS)"] <-->|"WS: doorbell / frames"| DO
+    W -->|"không host online\n→ workflow_dispatch ngay"| GHA["GitHub Actions"]
+    GHA -->|lease API| W
 ```
 
----
+### 3.1 Định tuyến lệnh từ điện thoại
+1. Worker nhận lệnh (PWA `/relay/send`, Telegram webhook, ntfy) → ghi `remote_commands` (D1) + chuyển cho DO.
+2. DO: có socket host? → đẩy frame `doorbell`; không → giữ trong queue (≤100).
+3. Worker kiểm `/relay/alive`: nếu **không host nào online trong 30s** và goal `execution_mode ∈ {auto, cloud}` → `workflow_dispatch` GitHub Actions **ngay lập tức** (thay cho cron).
+4. Cron 2 phút vẫn giữ làm lưới an toàn (lease hết hạn giữa chừng).
 
-## 3. Cấu Trúc Cơ Sở Dữ Liệu Cloudflare D1 (`cloud-core/schema.sql`)
+### 3.2 Endpoint mới (Worker)
+| Endpoint | Auth | Mô tả |
+|---|---|---|
+| `GET /` | public | PWA (HTML Spec 01, chế độ cloud) |
+| `GET /healthz` | public | `{version}` — không lộ dữ liệu |
+| `POST /relay/register` | Bearer | first-token-wins, lưu `kid` |
+| `GET /relay/ws` | subprotocol `t.<token>` | PC dial-out |
+| `POST /relay/send` | Bearer | `{nonce, sealed}` → `{id}`; queue nếu offline |
+| `GET /relay/result?id&seen` | Bearer | long-poll 25s theo `seq` |
+| `POST /relay/interrupt` | Bearer | dừng turn đang chạy |
+| `POST /relay/control` | Bearer | approval; offline → 409, không queue |
+| `GET /relay/alive` | Bearer | `{online, kid, lastSeenMs}` |
+| `POST /relay/revoke` | Bearer | đóng socket + xoá state DO |
 
-Bổ sung bảng `remote_commands` và `experience_library` để hỗ trợ điều khiển từ xa và lưu trữ tri thức:
-
+### 3.3 Schema D1 — `migrations/0002_lease_relay.sql`
 ```sql
--- Quản lý mục tiêu (Goal)
-CREATE TABLE IF NOT EXISTS goals (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  target_prompt TEXT NOT NULL,
-  repo_path TEXT,
-  repo_url TEXT,
-  branch TEXT DEFAULT 'dev',
-  acceptance_cmd TEXT,
-  execution_mode TEXT DEFAULT 'auto', -- 'local', 'cloud', 'auto'
-  preferred_core TEXT DEFAULT 'auto',
-  status TEXT DEFAULT 'QUEUED',        -- 'QUEUED', 'RUNNING_LOCAL', 'RUNNING_CLOUD', 'COMPLETED', 'PAUSED'
-  current_step INTEGER DEFAULT 0,
-  max_steps INTEGER DEFAULT 15,
-  lease_owner TEXT,                   -- 'local-pc' hoặc 'gh-actions'
-  lease_expires_at INTEGER DEFAULT 0,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-);
-
--- Nhật ký từng bước thực thi (Journal)
-CREATE TABLE IF NOT EXISTS journal_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  goal_id TEXT NOT NULL,
-  step_number INTEGER NOT NULL,
-  worker_id TEXT NOT NULL,
-  core_used TEXT NOT NULL,
-  model_used TEXT NOT NULL,
-  outcome TEXT NOT NULL,
-  summary TEXT NOT NULL,
-  git_commit TEXT,
-  created_at INTEGER NOT NULL,
-  FOREIGN KEY (goal_id) REFERENCES goals(id)
-);
-
--- Hàng đợi lệnh điều khiển từ xa (Bẻ lái Steer, Đổi Core từ điện thoại)
+ALTER TABLE goals ADD COLUMN lease_epoch INTEGER DEFAULT 0;
+ALTER TABLE goals ADD COLUMN turn_state TEXT DEFAULT 'idle';      -- idle|running|interrupted
+ALTER TABLE goals ADD COLUMN permission_mode TEXT DEFAULT 'default';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_journal_step ON journal_entries(goal_id, step_number);
 CREATE TABLE IF NOT EXISTS remote_commands (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  command_type TEXT NOT NULL,          -- 'STEER', 'SWITCH_CORE', 'STOP_AGENT', 'TEAM_GOAL'
-  target_id TEXT,                     -- 'coder-1', 'lead', hoặc 'all'
-  payload TEXT NOT NULL,              -- Nội dung chỉ thị
-  status TEXT DEFAULT 'PENDING',       -- 'PENDING', 'DELIVERED', 'EXECUTED'
+  id TEXT PRIMARY KEY,               -- = nonce từ client (idempotent)
+  goal_id TEXT, target_id TEXT,
+  command_type TEXT NOT NULL CHECK (command_type IN ('STEER','INTERRUPT','QUEUE','SWITCH_CORE','STOP_AGENT','TEAM_GOAL')),
+  payload TEXT NOT NULL,             -- ciphertext khi qua relay
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','DELIVERED','ACKED','EXPIRED')),
   created_at INTEGER NOT NULL
 );
-
--- Thư viện kinh nghiệm tích luỹ từ Harness²
-CREATE TABLE IF NOT EXISTS experience_library (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  domain TEXT NOT NULL,
-  task_slug TEXT NOT NULL,
-  cue TEXT NOT NULL,
-  lesson TEXT NOT NULL,
-  evidence TEXT NOT NULL,
-  skill_content TEXT,
-  created_at INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS approvals (
+  id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, tool TEXT NOT NULL, preview TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'PENDING' CHECK (state IN ('PENDING','APPROVED','DENIED','EXPIRED')),
+  decided_by TEXT, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL
 );
 ```
 
----
+### 3.4 Lease nguyên tử (sửa bug)
+```sql
+UPDATE goals SET lease_owner=?1, lease_expires_at=?2, lease_epoch=lease_epoch+1, updated_at=?3
+WHERE id=?4 AND (lease_expires_at < ?3 OR lease_owner = ?1);
+-- meta.changes === 1 mới được nhận; trả lease_epoch cho worker
+```
+`/api/lease/step` và `/heartbeat` bắt buộc `{lease_owner, lease_epoch}` khớp, không thì 409 (worker cũ bị "fence"). Journal `INSERT OR IGNORE` nhờ unique index → gửi lại an toàn.
 
-## 4. Đặc Tả Module `src/daemon/mobile-notify.js`
-Cung cấp class `MobileNotifier` tích hợp đa kênh:
-- `notify(title, message, { priority, url, tags })`:
-  - Gửi POST request tới `https://ntfy.sh/<topic>` với header `Title`, `Priority: high`, `Click: <url>`.
-  - Nếu có cấu hình `TELEGRAM_BOT_TOKEN`, gửi kèm qua Telegram API `sendMessage`.
-  - Nếu có cấu hình `DISCORD_WEBHOOK_URL`, bắn tin nhắn kèm embed qua Discord.
-- `pollNtfyCommands(onCommand)`: Lắng nghe luồng SSE từ `https://ntfy.sh/<topic>/sse` để nhận lệnh điều khiển nhanh trực tiếp từ điện thoại gửi về PC.
+### 3.5 PC client (`src/daemon/relay-client.js`)
+- Kết nối `wss://<worker>/relay/ws` (Node ≥22 `WebSocket`; Node 20 → long-poll `/relay/result`).
+- Nhận `doorbell` → `pull({ackIds})`; ack gửi kèm lần pull sau (at-least-once, xử lý idempotent theo `remote_commands.id`).
+- Backoff full-jitter 1→60s; watchdog 35s không frame → reconnect; 401 → dừng hẳn và báo người dùng.
+- Mỗi lệnh: giải mã → `mesh.sendToAgent({delivery})` / `stopAgent` / đổi core; kết quả partial throttle 600ms gửi lại (sealed).
+
+### 3.6 Ghép cặp điện thoại
+`botautotask pair` → sinh `pairingId`, `token`, `secret` (128-bit mỗi cái) lưu `~/.botautotask/relay.json` (ghi atomic), in **QR + link** `https://<worker>/#p=<pairingId>&t=<token>&k=<secret>`. Fragment không bao giờ gửi lên server. `botautotask pair --rotate` = `revoke` trước rồi lưu khoá mới.
+
+### 3.7 Kênh thông báo
+| Kênh | Vai trò | Ghi chú |
+|---|---|---|
+| PWA | điều khiển đầy đủ | Spec 01 chế độ cloud |
+| ntfy.sh | push rung + lệnh nhanh | topic ngẫu nhiên ≥128-bit (topic là bí mật duy nhất); **không gửi nội dung code**, chỉ tiêu đề + link PWA |
+| Telegram | tuỳ chọn | `setWebhook` với `secret_token`; Worker kiểm header `X-Telegram-Bot-Api-Secret-Token` + chat_id; lệnh `/pause /cancel /switch` chỉ tác động **goal chỉ định** (mặc định goal mới nhất) |
+
+## 4. Bảo mật
+- ✅ Auth fail-closed + constant-time (`isAuthorized`, đã sửa).
+- Body ≤1MB đọc stream; frame WS lớn → close 1009; `[[ratelimits]]` 30 req/60s cho webhook/relay.
+- Strict E2E: sau ghép cặp, payload không sealed bị từ chối.
+- Không log body/payload trong Worker.
+
+## 5. Tiêu chí chấp nhận
+- [ ] PC online: lệnh từ điện thoại tới agent < 1s; Stop trên điện thoại dừng turn < 2s.
+- [ ] PC offline: GitHub Actions được dispatch ≤ 30s sau khi gửi goal (không chờ cron).
+- [ ] Hai worker cùng acquire → đúng một thắng; worker epoch cũ ghi step → 409.
+- [ ] Gửi lại cùng step / cùng nonce không tạo bản ghi đôi.
+- [ ] Approval gửi khi PC offline → 409, không bị áp dụng sau.
+- [ ] Payload trong D1/DO chỉ là ciphertext.
+
+## 6. Test tối thiểu
+`tests/relay-hub.test.js` (double `MemoryStorage` + `SocketDouble`, như Neko — không cần miniflare): queue khi offline, flush khi online, control 409, revoke. `tests/lease-cas.test.js`: mô phỏng D1 bằng SQL builder stub kiểm điều kiện `changes===1` và fencing.

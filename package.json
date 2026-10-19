@@ -10,6 +10,11 @@
     "test": "node --test tests/*.test.js",
     "start": "node src/daemon/cli.js daemon",
     "models": "node src/daemon/cli.js models",
-    "cores": "node src/daemon/cli.js cores"
+    "cores": "node src/daemon/cli.js cores",
+    "cloud:setup": "node scripts/cloud-provision.mjs",
+    "cloud:setup:dry": "node scripts/cloud-provision.mjs --dry-run"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
   }
 }

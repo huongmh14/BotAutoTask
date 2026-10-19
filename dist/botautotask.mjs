@@ -2754,10 +2754,10 @@ class LocalDaemon {
     queueFile = resolveDefaultQueueFile()
   } = {}) {
     this.workerId = workerId;
-    this.cloudUrl = cloudUrl.replace(/\/$/, '');
-    this.apiToken = apiToken;
     this.queueFile = queueFile;
     const { config, ranker, registry } = createRuntime();
+    this.cloudUrl = (cloudUrl || config.cloud?.url || '').replace(/\/$/, '');
+    this.apiToken = apiToken || config.cloud?.apiToken || '';
     this.config = config;
     this.ranker = ranker;
     this.registry = registry;

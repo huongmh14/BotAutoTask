@@ -1,87 +1,49 @@
-# BotAutoTask v2.0 — Feature Specifications & Architectural Blueprint
+# BotAutoTask v2.0 — Feature Specs
 
-Thư mục này tài liệu hoá toàn bộ các nghiên cứu, đặc tả kỹ thuật và kế hoạch kiến trúc cho các tính năng trọng điểm của **BotAutoTask v2.0**, bao gồm Giao diện Điều khiển Trực quan Web/Mobile, Điều khiển Độc lập 100% từ Điện thoại qua Cloudflare D1 24/7, Cơ chế Song song hoá Git Worktree, và Sự tích hợp hệ thống đệ quy tự tiến hoá từ **Google Research Harness²** (`google-research/harness2`).
-
----
-
-## Danh Mục Tính Năng
+Đặc tả chi tiết từng tính năng, đã cải tiến dựa trên **reverse-engineering GrokBot 0.71.2** và **mã nguồn Neko Core**, cộng nghiên cứu **Google Research Harness²**.
 
 ```
 docs/feature/
-├── README.md                      # Tổng quan kiến trúc v2.0 & sơ đồ kết nối hệ thống
-├── 01-web-mobile-ui.md            # Giao diện Điều khiển Trực quan (Local & Mobile Web/PWA)
-├── 02-mobile-cloud-control.md     # Điều khiển Độc lập 100% từ Điện thoại & Cloud D1 24/7
-├── 03-git-worktree-parallel.md    # Song song hoá Git Worktree per Agent & Auto-Merge
-└── 04-harness2-integration.md     # Tích hợp Google Research Harness² (c1..c8 & Propose-Probe-Compose)
+├── README.md                          # (file này) chỉ mục, trạng thái, lộ trình
+├── 01-web-mobile-ui.md                # Dashboard Local + PWA: frame protocol, nonce, stale status, mirror seq
+├── 02-mobile-cloud-control.md         # Điều khiển từ điện thoại: DO relay dial-out, E2E, lease CAS, approvals
+├── 03-git-worktree-parallel.md        # Agent Mesh v2: delivery modes, await, lineage limits, worktree, handoff ack
+├── 04-harness2-integration.md         # Harness² c1..c8, Propose–Probe–Compose, Experience Library, ngân sách k
+├── 05-verification-policy-auth.md     # Completion contract, validator độc lập, policy quyền, failover an toàn
+├── 06-cloudflare-auto-provision.md    # Playwright + wrangler tự dựng Cloudflare (ĐÃ TRIỂN KHAI)
+└── research/
+    ├── grokbot-findings.md            # REA GrokBot 0.71.2 (file:dòng, nhãn Verified/Inferred)
+    └── neko-core-findings.md          # Pattern Neko Core + bug BotAutoTask phát hiện được
 ```
 
----
+## Trạng thái
+| Spec | Trạng thái | Đã làm |
+|---|---|---|
+| 06 Cloudflare auto-provision | ✅ Triển khai | `scripts/cloud-provision.mjs`, `npm run cloud:setup`, daemon đọc `~/.botautotask/config.json` |
+| 02 (một phần) | ✅ Sửa bảo mật | Auth Worker fail-closed + constant-time (`isAuthorized`) |
+| 01, 02, 03, 04, 05 | 📝 Spec | — |
 
-## Kiến Trúc Tổng Thể v2.0
+## Phát hiện quan trọng từ nghiên cứu
+1. **GrokBot là client mỏng**: agent chạy trên VM cloud; client **không có** routed loopback MCP bridge (đính chính tài liệu cũ). Học được: 3 chế độ giao tin subagent, await có timeout, lineage + `maxRunning=32`, stale 90s, nonce idempotent, dial-out daemon (doorbell + poll/ack), permission `min(choice, ceiling)`, kill-switch fail-closed.
+2. **Neko Core relay** là mẫu tốt nhất cho điều khiển từ điện thoại: PC dial-out WebSocket tới Durable Object của chính người dùng, E2E AES-GCM với secret trong URL fragment, queue offline, `/control` approval không xếp hàng.
+3. **Neko không có git worktree** — writer chạy tuần tự. Worktree per writer là điểm BotAutoTask vượt trội.
+4. **Bug thật** trong BotAutoTask lộ ra khi đối chiếu: auth fail-open (đã sửa), lease race, auto-pass khi thiếu acceptance, `/pause` tác động mọi goal, ghi state không atomic.
 
-```mermaid
-flowchart TB
-    subgraph Client["Tầng Người Dùng (Commander)"]
-        MobilePWA["📱 Mobile Web/PWA (Cloudflare 24/7)\nKhung chat, Steer, Đổi lõi, Xem log"]
-        NtfyClient["🔔 App ntfy (iOS / Android)\nPush Notification & Lệnh nhanh 0-API-Key"]
-        LocalWeb["💻 Local Web UI (http://127.0.0.1:8765)\nSSE Real-time Dashboard trên PC"]
-    end
+## Lộ trình đề xuất (ưu tiên)
+| # | Việc | Spec | Lý do |
+|---|---|---|---|
+| 1 | Lease CAS + `lease_epoch` + unique step; `/pause` theo goal; Telegram secret header | 02 | Đúng đắn dữ liệu, sửa nhỏ |
+| 2 | Bỏ auto-pass; `completionStatus` + `mutation_epoch`; no-progress stop | 05 | Chặn báo "xong" giả |
+| 3 | `policy.js` + kill-switch | 05 | An toàn trước khi chạy không người |
+| 4 | `WorktreeManager` + `DelegateParallel` + `MergeAgentWorktree` | 03 | Song song hoá writer |
+| 5 | Delivery modes / CheckSubagent await / lineage limits / atomic state | 03 | Điều khiển subagent |
+| 6 | Web UI local (`botautotask ui`) | 01 | Quan sát + steer |
+| 7 | DO RelayHub + `relay-client.js` + `botautotask pair` + PWA cloud | 02 | Điện thoại khi PC bật/tắt |
+| 8 | Harness² engine | 04 | Tự tiến hoá |
 
-    subgraph CloudCore["Tầng Cloud Control Plane 24/7 (Khi tắt PC)"]
-        CFWorker["Cloudflare Worker (cloud-core/worker.js)\nPhục vụ Mobile UI + API Điều phối"]
-        D1DB[("Cloudflare D1 SQLite\ngoals + journal + remote_commands + experience_library")]
-        GHARunner["GitHub Actions Cloud Runner (.github/workflows/botautotask-worker.yml)\nKích hoạt tức thì 0s khi PC tắt"]
-        CFWorker <--> D1DB
-        CFWorker -->|"Trigger tức thì khi PC offline"| GHARunner
-    end
-
-    subgraph LocalRuntime["Tầng Local Runtime (Khi PC bật)"]
-        Daemon["LocalDaemon (src/daemon/local-daemon.js)\nHeartbeat 25s đồng bộ với Cloud D1"]
-        Mesh["AgentMesh + Loopback MCP Bridge\n(lead, coder-1, coder-2, reviewer)"]
-        WTManager["WorktreeManager (src/core/worktree-manager.js)"]
-        H2Engine["Harness² Engine (src/core/harness2-engine.js)\nSurfaceSpec c1..c8 + Propose-Probe-Compose"]
-    end
-
-    subgraph Isolation["Tầng Cô Lập Nhánh (Git Worktrees)"]
-        W1[".botautotask/worktrees/coder-1\n(Nhánh: botautotask/agent-coder-1)"]
-        W2[".botautotask/worktrees/coder-2\n(Nhánh: botautotask/agent-coder-2)"]
-        WR[".botautotask/worktrees/reviewer\n(Nhánh: botautotask/agent-reviewer)"]
-        MainRepo["Nhánh Chính Workspace / GitHub Repo\n(Auto-Merge sau khi Pass Test)"]
-    end
-
-    MobilePWA <-->|"HTTPS"| CFWorker
-    NtfyClient <-->|"HTTP Push"| CFWorker
-    LocalWeb <-->|"HTTP + SSE"| Mesh
-    CFWorker <-.->|"Heartbeat 25s & Steer queue"| Daemon
-    Daemon --> Mesh
-    GHARunner --> Mesh
-    Mesh --> H2Engine
-    H2Engine --> WTManager
-    WTManager --> W1 & W2 & WR
-    W1 & W2 -->|"Verify Pass"| MainRepo
+## Bắt đầu nhanh với Cloud
+```powershell
+npm install                 # cài playwright-core (dev)
+npm run cloud:setup:dry     # xem trước
+npm run cloud:setup         # đăng nhập Cloudflare trong cửa sổ Edge, phần còn lại tự động
 ```
-
----
-
-## 4 Trụ Cột Phát Triển
-
-1. **[01-web-mobile-ui.md](01-web-mobile-ui.md):**
-   - Thiết kế Single-Page Dashboard Dark UI (Zero External Dependencies) dùng chung cho cả Local Server (`127.0.0.1:8765`) và Cloudflare Worker 24/7.
-   - Luồng sự kiện Server-Sent Events (SSE) stream trực tiếp cuộc hội thoại giữa `lead`, `coder-1`, `coder-2`, `reviewer`.
-   - Nút bấm **⚡ Priority Steer**, dropdown đổi lõi **Claude / Codex / OpenCode / Antigravity**, và tail log thời gian thực.
-
-2. **[02-mobile-cloud-control.md](02-mobile-cloud-control.md):**
-   - Vận hành 100% từ điện thoại ngay cả khi **máy tính ở nhà tắt hoàn toàn**.
-   - Cloudflare D1 lưu trữ trạng thái hàng đợi lệnh từ xa (`remote_commands`) và kích hoạt GitHub Actions tức thì (0 giây chờ).
-   - Kênh thông báo đẩy & nhận lệnh di động 2 chiều qua **`ntfy.sh`** (miễn phí, không cần đăng ký tài khoản hay tạo Bot) kết hợp tuỳ chọn Telegram/Discord.
-
-3. **[03-git-worktree-parallel.md](03-git-worktree-parallel.md):**
-   - Module `WorktreeManager` tạo môi trường file độc lập tại `.botautotask/worktrees/<agentId>` cho mỗi Agent.
-   - Công cụ MCP `DelegateParallel` kích hoạt nhiều Agent chạy song song (`Promise.all`) không xung đột git commit.
-   - Công cụ MCP `MergeAgentWorktree` tự động chạy bộ test `--check`, nếu pass thì merge sạch về nhánh chính, nếu conflict thì trả diff về cho Agent xử lý.
-
-4. **[04-harness2-integration.md](04-harness2-integration.md):**
-   - Hiện thực hoá các nguyên lý từ nghiên cứu `google-research/harness2` (*Harness²: Recursive Agent Harnessing for an Open World*).
-   - Cây 8 thành phần $c_1 \dots c_8$ (`SurfaceSpec`) trên substrate OpenCode và Codex.
-   - Chu trình đệ quy `Propose – Probe – Compose` phân tách kiểm chứng tổng quát (Invariant) và lời giải chuyên môn (Domain).
-   - Thư viện kinh nghiệm tích luỹ `Experience Library R` ({cue, lesson, evidence}) giúp Agent tự thông minh hơn sau mỗi task.
