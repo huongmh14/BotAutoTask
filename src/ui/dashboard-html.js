@@ -1,46 +1,71 @@
 /**
- * BotAutoTask — Everyday Messenger / Telegram / Neko-Bot Style Multi-Agent Chat UI.
- * Clean 2-column chat layout:
- *   - Left sidebar: Brand header, search pill ("Tìm đồng nghiệp"), "Nhóm local" group rooms,
- *     1-on-1 coworker DM list with cute bot avatars, and bottom drawers ("Trạng thái runtime",
- *     "Kết nối", "Không gian cá nhân").
- *   - Right main chat: Coworker/Group header, "Mình bắt đầu từ đâu?" empty state with 3 quick
- *     action pills, Messenger/Telegram left/right chat bubbles, "Tài khoản" core selector row,
- *     and rounded pill composer ("+ Nhắn cho ... ↑").
+ * BotAutoTask — "52Hz Whale Pod" Original Messenger / Telegram UI.
+ * Inspired by the 52-Hertz Whale (the unique acoustic frequency in the deep ocean)
+ * combined with the effortless everyday usability of Telegram & Messenger:
+ *   - Bespoke SVG Whale & 52Hz Sonar visual identity (Arctic Ocean Light + Deep Trench Dark themes)
+ *   - Live 52.0 Hz acoustic waveform indicator that pulses when agents transmit/work
+ *   - Telegram-style pinned mission bar, left/right chat bubbles, @route sonar pills,
+ *     and floating acoustic composer.
  */
 
 export function renderDashboardHtml() {
   return `<!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="ocean-light">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>BotAutoTask — Tactical Coworker Mesh (Neko Bot Messenger)</title>
+<title>52Hz — BotAutoTask — Tactical Coworker Mesh</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg-sidebar: #F0EEE9;
-    --bg-main: #FAF9F5;
-    --bg-card: #FFFFFF;
-    --bg-bubble-in: #F1EFEA;
-    --bg-bubble-out: #232220;
-    --bg-hover: #E6E3DC;
-    --text-primary: #1F1E1C;
-    --text-secondary: #6E6B65;
-    --text-muted: #9A968E;
+  :root, [data-theme="ocean-light"] {
+    --bg-sidebar: #EBF3F9;
+    --bg-sidebar-card: #FFFFFF;
+    --bg-main: #F5F9FC;
+    --bg-header: rgba(245, 249, 252, 0.88);
+    --bg-bubble-in: #FFFFFF;
+    --bg-bubble-out: linear-gradient(135deg, #0369A1 0%, #0D9488 100%);
+    --bg-hover: rgba(14, 116, 144, 0.08);
+    --bg-pill: #E0EEF7;
+    --text-primary: #0C2536;
+    --text-secondary: #47677D;
+    --text-muted: #7B97AB;
     --text-out: #FFFFFF;
-    --border: #E4E1DA;
-    --border-strong: #D5D1C8;
-    --accent: #B85D43;
-    --ok: #2E7D5B;
-    --warn: #D97706;
-    --err: #DC2626;
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --border: #D5E5F0;
+    --border-strong: #B8D2E3;
+    --accent: #0284C7;
+    --accent-teal: #0D9488;
+    --accent-glow: rgba(2, 132, 199, 0.16);
+    --ok: #10B981;
+    --warn: #F59E0B;
+    --err: #EF4444;
+    --shadow-sm: 0 2px 8px rgba(12, 37, 54, 0.05);
+    --shadow-md: 0 12px 32px rgba(12, 37, 54, 0.12);
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+
+  [data-theme="deep-trench"] {
+    --bg-sidebar: #07131E;
+    --bg-sidebar-card: #0D2133;
+    --bg-main: #0A1929;
+    --bg-header: rgba(10, 25, 41, 0.88);
+    --bg-bubble-in: #10263C;
+    --bg-bubble-out: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
+    --bg-hover: rgba(56, 189, 248, 0.1);
+    --bg-pill: #132F4C;
+    --text-primary: #E6F4FE;
+    --text-secondary: #8AB4D0;
+    --text-muted: #567D99;
+    --text-out: #FFFFFF;
+    --border: #17344F;
+    --border-strong: #234E73;
+    --accent: #38BDF8;
+    --accent-teal: #2DD4BF;
+    --accent-glow: rgba(56, 189, 248, 0.2);
+    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.28);
+    --shadow-md: 0 16px 40px rgba(0, 0, 0, 0.55);
   }
 
   * {
@@ -65,25 +90,24 @@ export function renderDashboardHtml() {
     color: inherit;
   }
 
-  /* 2-Column Everyday Messenger Layout */
-  .app-layout {
+  /* 2-Column Ocean Messenger Layout */
+  .whale-app {
     display: grid;
-    grid-template-columns: 276px minmax(0, 1fr);
+    grid-template-columns: 300px minmax(0, 1fr);
     height: 100dvh;
     width: 100vw;
     position: relative;
   }
-
-  .app-layout.sidebar-collapsed {
+  .whale-app.sidebar-collapsed {
     grid-template-columns: 0px minmax(0, 1fr);
   }
-  .app-layout.sidebar-collapsed .sidebar {
+  .whale-app.sidebar-collapsed .pod-sidebar {
     overflow: hidden;
     border-right: none;
   }
 
-  /* ================= LEFT SIDEBAR ================= */
-  .sidebar {
+  /* ================= LEFT SIDEBAR: THE 52Hz POD ================= */
+  .pod-sidebar {
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border);
     display: flex;
@@ -91,53 +115,77 @@ export function renderDashboardHtml() {
     height: 100%;
     user-select: none;
     min-width: 0;
+    position: relative;
   }
 
-  .sb-header {
+  .pod-brand-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 16px 10px;
+    padding: 16px 16px 12px;
   }
 
-  .brand {
+  .whale-brand {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.02em;
-    color: var(--text-primary);
   }
 
-  .brand-logo {
-    width: 30px;
-    height: 24px;
-    border-radius: 999px;
-    background: #1F1E1C;
+  .whale-crest {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
+    color: #FFFFFF;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    box-shadow: inset 0 -2px 0 rgba(255,255,255,0.18);
+    box-shadow: 0 4px 12px var(--accent-glow);
+    flex-shrink: 0;
   }
-  .brand-logo span {
-    width: 3px;
-    height: 8px;
-    border-radius: 2px;
-    background: #FFFFFF;
+  .whale-crest svg {
+    width: 22px;
+    height: 22px;
   }
 
-  .sb-top-actions {
+  .brand-text-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+  .brand-name {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hz-tag {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+  }
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .top-icon-group {
     display: flex;
     align-items: center;
     gap: 4px;
   }
 
   .icon-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
@@ -145,38 +193,83 @@ export function renderDashboardHtml() {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.15s, color 0.15s, transform 0.12s;
   }
   .icon-btn:hover {
     background: var(--bg-hover);
-    color: var(--text-primary);
+    color: var(--accent);
   }
   .icon-btn svg {
-    width: 16px;
-    height: 16px;
+    width: 17px;
+    height: 17px;
   }
 
-  /* Search pill */
-  .sb-search-wrap {
-    padding: 4px 14px 12px;
+  /* 52Hz Live Sonar Frequency Strip */
+  .sonar-strip {
+    margin: 0 14px 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: var(--bg-sidebar-card);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    box-shadow: var(--shadow-sm);
   }
-  .sb-search {
+  .sonar-freq-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .sonar-wave-bars {
+    display: inline-flex;
+    align-items: center;
+    gap: 2.5px;
+    height: 14px;
+  }
+  .sonar-wave-bars i {
+    width: 2.5px;
+    border-radius: 2px;
+    background: var(--accent);
+    display: block;
+    height: 5px;
+    transition: height 0.2s;
+  }
+  .sonar-wave-bars.active i:nth-child(1) { animation: wave52 0.9s infinite ease-in-out 0.0s; }
+  .sonar-wave-bars.active i:nth-child(2) { animation: wave52 0.9s infinite ease-in-out 0.15s; }
+  .sonar-wave-bars.active i:nth-child(3) { animation: wave52 0.9s infinite ease-in-out 0.3s; }
+  .sonar-wave-bars.active i:nth-child(4) { animation: wave52 0.9s infinite ease-in-out 0.45s; }
+  @keyframes wave52 {
+    0%, 100% { height: 4px; opacity: 0.55; }
+    50% { height: 14px; opacity: 1; }
+  }
+
+  /* Search Input */
+  .pod-search-wrap {
+    padding: 0 14px 10px;
+  }
+  .pod-search {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: var(--bg-card);
+    background: var(--bg-sidebar-card);
     border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 7px 12px;
+    padding: 7px 13px;
     box-shadow: var(--shadow-sm);
   }
-  .sb-search svg {
+  .pod-search svg {
     width: 14px;
     height: 14px;
     color: var(--text-muted);
     flex-shrink: 0;
   }
-  .sb-search input {
+  .pod-search input {
     border: none;
     outline: none;
     background: transparent;
@@ -184,222 +277,189 @@ export function renderDashboardHtml() {
     font-size: 13px;
     color: var(--text-primary);
   }
-  .sb-search input::placeholder {
+  .pod-search input::placeholder {
     color: var(--text-muted);
   }
 
-  /* Scrollable middle roster */
-  .sb-scroll {
+  /* Pod Roster Scroll */
+  .pod-scroll {
     flex: 1;
     overflow-y: auto;
     padding: 0 10px 12px;
   }
 
-  .sb-section-head {
+  .pod-sec-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 8px 4px;
-    font-size: 12px;
-    font-weight: 600;
+    padding: 8px 8px 5px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--text-secondary);
   }
 
-  .sb-section-note {
-    padding: 0 8px 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-    line-height: 1.4;
-  }
-
-  /* Roster item (Group & Coworker rows) */
-  .roster-list {
+  .pod-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 10px;
+    gap: 5px;
+    margin-bottom: 12px;
   }
 
-  .roster-item {
+  .pod-item {
     display: flex;
     align-items: center;
     gap: 11px;
     width: 100%;
-    padding: 9px 11px;
-    border-radius: 14px;
+    padding: 10px 12px;
+    border-radius: 15px;
     border: 1px solid transparent;
     background: transparent;
     cursor: pointer;
     text-align: left;
-    transition: background 0.14s, box-shadow 0.14s;
+    transition: background 0.15s, border-color 0.15s, transform 0.12s;
   }
-  .roster-item:hover {
-    background: rgba(255, 255, 255, 0.55);
+  .pod-item:hover {
+    background: var(--bg-hover);
   }
-  .roster-item.active {
-    background: var(--bg-card);
-    border-color: var(--border);
+  .pod-item.active {
+    background: var(--bg-sidebar-card);
+    border-color: var(--border-strong);
     box-shadow: var(--shadow-sm);
   }
 
-  /* Cute Neko-Bot circular avatar */
-  .bot-avatar {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
+  /* Whale Avatar per Coworker */
+  .whale-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    color: #FFFFFF;
     flex-shrink: 0;
     position: relative;
+    box-shadow: 0 3px 10px rgba(2, 132, 199, 0.18);
   }
-  .bot-avatar.sm {
-    width: 32px;
-    height: 32px;
+  .whale-avatar.sm {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
   }
-  .bot-avatar-face {
-    width: 62%;
-    height: 52%;
-    border-radius: 999px;
-    background: #1F1E1C;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
+  .whale-avatar svg {
+    width: 22px;
+    height: 22px;
   }
-  .bot-avatar-face i {
-    width: 2.5px;
-    height: 7px;
-    border-radius: 2px;
-    background: #FFFFFF;
-    display: block;
+  .whale-avatar.sm svg {
+    width: 19px;
+    height: 19px;
   }
 
-  .status-dot {
+  .beacon-dot {
     position: absolute;
-    right: -1px;
-    bottom: -1px;
-    width: 11px;
-    height: 11px;
+    right: -2px;
+    bottom: -2px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
     border: 2px solid var(--bg-sidebar);
-    background: #9CA3AF;
+    background: var(--ok);
   }
-  .roster-item.active .status-dot {
-    border-color: var(--bg-card);
+  .pod-item.active .beacon-dot {
+    border-color: var(--bg-sidebar-card);
   }
-  .status-dot.online, .status-dot.idle { background: var(--ok); }
-  .status-dot.working {
+  .beacon-dot.working {
     background: var(--warn);
-    animation: pulseDot 1.3s infinite ease-in-out;
+    animation: sonarPulse 1.3s infinite ease-in-out;
   }
-  .status-dot.queued { background: #3B82F6; }
-  .status-dot.error { background: var(--err); }
+  .beacon-dot.queued { background: var(--accent); }
+  .beacon-dot.error { background: var(--err); }
 
-  @keyframes pulseDot {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.22); opacity: 0.75; }
+  @keyframes sonarPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    50% { transform: scale(1.18); box-shadow: 0 0 0 5px rgba(245, 158, 11, 0); }
   }
 
-  .roster-meta {
+  .pod-meta {
     min-width: 0;
     flex: 1;
   }
-  .roster-title-row {
+  .pod-row-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 6px;
   }
-  .roster-name {
+  .pod-name {
     font-size: 13.5px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .roster-badge {
-    font-size: 10.5px;
+  .pod-freq-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
     padding: 1px 6px;
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.06);
-    color: var(--text-secondary);
-    font-weight: 500;
+    background: var(--bg-pill);
+    color: var(--accent);
+    font-weight: 600;
     flex-shrink: 0;
   }
-  .roster-sub {
+  .pod-preview {
     font-size: 12px;
     color: var(--text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-top: 1px;
+    margin-top: 2px;
   }
 
-  /* Sidebar Footer Items (matching screenshot: Trạng thái runtime, Kết nối, Không gian cá nhân) */
-  .sb-footer {
+  /* Bottom Ocean Control Dock */
+  .pod-footer {
     border-top: 1px solid var(--border);
-    padding: 8px 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .sb-foot-btn {
+    padding: 10px 12px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: none;
-    background: transparent;
-    color: var(--text-primary);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.14s;
-  }
-  .sb-foot-btn:hover {
-    background: var(--bg-hover);
-  }
-  .sb-foot-btn svg {
-    width: 16px;
-    height: 16px;
-    color: var(--text-secondary);
-    flex-shrink: 0;
-  }
-  .sb-foot-sub {
-    display: block;
-    font-size: 11px;
-    color: var(--text-muted);
-    font-weight: 400;
+    justify-content: space-between;
+    gap: 6px;
   }
 
-  .ws-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #E2DDD5;
-    color: var(--text-primary);
-    font-size: 11px;
-    font-weight: 700;
+  .dock-btn {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-sidebar-card);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.14s, background 0.14s;
+  }
+  .dock-btn:hover {
+    border-color: var(--accent);
+  }
+  .dock-btn svg {
+    width: 14px;
+    height: 14px;
+    color: var(--accent);
   }
 
-  /* Connection dot indicator for tests & status */
+  /* Connection state pill */
   .conn {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 11px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
     color: var(--text-secondary);
-    margin-left: auto;
   }
   .conn-dot {
     width: 7px;
@@ -410,44 +470,50 @@ export function renderDashboardHtml() {
   .conn.LIVE .conn-dot { background: var(--ok); }
   .conn.POLLING .conn-dot { background: var(--warn); }
 
-  /* ================= MAIN CHAT COLUMN ================= */
-  .chat-main {
+  /* ================= RIGHT MAIN CHAT: 52Hz SONAR STREAM ================= */
+  .ocean-main {
     display: flex;
     flex-direction: column;
     height: 100dvh;
-    background: var(--bg-main);
+    background:
+      radial-gradient(circle at 85% 12%, var(--accent-glow), transparent 38%),
+      var(--bg-main);
     min-width: 0;
   }
 
-  /* Top Chat Header */
-  .chat-header {
-    height: 60px;
-    padding: 0 20px;
+  .ocean-header {
+    height: 64px;
+    padding: 0 22px;
     border-bottom: 1px solid var(--border);
+    background: var(--bg-header);
+    backdrop-filter: blur(12px);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--bg-main);
     flex-shrink: 0;
   }
 
-  .chat-header-left {
+  .ocean-header-left {
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 12px;
     min-width: 0;
   }
 
-  .chat-title-wrap {
+  .header-info {
     min-width: 0;
   }
-  .chat-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.25;
+  .header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
-  .chat-subtitle {
+  .header-title {
+    font-size: 15.5px;
+    font-weight: 800;
+    color: var(--text-primary);
+  }
+  .header-sub {
     font-size: 12px;
     color: var(--text-secondary);
     white-space: nowrap;
@@ -455,21 +521,65 @@ export function renderDashboardHtml() {
     text-overflow: ellipsis;
   }
 
-  .chat-header-actions {
+  .ocean-header-actions {
     display: flex;
     align-items: center;
+    gap: 8px;
+  }
+
+  .action-pill-btn {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-sidebar-card);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.14s;
+  }
+  .action-pill-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .action-pill-btn svg {
+    width: 14px;
+    height: 14px;
   }
 
-  .header-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--ok);
-    margin: 0 2px;
+  /* Telegram-style Pinned Mission / Branch Bar */
+  .pinned-sonar-bar {
+    padding: 7px 22px;
+    background: var(--bg-pill);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .pinned-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pinned-bar-indicator {
+    width: 3px;
+    height: 18px;
+    border-radius: 2px;
+    background: var(--accent);
+    flex-shrink: 0;
   }
 
-  /* Messages Stream Area */
+  /* Chat Stream */
   .chat-stream {
     flex: 1;
     overflow-y: auto;
@@ -479,76 +589,91 @@ export function renderDashboardHtml() {
     gap: 14px;
   }
 
-  /* Empty State ("Mình bắt đầu từ đâu?") */
-  .empty-welcome {
+  /* 52Hz Whale Empty State */
+  .whale-welcome {
     margin: auto;
-    max-width: 460px;
+    max-width: 510px;
     text-align: center;
-    padding: 32px 16px;
+    padding: 28px 18px;
   }
-  .empty-cat-icon {
-    width: 44px;
-    height: 44px;
-    margin: 0 auto 14px;
-    color: var(--text-secondary);
+  .whale-hero-art {
+    width: 108px;
+    height: 108px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: var(--bg-pill);
+    border: 1px solid var(--border-strong);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+    position: relative;
+    box-shadow: 0 0 0 10px var(--accent-glow);
   }
-  .empty-welcome h2 {
-    font-size: 24px;
-    font-weight: 700;
+  .whale-hero-art svg {
+    width: 58px;
+    height: 58px;
+  }
+  .whale-welcome h2 {
+    font-size: 23px;
+    font-weight: 800;
     letter-spacing: -0.02em;
     color: var(--text-primary);
     margin-bottom: 8px;
   }
-  .empty-welcome p {
+  .whale-welcome p {
     font-size: 14px;
     color: var(--text-secondary);
-    line-height: 1.55;
-    margin-bottom: 20px;
+    line-height: 1.6;
+    margin-bottom: 22px;
   }
-  .quick-pills {
+
+  .sonar-quick-grid {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
     flex-wrap: wrap;
+    justify-content: center;
+    gap: 9px;
   }
-  .quick-pill {
+  .sonar-chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: 7px;
+    padding: 9px 15px;
     border-radius: 999px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    background: var(--bg-sidebar-card);
+    border: 1px solid var(--border-strong);
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-primary);
     cursor: pointer;
     box-shadow: var(--shadow-sm);
-    transition: transform 0.12s, border-color 0.12s;
+    transition: transform 0.14s, border-color 0.14s, color 0.14s;
   }
-  .quick-pill:hover {
-    border-color: var(--border-strong);
-    transform: translateY(-1px);
+  .sonar-chip:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    color: var(--accent);
   }
-  .quick-pill svg {
-    width: 14px;
-    height: 14px;
-    color: var(--text-secondary);
+  .sonar-chip svg {
+    width: 15px;
+    height: 15px;
+    color: var(--accent);
   }
 
-  /* Day separator */
+  /* Day Separator */
   .day-sep {
     align-self: center;
     font-size: 11.5px;
-    color: var(--text-muted);
-    background: rgba(0, 0, 0, 0.04);
-    padding: 3px 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-pill);
+    border: 1px solid var(--border);
+    padding: 3px 13px;
     border-radius: 999px;
-    margin: 6px 0;
+    margin: 4px 0;
   }
 
-  /* Messenger / Telegram Bubbles */
+  /* Telegram / Messenger Chat Bubbles */
   .msg-row {
     display: flex;
     align-items: flex-end;
@@ -563,51 +688,52 @@ export function renderDashboardHtml() {
     align-self: flex-start;
   }
 
-  .msg-col {
+  .msg-stack {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     min-width: 0;
   }
-  .msg-row.outgoing .msg-col {
+  .msg-row.outgoing .msg-stack {
     align-items: flex-end;
   }
 
-  .msg-sender-line {
+  .msg-meta-line {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 0 4px;
     font-size: 12px;
   }
-  .msg-sender-name {
-    font-weight: 600;
+  .msg-author {
+    font-weight: 700;
     color: var(--text-primary);
   }
-  .msg-sender-meta {
-    color: var(--text-muted);
-    font-size: 11px;
-  }
-  .msg-route-pill {
-    font-size: 11px;
+  .msg-route-tag {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
     padding: 1px 7px;
     border-radius: 999px;
-    background: #E8E4DC;
-    color: var(--text-secondary);
-    font-weight: 500;
+    background: var(--bg-pill);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .msg-time {
+    font-size: 11px;
+    color: var(--text-muted);
   }
 
   .msg-bubble {
-    padding: 11px 15px;
+    padding: 11px 16px;
     border-radius: 18px;
     font-size: 14px;
-    line-height: 1.55;
+    line-height: 1.56;
     word-break: break-word;
     white-space: pre-wrap;
     box-shadow: var(--shadow-sm);
   }
   .msg-row.incoming .msg-bubble {
-    background: var(--bg-card);
+    background: var(--bg-bubble-in);
     color: var(--text-primary);
     border: 1px solid var(--border);
     border-bottom-left-radius: 5px;
@@ -618,132 +744,80 @@ export function renderDashboardHtml() {
     border-bottom-right-radius: 5px;
   }
   .msg-bubble.priority {
-    border: 1.5px solid var(--warn);
-  }
-  .msg-bubble code {
-    font-family: var(--font-mono);
-    font-size: 12.5px;
-    padding: 1px 5px;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.06);
-  }
-  .msg-row.outgoing .msg-bubble code {
-    background: rgba(255, 255, 255, 0.16);
+    border: 2px solid var(--warn);
   }
 
-  /* Typing indicator bubble */
-  .typing-bubble {
+  /* Sonar Ripple Typing Bubble */
+  .sonar-typing {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 9px 14px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
+    gap: 10px;
+    padding: 10px 15px;
+    background: var(--bg-bubble-in);
+    border: 1px solid var(--border-strong);
     border-radius: 18px;
     font-size: 12.5px;
     color: var(--text-secondary);
     align-self: flex-start;
+    box-shadow: var(--shadow-sm);
   }
-  .typing-dots {
-    display: inline-flex;
-    gap: 3px;
-  }
-  .typing-dots i {
-    width: 5px;
-    height: 5px;
+  .sonar-rings {
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: var(--text-secondary);
-    animation: bounceDot 1.2s infinite ease-in-out;
-  }
-  .typing-dots i:nth-child(2) { animation-delay: 0.15s; }
-  .typing-dots i:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes bounceDot {
-    0%, 80%, 100% { transform: translateY(0); opacity: 0.45; }
-    40% { transform: translateY(-4px); opacity: 1; }
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent-glow);
+    animation: sonarPulse 1.2s infinite;
   }
 
-  /* ================= BOTTOM COMPOSER ================= */
-  .composer-area {
-    padding: 8px 20px 16px;
-    background: var(--bg-main);
-    border-top: 1px solid rgba(0, 0, 0, 0.04);
+  /* ================= BOTTOM COMPOSER BAR ================= */
+  .composer-dock {
+    padding: 10px 22px 16px;
+    background: var(--bg-header);
+    border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
 
-  /* "Tài khoản" selector bar (matching screenshot) */
-  .account-row {
+  .composer-controls-row {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 12.5px;
-    color: var(--text-secondary);
-  }
-  .account-label {
-    white-space: nowrap;
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
-  .account-select {
-    flex: 1;
-    padding: 5px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    font-size: 12.5px;
-    outline: none;
-    cursor: pointer;
-  }
-  .delivery-select {
-    padding: 5px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text-secondary);
+    gap: 8px;
+    flex-wrap: wrap;
     font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .ctrl-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .ocean-select {
+    padding: 4px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-sidebar-card);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 500;
     outline: none;
     cursor: pointer;
   }
 
-  /* Pill input bar ("+ Nhắn cho Meiiie... ↑") */
-  .composer-pill {
+  .composer-capsule {
     display: flex;
     align-items: center;
     gap: 10px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-strong);
+    background: var(--bg-sidebar-card);
+    border: 1.5px solid var(--border-strong);
     border-radius: 999px;
-    padding: 6px 8px 6px 10px;
+    padding: 6px 8px 6px 12px;
     box-shadow: var(--shadow-sm);
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .composer-pill:focus-within {
-    border-color: #9E988E;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-  }
-
-  .plus-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-  .plus-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-  .plus-btn svg {
-    width: 18px;
-    height: 18px;
+  .composer-capsule:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-glow);
   }
 
   .composer-input {
@@ -759,40 +833,38 @@ export function renderDashboardHtml() {
     color: var(--text-muted);
   }
 
-  .send-circle-btn {
-    width: 32px;
-    height: 32px;
+  .sonar-send-btn {
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    border: 1px solid var(--border);
-    background: var(--bg-sidebar);
-    color: var(--text-primary);
+    border: none;
+    background: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
+    color: #FFFFFF;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s, color 0.15s;
+    box-shadow: 0 3px 10px var(--accent-glow);
+    transition: transform 0.12s, opacity 0.12s;
   }
-  .send-circle-btn:hover {
-    background: var(--text-primary);
-    color: #FFFFFF;
-    border-color: var(--text-primary);
+  .sonar-send-btn:hover {
+    transform: scale(1.05);
   }
-  .send-circle-btn.stop-btn {
-    background: #FEE2E2;
-    color: var(--err);
-    border-color: #FCA5A5;
+  .sonar-send-btn.stop-btn {
+    background: var(--err);
   }
-  .send-circle-btn svg {
-    width: 16px;
-    height: 16px;
+  .sonar-send-btn svg {
+    width: 17px;
+    height: 17px;
   }
 
-  /* ================= DRAWER / MODAL OVERLAY (Runtime & Connections) ================= */
+  /* ================= MODALS ================= */
   .tele-drawer-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(7, 19, 30, 0.45);
+    backdrop-filter: blur(4px);
     display: none;
     align-items: center;
     justify-content: center;
@@ -804,9 +876,9 @@ export function renderDashboardHtml() {
   }
 
   .tele-modal {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 18px;
+    background: var(--bg-sidebar-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 20px;
     width: 100%;
     max-width: 560px;
     max-height: 82vh;
@@ -815,17 +887,15 @@ export function renderDashboardHtml() {
     box-shadow: var(--shadow-md);
     overflow: hidden;
   }
-
   .tele-head {
-    padding: 14px 18px;
+    padding: 15px 18px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-weight: 700;
+    font-weight: 800;
     font-size: 15px;
   }
-
   .tele-body {
     padding: 16px 18px;
     overflow-y: auto;
@@ -833,33 +903,28 @@ export function renderDashboardHtml() {
     flex-direction: column;
     gap: 14px;
   }
-
   .tele-card {
     background: var(--bg-main);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 12px 14px;
   }
   .tele-card h4 {
-    font-size: 12px;
+    font-size: 11.5px;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    color: var(--accent);
     margin-bottom: 8px;
   }
-
   .auth-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 0;
+    padding: 7px 0;
     border-bottom: 1px solid var(--border);
     font-size: 13px;
   }
-  .auth-row:last-child {
-    border-bottom: none;
-  }
-
+  .auth-row:last-child { border-bottom: none; }
   .form-row {
     display: flex;
     flex-direction: column;
@@ -868,185 +933,207 @@ export function renderDashboardHtml() {
   }
   .form-row label {
     font-size: 12px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-secondary);
   }
   .form-input {
-    padding: 8px 11px;
-    border-radius: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
     border: 1px solid var(--border-strong);
-    background: var(--bg-card);
+    background: var(--bg-sidebar-card);
+    color: var(--text-primary);
     font-size: 13px;
   }
-
   .primary-btn {
-    padding: 8px 14px;
+    padding: 9px 16px;
     border-radius: 10px;
     border: none;
-    background: var(--text-primary);
+    background: linear-gradient(135deg, #0284C7 0%, #0D9488 100%);
     color: #FFFFFF;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 13px;
     cursor: pointer;
   }
 
   @media (max-width: 760px) {
-    .app-layout {
+    .whale-app {
       grid-template-columns: 1fr;
     }
-    .sidebar {
+    .pod-sidebar {
       position: fixed;
       inset: 0 auto 0 0;
-      width: 276px;
+      width: 290px;
       z-index: 60;
       transform: translateX(-100%);
       transition: transform 0.2s ease;
     }
-    .sidebar.mobile-open {
+    .pod-sidebar.mobile-open {
       transform: translateX(0);
     }
   }
 </style>
 </head>
 <body>
-  <div class="app-layout" id="appLayout">
-    <!-- LEFT SIDEBAR (Neko Bot / Messenger / Telegram Style) -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sb-header">
-        <div class="brand">
-          <div class="brand-logo"><span></span><span></span></div>
-          <span>Neko Bot</span>
+  <div class="whale-app" id="appLayout">
+    <!-- LEFT SIDEBAR: 52Hz WHALE POD -->
+    <aside class="pod-sidebar" id="sidebar">
+      <div class="pod-brand-bar">
+        <div class="whale-brand">
+          <div class="whale-crest" title="Cá Voi 52Hz — Tần số độc bản">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 16c2.5-3.5 6.5-5.5 11-5.5 4.2 0 7.2 2 8.5 4.5-2.2 1.5-5.5 2.5-9.5 2.5-4.2 0-7.5-1-10-1.5Z"/>
+              <path d="M12 10.5C12 7.5 14.5 5 18 4c-.5 2.2-.2 4 1.5 5.5"/>
+              <circle cx="16.5" cy="13.5" r="1" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="brand-text-wrap">
+            <div class="brand-name">
+              <span>Whale 52Hz</span>
+              <span class="hz-tag">52.0 Hz</span>
+            </div>
+            <div class="brand-sub">Deep Ocean Multi-Agent Pod</div>
+          </div>
         </div>
-        <div class="sb-top-actions">
-          <button class="icon-btn" onclick="toggleSidebar()" title="Thu gọn thanh bên">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+
+        <div class="top-icon-group">
+          <button class="icon-btn" onclick="toggleOceanTheme()" title="Đổi giao diện Sáng / Đại dương sâu (Dark)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
-          <button class="icon-btn" onclick="openModal('spawnModal')" title="Thêm đồng nghiệp mới">
+          <button class="icon-btn" onclick="openModal('spawnModal')" title="Triệu hồi cá voi đồng hành mới">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
       </div>
 
-      <div class="sb-search-wrap">
-        <div class="sb-search">
+      <!-- 52Hz Live Acoustic Frequency Strip -->
+      <div class="sonar-strip">
+        <div class="sonar-freq-label">
+          <div class="sonar-wave-bars active" id="sonarBars"><i></i><i></i><i></i><i></i></div>
+          <span id="freqStatusText">SONAR 52.0 Hz</span>
+        </div>
+        <span class="conn LIVE" id="connPill"><span class="conn-dot"></span><span id="sseText">LIVE</span></span>
+      </div>
+
+      <!-- Search -->
+      <div class="pod-search-wrap">
+        <div class="pod-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
-          <input id="searchInput" type="text" placeholder="Tìm đồng nghiệp" oninput="renderRoster()" />
+          <input id="searchInput" type="text" placeholder="Dò tìm cá voi đồng hành..." oninput="renderRoster()" />
         </div>
       </div>
 
-      <div class="sb-scroll">
-        <div class="sb-section-head">
-          <span>Nhóm local</span>
-          <button class="icon-btn" style="width:22px;height:22px;" onclick="selectChannel('all')" title="Mở phòng họp nhóm (#mesh-command-room)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
+      <div class="pod-scroll">
+        <div class="pod-sec-title">
+          <span>Kênh Đàn Cá Voi (Pod Group)</span>
+          <span>52 Hz</span>
         </div>
-        <div class="sb-section-note">Tạo nhóm để nhiều bot cùng trả lời tại đây.</div>
-        <div class="roster-list" id="groupRoster"></div>
+        <div class="pod-list" id="groupRoster"></div>
 
-        <div class="sb-section-head">
-          <span>Đồng nghiệp AI</span>
+        <div class="pod-sec-title">
+          <span>Cá Voi Đồng Hành (1-1 Sonar)</span>
+          <span id="podCountLabel">3 thành viên</span>
         </div>
-        <div class="roster-list" id="coworkerRoster"></div>
+        <div class="pod-list" id="coworkerRoster"></div>
       </div>
 
-      <div class="sb-footer">
-        <button class="sb-foot-btn" onclick="openModal('runtimeModal')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="14" x2="13" y2="14"/></svg>
-          <span>Trạng thái runtime</span>
-          <span class="conn LIVE" id="connPill"><span class="conn-dot"></span><span id="sseText">LIVE</span></span>
+      <div class="pod-footer">
+        <button class="dock-btn" onclick="openModal('runtimeModal')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+          <span>Radar Runtime</span>
         </button>
-        <button class="sb-foot-btn" onclick="openModal('connModal')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-          <span>Kết nối</span>
-        </button>
-        <button class="sb-foot-btn" onclick="openModal('runtimeModal')">
-          <span class="ws-avatar">P</span>
-          <span style="min-width:0;flex:1;">
-            <span style="display:block;font-weight:600;font-size:12.5px;">Không gian cá nhân</span>
-            <span class="sb-foot-sub" id="wsPathLabel">Lịch sử lưu trên máy</span>
-          </span>
+        <button class="dock-btn" onclick="openModal('connModal')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+          <span>Tần số Core</span>
         </button>
       </div>
     </aside>
 
-    <!-- RIGHT MAIN CHAT AREA -->
-    <main class="chat-main">
-      <!-- Chat Header -->
-      <header class="chat-header">
-        <div class="chat-header-left">
-          <button class="icon-btn" onclick="toggleSidebar()" title="Mở danh sách đồng nghiệp" style="margin-right:2px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
+    <!-- RIGHT MAIN CHAT: 52Hz SONAR STREAM -->
+    <main class="ocean-main">
+      <header class="ocean-header">
+        <div class="ocean-header-left">
+          <button class="icon-btn" onclick="toggleSidebar()" title="Đóng/mở danh sách đàn cá voi">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
           </button>
-          <div class="bot-avatar sm" id="headerAvatar" style="background:#B85D43;">
-            <div class="bot-avatar-face"><i></i><i></i></div>
-          </div>
-          <div class="chat-title-wrap">
-            <div class="chat-title" id="headerTitle">Lead</div>
-            <div class="chat-subtitle" id="headerSubtitle">Hội thoại ban đầu · #mesh-command-room</div>
+          <div class="whale-avatar sm" id="headerAvatar" style="background:linear-gradient(135deg,#0284C7,#0D9488);"></div>
+          <div class="header-info">
+            <div class="header-title-row">
+              <span class="header-title" id="headerTitle">Đàn Cá Voi 52Hz</span>
+              <span class="hz-tag" id="headerFreqBadge">52.0 Hz · Pod</span>
+            </div>
+            <div class="header-sub" id="headerSubtitle">Kênh phối hợp chung (#mesh-command-room)</div>
           </div>
         </div>
 
-        <div class="chat-header-actions">
-          <button class="icon-btn" onclick="openModal('runtimeModal')" title="Chỉnh lệnh kiểm thử & cấu hình">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div class="ocean-header-actions">
+          <button class="action-pill-btn" onclick="mergeAgentWorktree(currentChannel === 'all' ? 'coder' : currentChannel)" title="Kiểm thử & Gộp nhánh Git Worktree">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+            <span>Gộp nhánh (Merge)</span>
           </button>
-          <span class="header-dot" id="headerDot"></span>
-          <button class="icon-btn" onclick="mergeAgentWorktree(currentChannel === 'all' ? 'coder' : currentChannel)" title="Gộp nhánh Git Worktree (Merge)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </button>
-          <button class="icon-btn" onclick="clearCurrentView()" title="Làm mới khung hội thoại">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v4h6V4"/></svg>
+          <button class="icon-btn" onclick="clearCurrentView()" title="Xóa lịch sử hiển thị">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
           </button>
         </div>
       </header>
 
-      <!-- Message Stream / Empty Welcome State -->
+      <!-- Telegram-style Pinned Active Sonar Bar -->
+      <div class="pinned-sonar-bar">
+        <div class="pinned-left">
+          <span class="pinned-bar-indicator"></span>
+          <span><strong>Hải trình 52Hz:</strong> Mọi thay đổi code của <code>@coder</code> được cô lập trong Git Worktree và tự động kiểm thử trước khi gộp.</span>
+        </div>
+        <button class="icon-btn" style="width:24px;height:24px;" onclick="openModal('runtimeModal')" title="Cấu hình lệnh kiểm thử">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+
+      <!-- Chat Stream -->
       <section class="chat-stream" id="chatStream"></section>
 
-      <!-- Bottom Composer Bar (matching screenshot) -->
-      <footer class="composer-area">
-        <div class="account-row">
-          <span class="account-label">Tài khoản</span>
-          <select class="account-select" id="coreSelect" onchange="onCoreSelectChange(this.value)">
-            <option value="auto">Không chọn tài khoản (Tự động chọn Free Model tốt nhất)</option>
+      <!-- Bottom Composer -->
+      <footer class="composer-dock">
+        <div class="composer-controls-row">
+          <span class="ctrl-label">Nguồn sóng AI:</span>
+          <select class="ocean-select" id="coreSelect" onchange="onCoreSelectChange(this.value)">
+            <option value="auto">Tự động dò tần số tốt nhất (Zero-Key Free Model)</option>
             <option value="opencode">OpenCode Zen — Free Models (deepseek / big-pickle / mimo)</option>
             <option value="codex">Codex CLI — ChatGPT OAuth (gpt-5.4)</option>
             <option value="claude">Claude Code CLI — Local Session</option>
             <option value="antigravity">Antigravity IDE — Local Session</option>
-            <option value="neko-core">Neko Core — Local Daemon</option>
+            <option value="neko-core">Local Custom Core</option>
           </select>
-          <select class="delivery-select" id="deliverySelect" title="Chế độ gửi tin nhắn">
-            <option value="send">Gửi trực tiếp</option>
-            <option value="interrupt">Chèn ưu tiên (Steer)</option>
-            <option value="queue">Xếp hàng (Queue)</option>
+          <span class="ctrl-label" style="margin-left:6px;">Kiểu phát:</span>
+          <select class="ocean-select" id="deliverySelect">
+            <option value="send">Sóng trực tiếp (Send)</option>
+            <option value="interrupt">Sóng khẩn cấp 52Hz (Interrupt Steer)</option>
+            <option value="queue">Đưa vào hàng đợi (Queue)</option>
           </select>
         </div>
 
-        <div class="composer-pill">
-          <button class="plus-btn" onclick="openModal('runtimeModal')" title="Tùy chọn nâng cao & lệnh kiểm thử">
+        <div class="composer-capsule">
+          <button class="icon-btn" onclick="openModal('runtimeModal')" title="Cấu hình lệnh kiểm thử & Radar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
           <input
             id="msgInput"
             class="composer-input"
             type="text"
-            placeholder="Nhắn cho Lead..."
+            placeholder="Phát tín hiệu 52Hz tới Đàn Cá Voi..."
             onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendComposerMessage();}"
           />
-          <button class="send-circle-btn" id="sendOrStopBtn" onclick="onSendOrStopClick()" title="Gửi tin nhắn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          <button class="sonar-send-btn" id="sendOrStopBtn" onclick="onSendOrStopClick()" title="Phát tín hiệu 52Hz">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
           </button>
         </div>
       </footer>
     </main>
   </div>
 
-  <!-- MODAL 1: TRẠNG THÁI RUNTIME & KIỂM THỬ -->
+  <!-- MODAL 1: RADAR RUNTIME -->
   <div class="tele-drawer-backdrop" id="runtimeModal" onclick="if(event.target===this)closeTelemetry()">
     <div class="tele-modal">
       <div class="tele-head">
-        <span>Trạng thái Runtime & Kiểm thử Worktree</span>
+        <span>Radar 52Hz — Trạng thái Đàn Cá Voi & Kiểm thử</span>
         <button class="icon-btn" onclick="closeTelemetry()">✕</button>
       </div>
       <div class="tele-body">
@@ -1063,86 +1150,108 @@ export function renderDashboardHtml() {
           </div>
         </div>
         <div class="tele-card">
-          <h4>Đồng nghiệp đang hoạt động</h4>
+          <h4>Trạng thái các thành viên trong đàn</h4>
           <div id="runtimeAgentsSummary" style="font-size:13px;color:var(--text-secondary);">Đang tải...</div>
         </div>
         <div class="tele-card">
-          <h4>Nhật ký IDE / Antigravity gần nhất</h4>
+          <h4>Tín hiệu IDE / Antigravity gần nhất</h4>
           <div id="ideLogBox" style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);white-space:pre-wrap;">Chưa có dữ liệu</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODAL 2: KẾT NỐI ZERO-API-KEY -->
+  <!-- MODAL 2: TẦN SỐ KẾT NỐI -->
   <div class="tele-drawer-backdrop" id="connModal" onclick="if(event.target===this)closeTelemetry()">
     <div class="tele-modal">
       <div class="tele-head">
-        <span>Kết nối tài khoản & AI Cores</span>
+        <span>Tần số Kết nối AI Cores (Zero-API-Key)</span>
         <button class="icon-btn" onclick="closeTelemetry()">✕</button>
       </div>
       <div class="tele-body">
         <div class="tele-card">
-          <h4>Trạng thái đăng nhập Zero-API-Key</h4>
+          <h4>Các trạm phát sóng локаl trên máy</h4>
           <div id="authList">Đang kiểm tra...</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- MODAL 3: THÊM ĐỒNG NGHIỆP MỚI -->
+  <!-- MODAL 3: TRIỆU HỒI CÁ VOI MỚI -->
   <div class="tele-drawer-backdrop" id="spawnModal" onclick="if(event.target===this)closeTelemetry()">
     <div class="tele-modal">
       <div class="tele-head">
-        <span>Thêm đồng nghiệp AI mới</span>
+        <span>Triệu hồi Cá Voi Đồng Hành mới vào đàn 52Hz</span>
         <button class="icon-btn" onclick="closeTelemetry()">✕</button>
       </div>
       <div class="tele-body">
         <div class="form-row">
           <label>Mã định danh (@handle)</label>
-          <input id="spawnId" class="form-input" placeholder="Ví dụ: qa-bot" />
+          <input id="spawnId" class="form-input" placeholder="Ví dụ: sonar-sec" />
         </div>
         <div class="form-row">
-          <label>Tên hiển thị</label>
-          <input id="spawnName" class="form-input" placeholder="Ví dụ: QA Engineer" />
+          <label>Biệt danh cá voi</label>
+          <input id="spawnName" class="form-input" placeholder="Ví dụ: Cá Voi Bảo Mật" />
         </div>
         <div class="form-row">
-          <label>Vai trò</label>
+          <label>Vai trò trong đàn</label>
           <select id="spawnRole" class="form-input">
-            <option value="writer">Writer (Code trong nhánh Git Worktree riêng)</option>
-            <option value="reader">Reader (Phân tích, Lên kế hoạch, Review)</option>
+            <option value="writer">Thợ Lặn Code (Writer — Git Worktree độc lập)</option>
+            <option value="reader">Hoa Tiêu / Sonar QA (Reader — Phân tích & Kiểm định)</option>
           </select>
         </div>
         <div class="form-row">
-          <label>Mô tả nhiệm vụ</label>
-          <input id="spawnDesc" class="form-input" placeholder="Chuyên viết unit test và kiểm tra bảo mật..." />
+          <label>Nhiệm vụ chuyên môn</label>
+          <input id="spawnDesc" class="form-input" placeholder="Kiểm định bảo mật và viết kiểm thử tự động..." />
         </div>
-        <button class="primary-btn" onclick="spawnNewCoworker()">Tạo đồng nghiệp</button>
+        <button class="primary-btn" onclick="spawnNewCoworker()">Triệu hồi vào đàn 52Hz</button>
       </div>
     </div>
   </div>
 
 <script>
+  const WHALE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 16c2.5-3.5 6.5-5.5 11-5.5 4.2 0 7.2 2 8.5 4.5-2.2 1.5-5.5 2.5-9.5 2.5-4.2 0-7.5-1-10-1.5Z"/><path d="M12 10.5C12 7.5 14.5 5 18 4c-.5 2.2-.2 4 1.5 5.5"/><circle cx="16.5" cy="13.5" r="1" fill="currentColor"/></svg>';
+
   const ICONS = {
-    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
-    stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
-    cat: '<svg class="empty-cat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5c-1.5 0-2.8.4-4 1L5 3v5c-.6 1.2-1 2.5-1 4 0 5 3.6 8 8 8s8-3 8-8c0-1.5-.4-2.8-1-4V3l-3 3c-1.2-.6-2.5-1-4-1z"/><line x1="9" y1="12" x2="9.01" y2="12" stroke-width="2.4" stroke-linecap="round"/><line x1="15" y1="12" x2="15.01" y2="12" stroke-width="2.4" stroke-linecap="round"/><path d="M10 15.5c.7.5 1.3.7 2 .7s1.3-.2 2-.7"/></svg>'
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>'
   };
 
-  const AVATAR_COLORS = {
-    all: '#6B5B4D',
-    lead: '#B85D43',
-    coder: '#3D6B58',
-    reviewer: '#4A628A'
+  const WHALE_PERSONAS = {
+    all: {
+      title: 'Đàn Cá Voi 52Hz',
+      badge: '52.0 Hz · Pod',
+      grad: 'linear-gradient(135deg, #0369A1 0%, #0D9488 100%)',
+      sub: 'Kênh phối hợp cả đàn (#mesh-command-room)'
+    },
+    lead: {
+      title: 'Hoa Tiêu 52Hz (@lead)',
+      badge: '52.1 Hz · Lead',
+      grad: 'linear-gradient(135deg, #0D9488 0%, #0284C7 100%)',
+      sub: 'Cá voi dẫn đàn · Phân rã kiến trúc & điều phối'
+    },
+    coder: {
+      title: 'Thợ Lặn Sâu (@coder)',
+      badge: '52.4 Hz · Writer',
+      grad: 'linear-gradient(135deg, #2563EB 0%, #0284C7 100%)',
+      sub: 'Cá voi thực thi · Viết code & test trong Git Worktree'
+    },
+    reviewer: {
+      title: 'Sonar Giám Định (@reviewer)',
+      badge: '52.8 Hz · QA',
+      grad: 'linear-gradient(135deg, #4F46E5 0%, #0E7490 100%)',
+      sub: 'Cá voi kiểm định · Soát diff & bảo vệ chất lượng'
+    }
   };
 
-  function getAvatarColor(id) {
-    if (AVATAR_COLORS[id]) return AVATAR_COLORS[id];
-    let hash = 0;
-    const s = String(id || 'bot');
-    for (let i = 0; i < s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
-    const palette = ['#B85D43', '#3D6B58', '#4A628A', '#8C5A3C', '#5B6E49', '#7A527A'];
-    return palette[Math.abs(hash) % palette.length];
+  function getWhalePersona(id) {
+    if (WHALE_PERSONAS[id]) return WHALE_PERSONAS[id];
+    return {
+      title: 'Cá Voi @' + id,
+      badge: '52 Hz · Specialist',
+      grad: 'linear-gradient(135deg, #0284C7 0%, #4F46E5 100%)',
+      sub: 'Chuyên gia đồng hành trong đàn 52Hz'
+    };
   }
 
   let authToken = '';
@@ -1152,12 +1261,11 @@ export function renderDashboardHtml() {
 
   let agentsState = [];
   let feedItems = [];
-  let currentChannel = 'lead'; // Default to 1-on-1 coworker like screenshot ("Meiiie"), or 'all' for group room
+  let currentChannel = 'all';
   let currentVerifyCmd = 'python -m unittest discover -s tests -p "test_*.py" -v; python scripts/query_engine.py --test; python scripts/evaluate.py --check';
   let sseSource = null;
   let sseState = 'CONNECTING';
   let lastStateOkTs = 0;
-  let initialSwitchDone = false;
 
   function escapeHtml(str) {
     return String(str ?? '')
@@ -1175,6 +1283,12 @@ export function renderDashboardHtml() {
     } catch {
       return '';
     }
+  }
+
+  function toggleOceanTheme() {
+    const html = document.documentElement;
+    const next = html.getAttribute('data-theme') === 'deep-trench' ? 'ocean-light' : 'deep-trench';
+    html.setAttribute('data-theme', next);
   }
 
   async function apiFetch(path, options = {}) {
@@ -1273,13 +1387,13 @@ export function renderDashboardHtml() {
             added = true;
           }
         }
-        if (added) {
-          if (!initialSwitchDone && feedItems.length > 0) {
-            currentChannel = 'all';
-            initialSwitchDone = true;
-          }
-          renderStream();
-        }
+        if (added) renderStream();
+      }
+
+      const anyRunning = agentsState.some((a) => a.status === 'running');
+      const freqTxt = document.getElementById('freqStatusText');
+      if (freqTxt) {
+        freqTxt.textContent = anyRunning ? '52.0 Hz · ĐANG PHÁT SÓNG' : 'SONAR 52.0 Hz · ỔN ĐỊNH';
       }
 
       renderRoster();
@@ -1292,62 +1406,65 @@ export function renderDashboardHtml() {
     const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
     const groupEl = document.getElementById('groupRoster');
     const coworkerEl = document.getElementById('coworkerRoster');
+    const countEl = document.getElementById('podCountLabel');
     if (!groupEl || !coworkerEl) return;
+    if (countEl) countEl.textContent = agentsState.length + ' cá voi';
 
-    // 1. Group Room ("Phòng điều phối nhóm #mesh-command-room")
     const runningCount = agentsState.filter((a) => a.status === 'running').length;
     const lastGroupMsg = feedItems[feedItems.length - 1];
-    const groupSub = runningCount > 0
-      ? (runningCount + ' đồng nghiệp đang xử lý...')
-      : (lastGroupMsg ? ('@' + lastGroupMsg.from + ': ' + lastGroupMsg.text.slice(0, 36)) : '@lead, @coder, @reviewer');
+    const groupPreview = runningCount > 0
+      ? ('🌊 ' + runningCount + ' cá voi đang phát sóng 52Hz...')
+      : (lastGroupMsg ? ('@' + lastGroupMsg.from + ': ' + lastGroupMsg.text.slice(0, 38)) : 'Phòng phối hợp chung @lead · @coder · @reviewer');
 
+    const podPersona = getWhalePersona('all');
     groupEl.innerHTML = \`
-      <button class="roster-item \${currentChannel === 'all' ? 'active' : ''}" onclick="selectChannel('all')">
-        <div class="bot-avatar" style="background:\${getAvatarColor('all')}">
-          <div class="bot-avatar-face"><i></i><i></i></div>
-          <span class="status-dot \${runningCount > 0 ? 'working' : 'online'}"></span>
+      <button class="pod-item \${currentChannel === 'all' ? 'active' : ''}" onclick="selectChannel('all')">
+        <div class="whale-avatar" style="background:\${podPersona.grad}">
+          \${WHALE_SVG}
+          <span class="beacon-dot \${runningCount > 0 ? 'working' : 'online'}"></span>
         </div>
-        <div class="roster-meta">
-          <div class="roster-title-row">
-            <span class="roster-name">Nhóm Đồng Nghiệp</span>
-            <span class="roster-badge">\${agentsState.length} bot</span>
+        <div class="pod-meta">
+          <div class="pod-row-top">
+            <span class="pod-name">\${escapeHtml(podPersona.title)}</span>
+            <span class="pod-freq-tag">52.0 Hz</span>
           </div>
-          <div class="roster-sub">\${escapeHtml(groupSub)}</div>
+          <div class="pod-preview">\${escapeHtml(groupPreview)}</div>
         </div>
       </button>
     \`;
 
-    // 2. Individual Coworkers (like Meiiie / Davin in the screenshot)
     const filtered = agentsState.filter((a) => {
       if (!q) return true;
+      const p = getWhalePersona(a.id);
       return (
         a.id.toLowerCase().includes(q) ||
+        p.title.toLowerCase().includes(q) ||
         (a.name || '').toLowerCase().includes(q) ||
         (a.description || '').toLowerCase().includes(q)
       );
     });
 
     coworkerEl.innerHTML = filtered.map((a) => {
+      const p = getWhalePersona(a.id);
       const isRunning = a.status === 'running';
       const isQueued = (a.inboxCount || 0) > 0 || (a.pendingSteers || 0) > 0;
       const dotCls = isRunning ? 'working' : (a.status === 'error' ? 'error' : (isQueued ? 'queued' : 'online'));
-      const displayName = a.id.charAt(0).toUpperCase() + a.id.slice(1);
       const subText = isRunning
-        ? 'Đang phản hồi...'
-        : ('@' + a.id + (a.preferredCore && a.preferredCore !== 'auto' ? ' · ' + a.preferredCore : ''));
+        ? '🌊 Đang lặn sâu xử lý nhiệm vụ...'
+        : (p.sub || a.description || ('@' + a.id));
 
       return \`
-        <button class="roster-item \${currentChannel === a.id ? 'active' : ''}" onclick="selectChannel('\${escapeHtml(a.id)}')">
-          <div class="bot-avatar" style="background:\${getAvatarColor(a.id)}">
-            <div class="bot-avatar-face"><i></i><i></i></div>
-            <span class="status-dot \${dotCls}"></span>
+        <button class="pod-item \${currentChannel === a.id ? 'active' : ''}" onclick="selectChannel('\${escapeHtml(a.id)}')">
+          <div class="whale-avatar" style="background:\${p.grad}">
+            \${WHALE_SVG}
+            <span class="beacon-dot \${dotCls}"></span>
           </div>
-          <div class="roster-meta">
-            <div class="roster-title-row">
-              <span class="roster-name">\${escapeHtml(displayName)}</span>
-              <span class="roster-badge">\${escapeHtml(a.role || 'bot')}</span>
+          <div class="pod-meta">
+            <div class="pod-row-top">
+              <span class="pod-name">\${escapeHtml(p.title)}</span>
+              <span class="pod-freq-tag">\${escapeHtml(p.badge)}</span>
             </div>
-            <div class="roster-sub">\${escapeHtml(subText)}</div>
+            <div class="pod-preview">\${escapeHtml(subText)}</div>
           </div>
         </button>
       \`;
@@ -1357,25 +1474,31 @@ export function renderDashboardHtml() {
   function renderHeader() {
     const avatar = document.getElementById('headerAvatar');
     const title = document.getElementById('headerTitle');
+    const badge = document.getElementById('headerFreqBadge');
     const sub = document.getElementById('headerSubtitle');
     const input = document.getElementById('msgInput');
     const sendBtn = document.getElementById('sendOrStopBtn');
     const coreSelect = document.getElementById('coreSelect');
 
+    const p = getWhalePersona(currentChannel);
+    if (avatar) {
+      avatar.style.background = p.grad;
+      avatar.innerHTML = WHALE_SVG;
+    }
+    if (title) title.textContent = p.title;
+    if (badge) badge.textContent = p.badge;
+
     if (currentChannel === 'all') {
-      avatar.style.background = getAvatarColor('all');
-      title.textContent = 'Nhóm Đồng Nghiệp';
-      sub.textContent = 'Phòng phối hợp tự động (@lead · @coder · @reviewer) · #mesh-command-room';
-      if (input) input.placeholder = 'Giao việc cho cả nhóm đồng nghiệp...';
+      if (sub) sub.textContent = 'Kênh phối hợp toàn đàn (@lead · @coder · @reviewer) · #mesh-command-room';
+      if (input) input.placeholder = 'Phát tín hiệu 52Hz giao nhiệm vụ cho cả đàn cá voi...';
     } else {
       const a = agentsState.find((x) => x.id === currentChannel);
-      const displayName = currentChannel.charAt(0).toUpperCase() + currentChannel.slice(1);
-      avatar.style.background = getAvatarColor(currentChannel);
-      title.textContent = displayName;
-      sub.textContent = a
-        ? (a.status === 'running' ? 'Đang thực thi nhiệm vụ...' : (a.name || 'Hội thoại ban đầu'))
-        : 'Hội thoại ban đầu';
-      if (input) input.placeholder = 'Nhắn cho ' + displayName + '...';
+      if (sub) {
+        sub.textContent = a && a.status === 'running'
+          ? '🌊 Đang phát tín hiệu phản hồi trên tần số 52Hz...'
+          : p.sub;
+      }
+      if (input) input.placeholder = 'Phát tín hiệu 52Hz tới ' + p.title + '...';
       if (a && coreSelect && document.activeElement !== coreSelect) {
         coreSelect.value = a.preferredCore || 'auto';
       }
@@ -1387,13 +1510,13 @@ export function renderDashboardHtml() {
 
     if (sendBtn) {
       if (activeRunning) {
-        sendBtn.className = 'send-circle-btn stop-btn';
+        sendBtn.className = 'sonar-send-btn stop-btn';
         sendBtn.innerHTML = ICONS.stop;
-        sendBtn.title = 'Dừng thực thi (Stop)';
+        sendBtn.title = 'Ngắt sóng (Stop)';
       } else {
-        sendBtn.className = 'send-circle-btn';
+        sendBtn.className = 'sonar-send-btn';
         sendBtn.innerHTML = ICONS.up;
-        sendBtn.title = 'Gửi tin nhắn';
+        sendBtn.title = 'Phát tín hiệu 52Hz';
       }
     }
   }
@@ -1414,22 +1537,22 @@ export function renderDashboardHtml() {
 
     if (msgs.length === 0 && runningAgents.length === 0) {
       stream.innerHTML = \`
-        <div class="empty-welcome">
-          \${ICONS.cat}
-          <h2>Mình bắt đầu từ đâu?</h2>
-          <p>Một câu hỏi nhỏ, một ý tưởng mới,<br/>hay một việc bạn muốn cùng làm.</p>
-          <div class="quick-pills">
-            <button class="quick-pill" onclick="prefillPrompt('Hãy khảo sát kiến trúc dự án và làm rõ các điểm cần cải thiện tiếp theo.')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
-              <span>Làm rõ ý tưởng</span>
+        <div class="whale-welcome">
+          <div class="whale-hero-art">\${WHALE_SVG}</div>
+          <h2>Tần số 52Hz đang lắng nghe đại dương</h2>
+          <p>Bạn không cô độc giữa biển code. Hãy phát tín hiệu sonar cho một cá voi đồng hành, hoặc gọi cả đàn 52Hz cùng lặn sâu hoàn thiện dự án của bạn.</p>
+          <div class="sonar-quick-grid">
+            <button class="sonar-chip" onclick="prefillPrompt('Hãy dò sóng kiến trúc dự án hiện tại và đề xuất các hạng mục cần hoàn thiện tiếp theo.')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+              <span>Dò sóng kiến trúc</span>
             </button>
-            <button class="quick-pill" onclick="prefillPrompt('Lên kế hoạch triển khai chi tiết từng bước cho tính năng tiếp theo của dự án.')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-              <span>Lên kế hoạch</span>
+            <button class="sonar-chip" onclick="prefillPrompt('Lập hải trình chi tiết từng bước để triển khai tính năng tiếp theo và kiểm thử tự động.')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+              <span>Lập hải trình 52Hz</span>
             </button>
-            <button class="quick-pill" onclick="prefillPrompt('Chạy kiểm thử toàn bộ dự án và chuẩn bị báo cáo đánh giá chất lượng.')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              <span>Chuẩn bị báo cáo</span>
+            <button class="sonar-chip" onclick="prefillPrompt('Chạy toàn bộ bộ kiểm thử, rà soát lỗi và xuất báo cáo chất lượng dự án.')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              <span>Kiểm định Sonar QA</span>
             </button>
           </div>
         </div>
@@ -1437,30 +1560,31 @@ export function renderDashboardHtml() {
       return;
     }
 
-    let html = '<div class="day-sep">Hôm nay</div>';
+    let html = '<div class="day-sep">Tần số 52.0 Hz · Hôm nay</div>';
     for (const m of msgs) {
       const isOut = m.from === 'commander';
-      const senderLabel = isOut ? 'Bạn' : (m.from.charAt(0).toUpperCase() + m.from.slice(1));
-      const routeBadge = (!isOut && m.to && m.to !== 'commander' && m.to !== 'all')
-        ? \`<span class="msg-route-pill">→ @\${escapeHtml(m.to)}</span>\`
+      const senderPersona = getWhalePersona(m.from);
+      const senderLabel = isOut ? 'Bạn (52Hz Captain)' : senderPersona.title;
+      const routeTag = (!isOut && m.to && m.to !== 'commander' && m.to !== 'all')
+        ? \`<span class="msg-route-tag">〰 @\${escapeHtml(m.to)}</span>\`
         : (isOut && currentChannel === 'all' && m.to && m.to !== 'all'
-          ? \`<span class="msg-route-pill">→ @\${escapeHtml(m.to)}</span>\`
+          ? \`<span class="msg-route-tag">〰 @\${escapeHtml(m.to)}</span>\`
           : '');
-      const coreBadge = m.core ? \`<span class="msg-sender-meta">· \${escapeHtml(m.core)}</span>\` : '';
+      const coreTag = m.core ? \`<span class="msg-time">· \${escapeHtml(m.core)}</span>\` : '';
 
       html += \`
         <div class="msg-row \${isOut ? 'outgoing' : 'incoming'}">
           \${!isOut ? \`
-            <div class="bot-avatar sm" style="background:\${getAvatarColor(m.from)}">
-              <div class="bot-avatar-face"><i></i><i></i></div>
+            <div class="whale-avatar sm" style="background:\${senderPersona.grad}">
+              \${WHALE_SVG}
             </div>
           \` : ''}
-          <div class="msg-col">
-            <div class="msg-sender-line">
-              <span class="msg-sender-name">\${escapeHtml(senderLabel)}</span>
-              \${routeBadge}
-              \${coreBadge}
-              <span class="msg-sender-meta">\${formatTime(m.ts)}</span>
+          <div class="msg-stack">
+            <div class="msg-meta-line">
+              <span class="msg-author">\${escapeHtml(senderLabel)}</span>
+              \${routeTag}
+              \${coreTag}
+              <span class="msg-time">\${formatTime(m.ts)}</span>
             </div>
             <div class="msg-bubble \${m.priority ? 'priority' : ''}">\${escapeHtml(m.text)}</div>
           </div>
@@ -1469,12 +1593,12 @@ export function renderDashboardHtml() {
     }
 
     for (const a of runningAgents) {
-      const dName = a.id.charAt(0).toUpperCase() + a.id.slice(1);
-      const lastAct = (a.recentActivity || []).slice(-1)[0] || 'Đang suy nghĩ...';
+      const p = getWhalePersona(a.id);
+      const lastAct = (a.recentActivity || []).slice(-1)[0] || 'Đang phát sóng 52Hz...';
       html += \`
-        <div class="typing-bubble">
-          <div class="typing-dots"><i></i><i></i><i></i></div>
-          <span><strong>\${escapeHtml(dName)}</strong>: \${escapeHtml(lastAct.slice(0, 90))}</span>
+        <div class="sonar-typing">
+          <span class="sonar-rings"></span>
+          <span><strong>\${escapeHtml(p.title)}</strong>: \${escapeHtml(lastAct.slice(0, 95))}</span>
         </div>
       \`;
     }
@@ -1487,9 +1611,10 @@ export function renderDashboardHtml() {
     const sumEl = document.getElementById('runtimeAgentsSummary');
     if (sumEl) {
       sumEl.innerHTML = agentsState.map((a) => {
-        const act = (a.recentActivity || []).slice(-1)[0] || 'Sẵn sàng';
+        const p = getWhalePersona(a.id);
+        const act = (a.recentActivity || []).slice(-1)[0] || 'Đang lắng nghe trên tần số 52Hz';
         return \`<div class="auth-row">
-          <span><strong>@\${escapeHtml(a.id)}</strong> (\${escapeHtml(a.role)})</span>
+          <span><strong>\${escapeHtml(p.title)}</strong></span>
           <span>\${escapeHtml(a.status.toUpperCase())} · \${escapeHtml(act.slice(0, 48))}</span>
         </div>\`;
       }).join('');
@@ -1500,8 +1625,8 @@ export function renderDashboardHtml() {
       authEl.innerHTML = Object.entries(data.auth).map(([k, v]) => \`
         <div class="auth-row">
           <span><strong>\${escapeHtml(k)}</strong> (\${escapeHtml(v.authMode || 'cli')})</span>
-          <span style="color:\${v.authenticated ? 'var(--ok)' : 'var(--text-muted)'};font-weight:600;">
-            \${v.authenticated ? 'ĐÃ KẾT NỐI' : (v.installed ? 'CHƯA ĐĂNG NHẬP' : 'CHƯA CÀI ĐẶT')}
+          <span style="color:\${v.authenticated ? 'var(--ok)' : 'var(--text-muted)'};font-weight:700;">
+            \${v.authenticated ? 'SÓNG 52Hz SẴN SÀNG' : (v.installed ? 'CHƯA ĐĂNG NHẬP' : 'CHƯA CÀI ĐẶT')}
           </span>
         </div>
       \`).join('');
@@ -1515,7 +1640,6 @@ export function renderDashboardHtml() {
 
   function selectChannel(ch) {
     currentChannel = ch;
-    initialSwitchDone = true;
     document.getElementById('sidebar')?.classList.remove('mobile-open');
     renderRoster();
     renderHeader();
