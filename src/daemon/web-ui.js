@@ -135,7 +135,17 @@ export class LocalWebUiServer {
           }
         }
 
+        // Keep-alive comment ping: some embedded webviews/proxies drop idle SSE streams
+        const keepAlive = setInterval(() => {
+          try {
+            res.write(': ping\n\n');
+          } catch {
+            clearInterval(keepAlive);
+          }
+        }, 10_000);
+
         req.on('close', () => {
+          clearInterval(keepAlive);
           this.sseClients.delete(res);
         });
         return;
