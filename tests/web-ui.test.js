@@ -126,6 +126,16 @@ test('LocalWebUiServer serves Tactical Coworker HTML, enforces auth/DNS-rebindin
       body: JSON.stringify({ nonce: `stop2-${Date.now()}`, confirm: true })
     });
     assert.equal(stopOk.status, 200);
+
+    // 9. EADDRINUSE auto-fallback: starting a second server on the occupied port automatically picks the next free port
+    const ui2 = new LocalWebUiServer({ port: ui.port });
+    await ui2.start();
+    try {
+      assert.notEqual(ui2.port, ui.port);
+      assert.ok(ui2.port > 0);
+    } finally {
+      await ui2.close();
+    }
   } finally {
     await ui.close();
   }

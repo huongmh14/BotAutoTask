@@ -372,10 +372,32 @@ export class LocalWebUiServer {
       res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not Found');
     });
 
-    await new Promise((resolve, reject) => {
-      this.server.once('error', reject);
-      this.server.listen(this.port, '127.0.0.1', resolve);
-    });
+    let attempts = 0;
+    while (true) {
+      try {
+        await new Promise((resolve, reject) => {
+          const onError = (err) => {
+            this.server.removeListener('listening', onListening);
+            reject(err);
+          };
+          const onListening = () => {
+            this.server.removeListener('error', onError);
+            resolve();
+          };
+          this.server.once('error', onError);
+          this.server.once('listening', onListening);
+          this.server.listen(this.port, '127.0.0.1');
+        });
+        break;
+      } catch (err) {
+        if (err.code === 'EADDRINUSE' && this.port !== 0 && attempts < 10) {
+          attempts++;
+          this.port = attempts < 10 ? this.port + 1 : 0;
+          continue;
+        }
+        throw err;
+      }
+    }
 
     const addr = this.server.address();
     this.port = addr.port;
