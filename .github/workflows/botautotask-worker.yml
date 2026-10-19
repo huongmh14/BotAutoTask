@@ -1,0 +1,40 @@
+name: BotAutoTask Cloud Worker (Offline Fallback)
+
+on:
+  workflow_dispatch:
+    inputs:
+      goal_id:
+        description: "Goal ID from Cloud Core D1"
+        required: true
+        type: string
+
+jobs:
+  execute-goal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install OpenCode CLI
+        run: npm install -g opencode-ai || true
+
+      - name: Execute Goal Step via BotAutoTask Cloud Worker
+        env:
+          BOTAUTOTASK_CLOUD_URL: ${{ secrets.BOTAUTOTASK_CLOUD_URL }}
+          BOTAUTOTASK_API_TOKEN: ${{ secrets.BOTAUTOTASK_API_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          node src/daemon/cli.js daemon --once true --worker gh-actions --goal-id "${{ inputs.goal_id }}"
+
+      - name: Push committed checkpoints back to branch
+        run: |
+          git config user.name "BotAutoTask Cloud Worker"
+          git config user.email "botautotask@users.noreply.github.com"
+          git push origin HEAD || true

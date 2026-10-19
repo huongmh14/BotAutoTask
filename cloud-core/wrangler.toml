@@ -1,0 +1,11 @@
+name = "botautotask-cloud-core"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["*/2 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "botautotask-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
