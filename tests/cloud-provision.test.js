@@ -7,7 +7,8 @@ import {
   extractWorkersDevUrl,
   needsWorkersDevSubdomain,
   renderGeneratedConfig,
-  mergeCloudConfig
+  mergeCloudConfig,
+  PLAYWRIGHT_STEALTH_OPTS
 } from '../scripts/cloud-provision.mjs';
 
 const ID = '1b2c3d4e-5f60-4718-9a0b-c1d2e3f40516';
@@ -36,4 +37,6 @@ test('cloud-provision renders generated wrangler config and merges user config w
   assert.throws(() => renderGeneratedConfig(toml, 'evil"; rm -rf'), /Invalid D1/);
   const merged = mergeCloudConfig({ priorityModels: ['a'], cloud: { apiToken: 't' } }, { url: 'https://u' });
   assert.deepEqual(merged, { priorityModels: ['a'], cloud: { apiToken: 't', url: 'https://u' } });
+  assert.ok(PLAYWRIGHT_STEALTH_OPTS.ignoreDefaultArgs.includes('--enable-automation'));
+  assert.ok(PLAYWRIGHT_STEALTH_OPTS.args.includes('--disable-blink-features=AutomationControlled'));
 });

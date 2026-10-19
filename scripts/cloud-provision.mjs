@@ -97,6 +97,33 @@ function wrangler(args, { input = null, onOutput = null } = {}) {
   });
 }
 
+export const PLAYWRIGHT_STEALTH_OPTS = {
+  headless: false,
+  viewport: null,
+  ignoreDefaultArgs: ['--enable-automation'],
+  args: ['--disable-blink-features=AutomationControlled']
+};
+
+function openSystemBrowser(url) {
+  if (isWin) {
+    const candidates = [
+      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+      'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+      'C:/Program Files/Google/Chrome/Application/chrome.exe'
+    ].filter(existsSync);
+    if (candidates[0]) {
+      spawn(candidates[0], [url], { detached: true, stdio: 'ignore' }).unref();
+      return true;
+    }
+  }
+  try {
+    spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function openBrowser() {
   let pw;
   try {
@@ -105,10 +132,12 @@ async function openBrowser() {
     throw new Error('playwright-core is not installed. Run: npm install --save-dev playwright-core');
   }
   mkdirSync(BROWSER_PROFILE, { recursive: true });
-  // Reuse an installed browser so no browser download is needed; profile persists the Cloudflare session.
+  // Reuse an installed browser without --enable-automation so Cloudflare Turnstile does not set navigator.webdriver=true.
   for (const channel of ['msedge', 'chrome']) {
     try {
-      return await pw.chromium.launchPersistentContext(BROWSER_PROFILE, { channel, headless: false, viewport: null });
+      const ctx = await pw.chromium.launchPersistentContext(BROWSER_PROFILE, { channel, ...PLAYWRIGHT_STEALTH_OPTS });
+      await ctx.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => undefined }));
+      return ctx;
     } catch {}
   }
   throw new Error('Could not launch Edge or Chrome. Install one, or run `npx playwright install chromium`.');
@@ -118,9 +147,10 @@ async function ensureLogin(dryRun) {
   if (process.env.CLOUDFLARE_API_TOKEN) return log('Using CLOUDFLARE_API_TOKEN from env (skipping browser login).');
   const who = await wrangler(['whoami']);
   if (who.code === 0 && !/not authenticated|You are not logged in/i.test(who.out)) return log('wrangler already logged in.');
-  if (dryRun) return log('[dry-run] would run `wrangler login --browser=false` and approve consent via Playwright.');
+  if (dryRun) return log('[dry-run] would run `wrangler login` and complete OAuth.');
 
-  log('Opening Cloudflare login in a browser window. Log in yourself (password/2FA); consent is clicked automatically.');
+  const usePlaywright = process.argv.includes('--playwright-login');
+  log('Opening Cloudflare OAuth in your browser. Please sign in and click "Allow".');
   let context = null;
   let opened = false;
   const login = wrangler(['login', '--browser=false'], {
@@ -128,12 +158,18 @@ async function ensureLogin(dryRun) {
       const url = extractOAuthUrl(chunk);
       if (!url || opened) return;
       opened = true;
-      context = await openBrowser();
-      const page = context.pages()[0] || (await context.newPage());
-      await page.goto(url);
-      const allow = page.getByRole('button', { name: /^(allow|authorize)$/i });
-      await allow.waitFor({ timeout: HUMAN_TIMEOUT_MS }).catch(() => {});
-      await allow.click().catch(() => {}); // if already granted, wrangler's callback completes without it
+      log(`OAuth URL (use THIS link if switching browsers, NOT the login_challenge redirect):\n${url}`);
+      if (!usePlaywright && openSystemBrowser(url)) return;
+      try {
+        context = await openBrowser();
+        const page = context.pages()[0] || (await context.newPage());
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        const allow = page.getByRole('button', { name: /^(allow|authorize)$/i });
+        await allow.waitFor({ timeout: HUMAN_TIMEOUT_MS }).catch(() => {});
+        await allow.click().catch(() => {});
+      } catch (err) {
+        log(`Playwright browser fallback error (${err.message}); open the OAuth URL above in your browser.`);
+      }
     }
   });
   const res = await login;
