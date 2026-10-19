@@ -3985,1216 +3985,1670 @@ async function waitForNetwork({
 
 // --- MODULE: src/ui/dashboard-html.js ---
 /**
- * BotAutoTask — Coworker Mesh Console (GrokBot-style edition).
- * Chat-first monochrome control surface: roster sidebar, live transcript thread,
- * contextual composer (mission dispatch / 3-mode steer), collapsible telemetry rail.
- * Zero external runtime dependencies — pure embedded HTML5/CSS3/ES2022, system fonts only.
+ * BotAutoTask — Everyday Messenger / Telegram / Neko-Bot Style Multi-Agent Chat UI.
+ * Clean 2-column chat layout:
+ *   - Left sidebar: Brand header, search pill ("Tìm đồng nghiệp"), "Nhóm local" group rooms,
+ *     1-on-1 coworker DM list with cute bot avatars, and bottom drawers ("Trạng thái runtime",
+ *     "Kết nối", "Không gian cá nhân").
+ *   - Right main chat: Coworker/Group header, "Mình bắt đầu từ đâu?" empty state with 3 quick
+ *     action pills, Messenger/Telegram left/right chat bubbles, "Tài khoản" core selector row,
+ *     and rounded pill composer ("+ Nhắn cho ... ↑").
  */
 
-function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' } = {}) {
-  return `<!doctype html>
+function renderDashboardHtml() {
+  return `<!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>BotAutoTask — Tactical Coworker Mesh</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>BotAutoTask — Tactical Coworker Mesh (Neko Bot Messenger)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    color-scheme: dark;
-    --bg: #000000;
-    --panel: #0a0a0a;
-    --panel-2: #101010;
-    --panel-3: #161616;
-    --line: #1f1f1f;
-    --line-2: #2c2c2c;
-    --fg: #ededed;
-    --fg-2: #9a9a9a;
-    --fg-3: #5f5f5f;
-    --ok: #22c55e;
-    --warn: #e5b113;
-    --err: #ef4444;
-    --idle: #4d4d4d;
-    --mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, Menlo, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --bg-sidebar: #F0EEE9;
+    --bg-main: #FAF9F5;
+    --bg-card: #FFFFFF;
+    --bg-bubble-in: #F1EFEA;
+    --bg-bubble-out: #232220;
+    --bg-hover: #E6E3DC;
+    --text-primary: #1F1E1C;
+    --text-secondary: #6E6B65;
+    --text-muted: #9A968E;
+    --text-out: #FFFFFF;
+    --border: #E4E1DA;
+    --border-strong: #D5D1C8;
+    --accent: #B85D43;
+    --ok: #2E7D5B;
+    --warn: #D97706;
+    --err: #DC2626;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
   }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
   html, body {
     height: 100%;
-    background: var(--bg);
-    color: var(--fg);
-    font-family: var(--sans);
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
     font-size: 14px;
-    line-height: 1.55;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     overflow: hidden;
-    user-select: none;
   }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #232323; border-radius: 999px; }
-  ::-webkit-scrollbar-thumb:hover { background: #333; }
 
-  .mono { font-family: var(--mono); }
-  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
-  input, textarea, select {
-    font-family: inherit; color: var(--fg); background: transparent; border: none; outline: none;
+  button, input, select, textarea {
+    font: inherit;
+    color: inherit;
   }
-  textarea { resize: none; }
 
-  .ico { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; fill: none; flex-shrink: 0; }
-  .ico-sm { width: 12px; height: 12px; }
-  .ico-lg { width: 18px; height: 18px; }
-
-  /* ─── APP SHELL ─── */
-  .app { display: flex; height: 100%; }
-
-  /* ─── SIDEBAR (roster) ─── */
-  .sb {
-    width: 264px; flex-shrink: 0; display: flex; flex-direction: column;
-    background: var(--panel); border-right: 1px solid var(--line);
-  }
-  .sb-brand {
-    display: flex; align-items: baseline; gap: 8px;
-    padding: 18px 16px 14px;
-  }
-  .sb-brand b { font-size: 0.95rem; font-weight: 650; letter-spacing: -0.01em; }
-  .sb-brand span { font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3); letter-spacing: 0.08em; }
-
-  .new-mission {
-    margin: 0 12px 14px; padding: 9px 12px; border-radius: 8px;
-    background: var(--fg); color: #000; font-size: 0.82rem; font-weight: 600;
-    display: flex; align-items: center; justify-content: center; gap: 7px;
-    transition: background 0.12s;
-  }
-  .new-mission:hover { background: #d6d6d6; }
-
-  .sb-label {
-    padding: 4px 16px 8px;
-    font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em;
-    color: var(--fg-3); display: flex; justify-content: space-between; align-items: center;
-  }
-  .sb-scroll { flex: 1; overflow-y: auto; padding: 0 8px; }
-
-  .chan {
-    display: flex; align-items: center; gap: 9px;
-    padding: 8px 9px; border-radius: 8px; cursor: pointer;
-    color: var(--fg-2); transition: background 0.1s, color 0.1s;
+  /* 2-Column Everyday Messenger Layout */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 276px minmax(0, 1fr);
+    height: 100dvh;
+    width: 100vw;
     position: relative;
   }
-  .chan:hover { background: var(--panel-2); color: var(--fg); }
-  .chan.active { background: var(--panel-3); color: var(--fg); }
-  .chan.active::before {
-    content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px;
-    width: 2px; background: var(--fg); border-radius: 2px;
+
+  .app-layout.sidebar-collapsed {
+    grid-template-columns: 0px minmax(0, 1fr);
   }
-  .chan-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-  .chan-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-  .chan .hash { font-family: var(--mono); font-size: 0.78rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chan .sub { font-size: 0.66rem; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .role-pill {
-    font-family: var(--mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase;
-    padding: 0 4px; border-radius: 3px; border: 1px solid var(--line-2); color: var(--fg-3); flex-shrink: 0;
+  .app-layout.sidebar-collapsed .sidebar {
+    overflow: hidden;
+    border-right: none;
   }
 
-  .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--idle); flex-shrink: 0; position: relative; }
-  .dot.running { background: var(--ok); }
-  .dot.running::after {
-    content: ''; position: absolute; inset: -3px; border-radius: 999px;
-    border: 1px solid var(--ok); opacity: 0.5; animation: pulse 1.6s ease-out infinite;
+  /* ================= LEFT SIDEBAR ================= */
+  .sidebar {
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    user-select: none;
+    min-width: 0;
   }
-  .dot.queued, .dot.composing { background: var(--warn); }
-  .dot.stale { background: #8a8a8a; }
-  .dot.error, .dot.aborted { background: var(--err); }
-  @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(1.6); opacity: 0; } }
 
-  .badge {
-    font-family: var(--mono); font-size: 0.6rem; min-width: 17px; height: 17px;
-    border-radius: 999px; background: var(--fg); color: #000;
-    display: inline-flex; align-items: center; justify-content: center;
-    padding: 0 5px; font-weight: 600;
+  .sb-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
   }
-  .badge.hidden { display: none; }
 
-  .sb-spawn {
-    margin: 8px 12px; padding: 7px 10px; border-radius: 8px;
-    border: 1px dashed var(--line-2); color: var(--fg-2);
-    font-size: 0.76rem; display: flex; align-items: center; justify-content: center; gap: 6px;
-    transition: border-color 0.12s, color 0.12s;
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
   }
-  .sb-spawn:hover { border-color: var(--fg-2); color: var(--fg); }
 
-  .sb-foot {
-    padding: 10px 16px 14px; border-top: 1px solid var(--line);
-    display: flex; align-items: center; justify-content: space-between;
-    font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3); letter-spacing: 0.05em;
+  .brand-logo {
+    width: 30px;
+    height: 24px;
+    border-radius: 999px;
+    background: #1F1E1C;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-shadow: inset 0 -2px 0 rgba(255,255,255,0.18);
   }
-  .conn { display: inline-flex; align-items: center; gap: 6px; }
-  .conn-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--err); }
+  .brand-logo span {
+    width: 3px;
+    height: 8px;
+    border-radius: 2px;
+    background: #FFFFFF;
+  }
+
+  .sb-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .icon-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .icon-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Search pill */
+  .sb-search-wrap {
+    padding: 4px 14px 12px;
+  }
+  .sb-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .sb-search svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .sb-search input {
+    border: none;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .sb-search input::placeholder {
+    color: var(--text-muted);
+  }
+
+  /* Scrollable middle roster */
+  .sb-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 10px 12px;
+  }
+
+  .sb-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 8px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .sb-section-note {
+    padding: 0 8px 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* Roster item (Group & Coworker rows) */
+  .roster-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+
+  .roster-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    width: 100%;
+    padding: 9px 11px;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.14s, box-shadow 0.14s;
+  }
+  .roster-item:hover {
+    background: rgba(255, 255, 255, 0.55);
+  }
+  .roster-item.active {
+    background: var(--bg-card);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Cute Neko-Bot circular avatar */
+  .bot-avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .bot-avatar.sm {
+    width: 32px;
+    height: 32px;
+  }
+  .bot-avatar-face {
+    width: 62%;
+    height: 52%;
+    border-radius: 999px;
+    background: #1F1E1C;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .bot-avatar-face i {
+    width: 2.5px;
+    height: 7px;
+    border-radius: 2px;
+    background: #FFFFFF;
+    display: block;
+  }
+
+  .status-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-sidebar);
+    background: #9CA3AF;
+  }
+  .roster-item.active .status-dot {
+    border-color: var(--bg-card);
+  }
+  .status-dot.online, .status-dot.idle { background: var(--ok); }
+  .status-dot.working {
+    background: var(--warn);
+    animation: pulseDot 1.3s infinite ease-in-out;
+  }
+  .status-dot.queued { background: #3B82F6; }
+  .status-dot.error { background: var(--err); }
+
+  @keyframes pulseDot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.22); opacity: 0.75; }
+  }
+
+  .roster-meta {
+    min-width: 0;
+    flex: 1;
+  }
+  .roster-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .roster-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .roster-badge {
+    font-size: 10.5px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-secondary);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .roster-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+  }
+
+  /* Sidebar Footer Items (matching screenshot: Trạng thái runtime, Kết nối, Không gian cá nhân) */
+  .sb-footer {
+    border-top: 1px solid var(--border);
+    padding: 8px 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .sb-foot-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.14s;
+  }
+  .sb-foot-btn:hover {
+    background: var(--bg-hover);
+  }
+  .sb-foot-btn svg {
+    width: 16px;
+    height: 16px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .sb-foot-sub {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  .ws-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #E2DDD5;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* Connection dot indicator for tests & status */
+  .conn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-left: auto;
+  }
+  .conn-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--err);
+  }
   .conn.LIVE .conn-dot { background: var(--ok); }
   .conn.POLLING .conn-dot { background: var(--warn); }
-  .conn.CONNECTING .conn-dot, .conn.DISCONNECTED .conn-dot { background: var(--err); }
 
-  /* ─── CHAT COLUMN ─── */
-  .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-
-  .chat-head {
-    height: 54px; flex-shrink: 0; display: flex; align-items: center; gap: 12px;
-    padding: 0 18px; border-bottom: 1px solid var(--line);
-  }
-  .ch-id { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1; }
-  .ch-title { font-weight: 650; font-size: 0.9rem; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ch-sub { font-family: var(--mono); font-size: 0.62rem; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ch-actions { display: flex; align-items: center; gap: 8px; }
-
-  .core-sel {
-    font-family: var(--mono); font-size: 0.68rem; color: var(--fg-2);
-    background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 6px; padding: 5px 8px; max-width: 190px; cursor: pointer;
-  }
-  .core-sel:hover { border-color: var(--line-2); color: var(--fg); }
-  .core-sel option { background: var(--panel-2); }
-
-  .gbtn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 6px 11px; border-radius: 7px; font-size: 0.74rem; font-weight: 550;
-    border: 1px solid var(--line); color: var(--fg-2); background: transparent;
-    transition: all 0.12s; white-space: nowrap;
-  }
-  .gbtn:hover { color: var(--fg); border-color: var(--line-2); background: var(--panel-2); }
-  .gbtn.solid { background: var(--fg); color: #000; border-color: var(--fg); }
-  .gbtn.solid:hover { background: #d6d6d6; }
-  .gbtn.danger-armed { background: var(--err); border-color: var(--err); color: #000; }
-
-  /* ─── THREAD (transcript) ─── */
-  .thread { flex: 1; overflow-y: auto; padding: 22px 18px 12px; scroll-behavior: smooth; }
-
-  .hero { max-width: 620px; margin: 8vh auto 0; text-align: center; }
-  .hero h1 { font-size: 1.7rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 10px; }
-  .hero p { color: var(--fg-2); font-size: 0.86rem; max-width: 460px; margin: 0 auto 26px; }
-  .hero .chips { display: flex; flex-direction: column; gap: 8px; max-width: 420px; margin: 0 auto; }
-  .chip {
-    padding: 11px 16px; border: 1px solid var(--line); border-radius: 10px;
-    color: var(--fg-2); font-size: 0.8rem; text-align: left;
-    transition: border-color 0.12s, color 0.12s, background 0.12s;
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  }
-  .chip:hover { border-color: var(--line-2); color: var(--fg); background: var(--panel); }
-  .chip b { color: var(--fg); font-weight: 600; }
-  .chip .go { color: var(--fg-3); font-family: var(--mono); font-size: 0.7rem; }
-
-  .day-sep { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; }
-  .day-sep::before, .day-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-  .day-sep span { font-family: var(--mono); font-size: 0.58rem; color: var(--fg-3); letter-spacing: 0.1em; }
-
-  .msg { display: flex; flex-direction: column; margin-bottom: 16px; max-width: 78%; }
-  .msg.out { margin-left: auto; align-items: flex-end; }
-  .msg-meta {
-    font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3);
-    display: flex; align-items: center; gap: 7px; margin-bottom: 5px; letter-spacing: 0.02em; flex-wrap: wrap;
-  }
-  .msg-meta .who { color: var(--fg-2); font-weight: 600; }
-  .msg-meta .deliv { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
-  .msg-meta .deliv.interrupt { color: var(--err); border-color: rgba(239,68,68,0.4); }
-  .msg-meta .deliv.queue { color: var(--warn); border-color: rgba(229,177,19,0.35); }
-  .msg-meta .core-tag { background: var(--panel-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 5px; color: var(--fg-2); }
-  .bubble {
-    background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 12px; padding: 10px 13px; font-size: 0.84rem; line-height: 1.55;
-    white-space: pre-wrap; word-break: break-word; user-select: text; color: var(--fg);
-  }
-  .msg.out .bubble { background: #1c1c1c; border-color: #2b2b2b; }
-  .msg.system .bubble { background: transparent; border-style: dashed; color: var(--fg-2); font-family: var(--mono); font-size: 0.72rem; }
-  .bubble .quote {
-    margin-top: 8px; padding: 7px 10px; border-left: 2px solid var(--line-2);
-    color: var(--fg-2); font-size: 0.78rem; border-radius: 0 6px 6px 0; background: rgba(255,255,255,0.02);
-  }
-  .live-activity {
-    display: flex; align-items: center; gap: 9px; padding: 9px 13px; margin-top: 4px;
-    border: 1px dashed var(--line-2); border-radius: 10px; background: var(--panel);
-    font-family: var(--mono); font-size: 0.68rem; color: var(--fg-2); max-width: 78%;
+  /* ================= MAIN CHAT COLUMN ================= */
+  .chat-main {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    background: var(--bg-main);
+    min-width: 0;
   }
 
-  .new-pill {
-    position: absolute; bottom: 108px; left: 50%; transform: translateX(-50%);
-    background: var(--fg); color: #000; font-size: 0.7rem; font-weight: 600;
-    border-radius: 999px; padding: 6px 13px; display: none; z-index: 5;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+  /* Top Chat Header */
+  .chat-header {
+    height: 60px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-main);
+    flex-shrink: 0;
   }
 
-  /* ─── COMPOSER ─── */
-  .composer-wrap { flex-shrink: 0; padding: 12px 18px 16px; position: relative; }
-  .composer {
-    max-width: 780px; margin: 0 auto; border: 1px solid var(--line-2); border-radius: 14px;
-    background: var(--panel); transition: border-color 0.15s;
+  .chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
   }
-  .composer:focus-within { border-color: #3d3d3d; }
-  .composer textarea {
-    width: 100%; padding: 12px 14px 6px; font-size: 0.86rem; line-height: 1.5;
-    max-height: 150px; color: var(--fg); user-select: text;
-  }
-  .composer textarea::placeholder { color: var(--fg-3); }
-  .comp-row {
-    display: flex; align-items: center; gap: 8px; padding: 6px 10px 9px 12px; flex-wrap: wrap;
-  }
-  .check-in {
-    font-family: var(--mono); font-size: 0.68rem; color: var(--fg-3);
-    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; width: 168px;
-  }
-  .check-in:focus { color: var(--fg-2); border-color: var(--line-2); }
-  .tgt-sel {
-    font-family: var(--mono); font-size: 0.68rem; color: var(--fg-2);
-    border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; max-width: 150px; cursor: pointer;
-  }
-  .tgt-sel option { background: var(--panel-2); }
 
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-  .seg button {
-    font-family: var(--mono); font-size: 0.64rem; letter-spacing: 0.04em;
-    padding: 5px 10px; color: var(--fg-3); transition: all 0.1s;
+  .chat-title-wrap {
+    min-width: 0;
   }
-  .seg button + button { border-left: 1px solid var(--line); }
-  .seg button:hover { color: var(--fg-2); }
-  .seg button.active { background: var(--fg); color: #000; font-weight: 600; }
-
-  .sendbtn {
-    margin-left: auto; width: 32px; height: 32px; border-radius: 999px;
-    background: var(--fg); color: #000; display: inline-flex;
-    align-items: center; justify-content: center; transition: background 0.12s, opacity 0.12s;
+  .chat-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.25;
   }
-  .sendbtn:hover { background: #d6d6d6; }
-  .sendbtn:disabled { opacity: 0.3; cursor: default; }
-  .comp-hint { text-align: center; font-family: var(--mono); font-size: 0.58rem; color: var(--fg-3); margin-top: 8px; letter-spacing: 0.04em; }
-  .comp-hint b { color: var(--fg-2); font-weight: 500; }
-
-  .wait-toggle { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 0.62rem; color: var(--fg-3); cursor: pointer; }
-  .wait-toggle input { accent-color: var(--fg); cursor: pointer; }
-
-  /* ─── TELEMETRY RAIL ─── */
-  .tele {
-    width: 300px; flex-shrink: 0; border-left: 1px solid var(--line);
-    background: var(--panel); overflow-y: auto; display: flex; flex-direction: column;
+  .chat-subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .tele.hidden { display: none; }
+
+  .chat-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .header-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ok);
+    margin: 0 2px;
+  }
+
+  /* Messages Stream Area */
+  .chat-stream {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Empty State ("Mình bắt đầu từ đâu?") */
+  .empty-welcome {
+    margin: auto;
+    max-width: 460px;
+    text-align: center;
+    padding: 32px 16px;
+  }
+  .empty-cat-icon {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto 14px;
+    color: var(--text-secondary);
+  }
+  .empty-welcome h2 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .empty-welcome p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin-bottom: 20px;
+  }
+  .quick-pills {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .quick-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.12s, border-color 0.12s;
+  }
+  .quick-pill:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+  }
+  .quick-pill svg {
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary);
+  }
+
+  /* Day separator */
+  .day-sep {
+    align-self: center;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, 0.04);
+    padding: 3px 12px;
+    border-radius: 999px;
+    margin: 6px 0;
+  }
+
+  /* Messenger / Telegram Bubbles */
+  .msg-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    max-width: 78%;
+  }
+  .msg-row.outgoing {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+  .msg-row.incoming {
+    align-self: flex-start;
+  }
+
+  .msg-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .msg-row.outgoing .msg-col {
+    align-items: flex-end;
+  }
+
+  .msg-sender-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+  .msg-sender-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .msg-sender-meta {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  .msg-route-pill {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #E8E4DC;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .msg-bubble {
+    padding: 11px 15px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.55;
+    word-break: break-word;
+    white-space: pre-wrap;
+    box-shadow: var(--shadow-sm);
+  }
+  .msg-row.incoming .msg-bubble {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 5px;
+  }
+  .msg-row.outgoing .msg-bubble {
+    background: var(--bg-bubble-out);
+    color: var(--text-out);
+    border-bottom-right-radius: 5px;
+  }
+  .msg-bubble.priority {
+    border: 1.5px solid var(--warn);
+  }
+  .msg-bubble code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.06);
+  }
+  .msg-row.outgoing .msg-bubble code {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  /* Typing indicator bubble */
+  .typing-bubble {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    align-self: flex-start;
+  }
+  .typing-dots {
+    display: inline-flex;
+    gap: 3px;
+  }
+  .typing-dots i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    animation: bounceDot 1.2s infinite ease-in-out;
+  }
+  .typing-dots i:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots i:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounceDot {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.45; }
+    40% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* ================= BOTTOM COMPOSER ================= */
+  .composer-area {
+    padding: 8px 20px 16px;
+    background: var(--bg-main);
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* "Tài khoản" selector bar (matching screenshot) */
+  .account-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+  }
+  .account-label {
+    white-space: nowrap;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .account-select {
+    flex: 1;
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 12.5px;
+    outline: none;
+    cursor: pointer;
+  }
+  .delivery-select {
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  /* Pill input bar ("+ Nhắn cho Meiiie... ↑") */
+  .composer-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    padding: 6px 8px 6px 10px;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .composer-pill:focus-within {
+    border-color: #9E988E;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  }
+
+  .plus-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .plus-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+  .plus-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .composer-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 14px;
+    color: var(--text-primary);
+    padding: 4px 0;
+  }
+  .composer-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .send-circle-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-sidebar);
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .send-circle-btn:hover {
+    background: var(--text-primary);
+    color: #FFFFFF;
+    border-color: var(--text-primary);
+  }
+  .send-circle-btn.stop-btn {
+    background: #FEE2E2;
+    color: var(--err);
+    border-color: #FCA5A5;
+  }
+  .send-circle-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* ================= DRAWER / MODAL OVERLAY (Runtime & Connections) ================= */
+  .tele-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .tele-drawer-backdrop.open {
+    display: flex;
+  }
+
+  .tele-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 560px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+
   .tele-head {
-    height: 54px; flex-shrink: 0; padding: 0 16px; border-bottom: 1px solid var(--line);
-    display: none; align-items: center; justify-content: space-between;
-    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; color: var(--fg-2);
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 15px;
   }
-  .tsec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
-  .tsec h3 {
-    font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em;
-    color: var(--fg-3); font-weight: 600; margin-bottom: 11px;
-    display: flex; align-items: center; gap: 7px;
-  }
-  .tblock {
-    font-family: var(--mono); font-size: 0.66rem; color: var(--fg-2); line-height: 1.7;
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
-    padding: 10px 12px; white-space: pre-wrap; word-break: break-word; user-select: text;
-  }
-  .wt-row { border: 1px solid var(--line); border-radius: 9px; padding: 10px 11px; margin-bottom: 9px; }
-  .wt-row .wt-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-  .wt-row .wt-id { font-family: var(--mono); font-size: 0.72rem; }
-  .wt-row .wt-branch { font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3); }
-  .wt-row .wt-path { font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3); margin-bottom: 8px; word-break: break-all; }
-  .wt-merge {
-    width: 100%; padding: 6px; border-radius: 6px; border: 1px solid var(--line-2);
-    font-size: 0.7rem; color: var(--fg-2); display: flex; align-items: center; justify-content: center; gap: 6px;
-    transition: all 0.12s;
-  }
-  .wt-merge:hover { color: var(--fg); border-color: var(--fg-2); }
-  .auth-line { display: flex; align-items: center; gap: 8px; }
-  .auth-line .st { font-family: var(--mono); font-size: 0.6rem; margin-left: auto; }
-  .auth-line .st.ok { color: var(--ok); }
-  .auth-line .st.no { color: var(--fg-3); }
 
-  /* ─── MODAL ─── */
-  .modal-bg {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.72); backdrop-filter: blur(3px);
-    display: none; align-items: center; justify-content: center; z-index: 50;
+  .tele-body {
+    padding: 16px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
-  .modal-bg.open { display: flex; }
-  .modal {
-    width: min(420px, calc(100vw - 40px)); background: var(--panel);
-    border: 1px solid var(--line-2); border-radius: 16px; padding: 22px;
-  }
-  .modal h2 { font-size: 1rem; font-weight: 650; margin-bottom: 3px; }
-  .modal .m-sub { font-size: 0.74rem; color: var(--fg-3); margin-bottom: 17px; }
-  .field { margin-bottom: 11px; }
-  .field label { display: block; font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.08em; color: var(--fg-3); margin-bottom: 5px; }
-  .field input, .field select, .field textarea {
-    width: 100%; background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: 8px; padding: 9px 11px; font-size: 0.8rem; user-select: text;
-  }
-  .field textarea { font-family: var(--mono); font-size: 0.72rem; }
-  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--line-2); }
-  .m-actions { display: flex; gap: 9px; margin-top: 16px; }
-  .m-actions .gbtn { flex: 1; justify-content: center; padding: 9px; }
 
-  /* ─── MOBILE ─── */
-  .mobnav { display: none; }
-  @media (max-width: 1149px) {
-    .tele { position: fixed; inset: 0; width: 100%; z-index: 30; display: none; }
-    .tele-head { display: flex; }
-    .app.mob-insp .tele { display: flex; }
+  .tele-card {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
   }
+  .tele-card h4 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+
+  .auth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .auth-row:last-child {
+    border-bottom: none;
+  }
+
+  .form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .form-row label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .form-input {
+    padding: 8px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-card);
+    font-size: 13px;
+  }
+
+  .primary-btn {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: none;
+    background: var(--text-primary);
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
   @media (max-width: 760px) {
-    .sb { position: fixed; inset: 0; width: 100%; z-index: 30; display: none; }
-    .app.mob-roster .sb { display: flex; }
-    .app.mob-insp .tele { display: flex; }
-    .mobnav {
-      display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-      background: rgba(10,10,10,0.92); backdrop-filter: blur(10px);
-      border-top: 1px solid var(--line);
+    .app-layout {
+      grid-template-columns: 1fr;
     }
-    .mobnav button {
-      flex: 1; padding: 11px 0 calc(11px + env(safe-area-inset-bottom));
-      color: var(--fg-3); font-size: 0.66rem; font-family: var(--mono); letter-spacing: 0.06em;
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
+    .sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: 276px;
+      z-index: 60;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
     }
-    .mobnav button.active { color: var(--fg); }
-    .composer-wrap { padding-bottom: calc(12px + 52px); }
-    .msg, .live-activity { max-width: 92%; }
-    .tele-toggle { display: none; }
+    .sidebar.mobile-open {
+      transform: translateX(0);
+    }
   }
 </style>
 </head>
 <body>
-<div class="app" id="appEl">
-
-  <!-- ══ SIDEBAR ══ -->
-  <aside class="sb" id="sbEl">
-    <div class="sb-brand"><b>BotAutoTask</b><span>${mode === 'cloud' ? 'CLOUD' : 'LOCAL'}</span></div>
-    <button class="new-mission" onclick="focusNewMission()">
-      <svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      New Mission
-    </button>
-    <div class="sb-label"><span>COWORKERS</span><span id="squadCount">—</span></div>
-    <div class="sb-scroll">
-      <div class="chan active" id="chanAll" onclick="selectChannel('all')">
-        <span class="hash">#mesh-command-room</span>
-        <span class="badge hidden" id="totalHandoffsBadge">0</span>
+  <div class="app-layout" id="appLayout">
+    <!-- LEFT SIDEBAR (Neko Bot / Messenger / Telegram Style) -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sb-header">
+        <div class="brand">
+          <div class="brand-logo"><span></span><span></span></div>
+          <span>Neko Bot</span>
+        </div>
+        <div class="sb-top-actions">
+          <button class="icon-btn" onclick="toggleSidebar()" title="Thu gọn thanh bên">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+          </button>
+          <button class="icon-btn" onclick="openModal('spawnModal')" title="Thêm đồng nghiệp mới">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
       </div>
-      <div id="rosterContainer"></div>
-    </div>
-    <button class="sb-spawn" onclick="openSpawnModal()">
-      <svg class="ico ico-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-      Add specialist
-    </button>
-    <div class="sb-foot">
-      <span class="conn CONNECTING" id="connPill"><span class="conn-dot"></span><span id="sseText">CONNECTING</span></span>
-      <span id="seqPill">—</span>
-    </div>
-  </aside>
 
-  <!-- ══ CHAT COLUMN ══ -->
-  <main class="chat">
-    <header class="chat-head" id="chatHead"></header>
-    <div class="thread" id="threadEl"></div>
-    <div class="composer-wrap">
-      <button class="new-pill" id="newPill" onclick="jumpToLatest()">↓ new</button>
-      <div class="composer">
-        <textarea id="composerInput" rows="1" placeholder="Describe the mission for the squad…"></textarea>
-        <div class="comp-row" id="compRow"></div>
+      <div class="sb-search-wrap">
+        <div class="sb-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
+          <input id="searchInput" type="text" placeholder="Tìm đồng nghiệp" oninput="renderRoster()" />
+        </div>
       </div>
-      <div class="comp-hint" id="compHint"></div>
-    </div>
-  </main>
 
-  <!-- ══ TELEMETRY RAIL ══ -->
-  <aside class="tele" id="teleEl">
-    <div class="tele-head">
-      <span>TELEMETRY & WORKTREES</span>
-      <button class="gbtn" onclick="closeTelemetry()">Close ×</button>
-    </div>
-    <div class="tsec">
-      <h3><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>WORKTREES</h3>
-      <div id="worktreeList"></div>
-    </div>
-    <div class="tsec">
-      <h3><svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>ZERO-KEY SESSIONS</h3>
-      <div class="tblock" id="authList">Scanning local CLI credentials…</div>
-    </div>
-    <div class="tsec">
-      <h3><svg class="ico ico-sm" viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>IDE FEED</h3>
-      <div class="tblock" id="ideTranscriptBox">No active IDE session detected.</div>
-    </div>
-  </aside>
-</div>
+      <div class="sb-scroll">
+        <div class="sb-section-head">
+          <span>Nhóm local</span>
+          <button class="icon-btn" style="width:22px;height:22px;" onclick="selectChannel('all')" title="Mở phòng họp nhóm (#mesh-command-room)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="sb-section-note">Tạo nhóm để nhiều bot cùng trả lời tại đây.</div>
+        <div class="roster-list" id="groupRoster"></div>
 
-<!-- ══ MOBILE NAV ══ -->
-<nav class="mobnav">
-  <button id="mobBtnSquad" onclick="setMobileView('roster')">
-    <svg class="ico" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    Squad
-  </button>
-  <button id="mobBtnComms" class="active" onclick="setMobileView('comms')">
-    <svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    Chat
-  </button>
-  <button id="mobBtnInsp" onclick="setMobileView('insp')">
-    <svg class="ico" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
-    Telemetry
-  </button>
-</nav>
+        <div class="sb-section-head">
+          <span>Đồng nghiệp AI</span>
+        </div>
+        <div class="roster-list" id="coworkerRoster"></div>
+      </div>
 
-<!-- ══ SPAWN MODAL ══ -->
-<div class="modal-bg" id="spawnModal" onclick="if(event.target===this)closeSpawnModal()">
-  <div class="modal">
-    <h2>Add specialist coworker</h2>
-    <div class="m-sub">Spawn a new agent into the mesh with its own role and preferred AI core.</div>
-    <div class="field"><label>HANDLE</label><input id="spId" placeholder="sec-audit"/></div>
-    <div class="field"><label>NAME</label><input id="spName" placeholder="Security & Hardening Auditor"/></div>
-    <div class="field"><label>ROLE</label>
-      <select id="spRole">
-        <option value="writer">writer — modifies code in isolated worktree</option>
-        <option value="reader">reader — read-only analysis</option>
-      </select>
-    </div>
-    <div class="field"><label>PREFERRED CORE</label>
-      <select id="spCore">
-        <option value="auto">auto (best free model)</option>
-        <option value="opencode">opencode</option>
-        <option value="codex">codex</option>
-        <option value="claude">claude</option>
-        <option value="antigravity">antigravity</option>
-      </select>
-    </div>
-    <div class="field"><label>PERSONA</label><textarea id="spDesc" rows="3" placeholder="System persona, domain boundaries, specialized instructions…"></textarea></div>
-    <div class="m-actions">
-      <button class="gbtn" onclick="closeSpawnModal()">Cancel</button>
-      <button class="gbtn solid" onclick="submitSpawnAgent()">Create coworker</button>
+      <div class="sb-footer">
+        <button class="sb-foot-btn" onclick="openModal('runtimeModal')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="14" x2="13" y2="14"/></svg>
+          <span>Trạng thái runtime</span>
+          <span class="conn LIVE" id="connPill"><span class="conn-dot"></span><span id="sseText">LIVE</span></span>
+        </button>
+        <button class="sb-foot-btn" onclick="openModal('connModal')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          <span>Kết nối</span>
+        </button>
+        <button class="sb-foot-btn" onclick="openModal('runtimeModal')">
+          <span class="ws-avatar">P</span>
+          <span style="min-width:0;flex:1;">
+            <span style="display:block;font-weight:600;font-size:12.5px;">Không gian cá nhân</span>
+            <span class="sb-foot-sub" id="wsPathLabel">Lịch sử lưu trên máy</span>
+          </span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT MAIN CHAT AREA -->
+    <main class="chat-main">
+      <!-- Chat Header -->
+      <header class="chat-header">
+        <div class="chat-header-left">
+          <button class="icon-btn" onclick="toggleSidebar()" title="Mở danh sách đồng nghiệp" style="margin-right:2px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
+          </button>
+          <div class="bot-avatar sm" id="headerAvatar" style="background:#B85D43;">
+            <div class="bot-avatar-face"><i></i><i></i></div>
+          </div>
+          <div class="chat-title-wrap">
+            <div class="chat-title" id="headerTitle">Lead</div>
+            <div class="chat-subtitle" id="headerSubtitle">Hội thoại ban đầu · #mesh-command-room</div>
+          </div>
+        </div>
+
+        <div class="chat-header-actions">
+          <button class="icon-btn" onclick="openModal('runtimeModal')" title="Chỉnh lệnh kiểm thử & cấu hình">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </button>
+          <span class="header-dot" id="headerDot"></span>
+          <button class="icon-btn" onclick="mergeAgentWorktree(currentChannel === 'all' ? 'coder' : currentChannel)" title="Gộp nhánh Git Worktree (Merge)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </button>
+          <button class="icon-btn" onclick="clearCurrentView()" title="Làm mới khung hội thoại">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v4h6V4"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Message Stream / Empty Welcome State -->
+      <section class="chat-stream" id="chatStream"></section>
+
+      <!-- Bottom Composer Bar (matching screenshot) -->
+      <footer class="composer-area">
+        <div class="account-row">
+          <span class="account-label">Tài khoản</span>
+          <select class="account-select" id="coreSelect" onchange="onCoreSelectChange(this.value)">
+            <option value="auto">Không chọn tài khoản (Tự động chọn Free Model tốt nhất)</option>
+            <option value="opencode">OpenCode Zen — Free Models (deepseek / big-pickle / mimo)</option>
+            <option value="codex">Codex CLI — ChatGPT OAuth (gpt-5.4)</option>
+            <option value="claude">Claude Code CLI — Local Session</option>
+            <option value="antigravity">Antigravity IDE — Local Session</option>
+            <option value="neko-core">Neko Core — Local Daemon</option>
+          </select>
+          <select class="delivery-select" id="deliverySelect" title="Chế độ gửi tin nhắn">
+            <option value="send">Gửi trực tiếp</option>
+            <option value="interrupt">Chèn ưu tiên (Steer)</option>
+            <option value="queue">Xếp hàng (Queue)</option>
+          </select>
+        </div>
+
+        <div class="composer-pill">
+          <button class="plus-btn" onclick="openModal('runtimeModal')" title="Tùy chọn nâng cao & lệnh kiểm thử">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <input
+            id="msgInput"
+            class="composer-input"
+            type="text"
+            placeholder="Nhắn cho Lead..."
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendComposerMessage();}"
+          />
+          <button class="send-circle-btn" id="sendOrStopBtn" onclick="onSendOrStopClick()" title="Gửi tin nhắn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- MODAL 1: TRẠNG THÁI RUNTIME & KIỂM THỬ -->
+  <div class="tele-drawer-backdrop" id="runtimeModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="tele-modal">
+      <div class="tele-head">
+        <span>Trạng thái Runtime & Kiểm thử Worktree</span>
+        <button class="icon-btn" onclick="closeTelemetry()">✕</button>
+      </div>
+      <div class="tele-body">
+        <div class="tele-card">
+          <h4>Lệnh kiểm thử tự động trước khi Merge (Verify Command)</h4>
+          <div class="form-row" style="margin-bottom:0;">
+            <input
+              id="checkInput"
+              class="form-input"
+              type="text"
+              value='python -m unittest discover -s tests -p "test_*.py" -v; python scripts/query_engine.py --test; python scripts/evaluate.py --check'
+              oninput="currentVerifyCmd = this.value"
+            />
+          </div>
+        </div>
+        <div class="tele-card">
+          <h4>Đồng nghiệp đang hoạt động</h4>
+          <div id="runtimeAgentsSummary" style="font-size:13px;color:var(--text-secondary);">Đang tải...</div>
+        </div>
+        <div class="tele-card">
+          <h4>Nhật ký IDE / Antigravity gần nhất</h4>
+          <div id="ideLogBox" style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);white-space:pre-wrap;">Chưa có dữ liệu</div>
+        </div>
+      </div>
     </div>
   </div>
-</div>
+
+  <!-- MODAL 2: KẾT NỐI ZERO-API-KEY -->
+  <div class="tele-drawer-backdrop" id="connModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="tele-modal">
+      <div class="tele-head">
+        <span>Kết nối tài khoản & AI Cores</span>
+        <button class="icon-btn" onclick="closeTelemetry()">✕</button>
+      </div>
+      <div class="tele-body">
+        <div class="tele-card">
+          <h4>Trạng thái đăng nhập Zero-API-Key</h4>
+          <div id="authList">Đang kiểm tra...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: THÊM ĐỒNG NGHIỆP MỚI -->
+  <div class="tele-drawer-backdrop" id="spawnModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="tele-modal">
+      <div class="tele-head">
+        <span>Thêm đồng nghiệp AI mới</span>
+        <button class="icon-btn" onclick="closeTelemetry()">✕</button>
+      </div>
+      <div class="tele-body">
+        <div class="form-row">
+          <label>Mã định danh (@handle)</label>
+          <input id="spawnId" class="form-input" placeholder="Ví dụ: qa-bot" />
+        </div>
+        <div class="form-row">
+          <label>Tên hiển thị</label>
+          <input id="spawnName" class="form-input" placeholder="Ví dụ: QA Engineer" />
+        </div>
+        <div class="form-row">
+          <label>Vai trò</label>
+          <select id="spawnRole" class="form-input">
+            <option value="writer">Writer (Code trong nhánh Git Worktree riêng)</option>
+            <option value="reader">Reader (Phân tích, Lên kế hoạch, Review)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Mô tả nhiệm vụ</label>
+          <input id="spawnDesc" class="form-input" placeholder="Chuyên viết unit test và kiểm tra bảo mật..." />
+        </div>
+        <button class="primary-btn" onclick="spawnNewCoworker()">Tạo đồng nghiệp</button>
+      </div>
+    </div>
+  </div>
 
 <script>
-  // 1. Secret fragment extraction (strip #k= from address bar immediately)
-  let token = '${sessionToken}';
-  if (window.location.hash.startsWith('#k=')) {
-    token = decodeURIComponent(window.location.hash.slice(3));
-    history.replaceState(null, '', window.location.pathname);
-  } else if (window.location.hash.startsWith('#token=')) {
-    token = decodeURIComponent(window.location.hash.slice(7));
-    history.replaceState(null, '', window.location.pathname);
-  }
-
-  let currentChannel = 'all';
-  let currentDelivery = 'send';
-  let currentVerifyCmd = 'npm test';
-  let agentsCache = [];
-  let feedItems = [];
-  let unreadMap = {};
-  let stopArmedTimers = {};
-  let stopAllArmed = false;
-  let pendingScroll = false;
-  let lastStateOkTs = 0;
-  let sseState = 'CONNECTING';
-
-  const SVG = {
-    send: '<svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
-    stop: '<svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
-    bolt: '<svg class="ico ico-sm" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-    branch: '<svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
-    arrowRight: '<svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'
+  const ICONS = {
+    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
+    stop: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+    cat: '<svg class="empty-cat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5c-1.5 0-2.8.4-4 1L5 3v5c-.6 1.2-1 2.5-1 4 0 5 3.6 8 8 8s8-3 8-8c0-1.5-.4-2.8-1-4V3l-3 3c-1.2-.6-2.5-1-4-1z"/><line x1="9" y1="12" x2="9.01" y2="12" stroke-width="2.4" stroke-linecap="round"/><line x1="15" y1="12" x2="15.01" y2="12" stroke-width="2.4" stroke-linecap="round"/><path d="M10 15.5c.7.5 1.3.7 2 .7s1.3-.2 2-.7"/></svg>'
   };
 
-  const CORE_OPTIONS = [
-    { value: 'auto', label: 'auto (best free)' },
-    { value: 'opencode:opencode/deepseek-v4.1-flash-free', label: 'deepseek-v4.1-free' },
-    { value: 'opencode:freemodel/claude-sonnet-4-6', label: 'sonnet-4.6-free' },
-    { value: 'codex', label: 'codex (OAuth)' },
-    { value: 'claude', label: 'claude-code' },
-    { value: 'antigravity', label: 'antigravity-ide' }
-  ];
+  const AVATAR_COLORS = {
+    all: '#6B5B4D',
+    lead: '#B85D43',
+    coder: '#3D6B58',
+    reviewer: '#4A628A'
+  };
 
-  const TEMPLATES = [
-    {
-      title: 'Test & refactor a module',
-      goal: 'Audit module architecture, refactor brittle functions, and verify all unit tests pass',
-      check: 'npm test'
-    },
-    {
-      title: 'Parallel worktree feature',
-      goal: 'Implement the feature in an isolated Git worktree, add regression tests, then run a reviewer audit',
-      check: 'npm test'
-    },
-    {
-      title: 'Security & policy audit',
-      goal: 'Perform OWASP security, input boundary, and race-condition audit across all API handlers',
-      check: 'npm test'
+  function getAvatarColor(id) {
+    if (AVATAR_COLORS[id]) return AVATAR_COLORS[id];
+    let hash = 0;
+    const s = String(id || 'bot');
+    for (let i = 0; i < s.length; i++) hash = s.charCodeAt(i) + ((hash << 5) - hash);
+    const palette = ['#B85D43', '#3D6B58', '#4A628A', '#8C5A3C', '#5B6E49', '#7A527A'];
+    return palette[Math.abs(hash) % palette.length];
+  }
+
+  let authToken = '';
+  if (location.hash.startsWith('#k=')) {
+    authToken = location.hash.slice(3);
+  }
+
+  let agentsState = [];
+  let feedItems = [];
+  let currentChannel = 'lead'; // Default to 1-on-1 coworker like screenshot ("Meiiie"), or 'all' for group room
+  let currentVerifyCmd = 'python -m unittest discover -s tests -p "test_*.py" -v; python scripts/query_engine.py --test; python scripts/evaluate.py --check';
+  let sseSource = null;
+  let sseState = 'CONNECTING';
+  let lastStateOkTs = 0;
+  let initialSwitchDone = false;
+
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
     }
-  ];
-
-  function makeNonce() {
-    return 'n-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
   }
 
-  function esc(str) {
-    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  async function apiFetch(path, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+    if (options.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    return fetch(path, { ...options, headers });
   }
 
-  async function api(path, opts = {}) {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + token,
-      ...(opts.headers || {})
-    };
-    return fetch(path, { ...opts, headers });
-  }
-
-  // 2. Live SSE stream with replay & honest POLLING fallback
-  function setConnState(state, seq) {
+  function setConnState(state) {
     sseState = state;
     const pill = document.getElementById('connPill');
+    const txt = document.getElementById('sseText');
+    if (!pill || !txt) return;
     let label = state;
-    if (state !== 'LIVE' && lastStateOkTs > 0 && Date.now() - lastStateOkTs < 9000) {
+    if (state !== 'LIVE' && Date.now() - lastStateOkTs < 9000) {
       label = 'POLLING';
     }
-    document.getElementById('sseText').innerText = label;
     pill.className = 'conn ' + label;
-    if (seq !== undefined) {
-      document.getElementById('seqPill').innerText = '#' + seq;
-    }
+    txt.textContent = label;
   }
 
-  let esHandle = null;
-  function connectStream() {
-    if (esHandle) { try { esHandle.close(); } catch {} }
-    const es = new EventSource('/api/events?token=' + encodeURIComponent(token));
-    esHandle = es;
-    es.onopen = () => setConnState('LIVE');
-    es.onerror = () => setConnState('DISCONNECTED');
-    es.addEventListener('frame', (evt) => {
+  function hasDuplicateItem(candidate) {
+    return feedItems.some((item) => {
+      if (candidate.id && item.id === candidate.id) return true;
+      return (
+        item.from === candidate.from &&
+        item.to === candidate.to &&
+        item.text === candidate.text &&
+        Math.abs(new Date(item.ts || 0).getTime() - new Date(candidate.ts || 0).getTime()) < 2500
+      );
+    });
+  }
+
+  function connectSse() {
+    if (sseSource) {
+      try { sseSource.close(); } catch {}
+    }
+    const url = '/api/events' + (authToken ? '?k=' + encodeURIComponent(authToken) : '');
+    sseSource = new EventSource(url);
+    sseSource.onopen = () => setConnState('LIVE');
+    sseSource.onerror = () => setConnState('DISCONNECTED');
+    sseSource.addEventListener('frame', (e) => {
       try {
-        const frame = JSON.parse(evt.data);
-        if (frame.seq) setConnState('LIVE', frame.seq);
-        if (frame.t === 'hello') {
-          refreshState();
-          return;
+        const frame = JSON.parse(e.data);
+        const p = frame.payload || {};
+        if (frame.family === 'agent_message' || frame.family === 'team_step' || frame.family === 'agent_steered') {
+          const item = {
+            id: p.id || ('evt-' + frame.seq),
+            ts: new Date().toISOString(),
+            from: p.fromId || p.from || 'commander',
+            to: p.targetId || p.agentId || 'all',
+            delivery: p.delivery || 'send',
+            priority: Boolean(p.priority),
+            core: p.harnessId ? (p.harnessId + (p.modelId ? ':' + p.modelId : '')) : null,
+            text: p.message || p.summary || ''
+          };
+          if (!hasDuplicateItem(item)) {
+            feedItems.push(item);
+            renderStream();
+            renderRoster();
+          }
         }
-        handleIncomingEvent(frame);
+        refreshState();
       } catch {}
     });
   }
 
-  function handleIncomingEvent(frame) {
-    const p = frame.payload || {};
-    if (frame.family === 'agent_message' || frame.family === 'agent_steered' || frame.family === 'team_step') {
-      pushTimelineEvent({
-        id: p.id || ('evt-' + frame.seq),
-        from: p.fromId || p.from || 'commander',
-        to: p.targetId || p.agentId || 'all',
-        delivery: p.delivery || (p.priority ? 'interrupt' : 'send'),
-        message: p.message || p.summary || '',
-        reply: p.reply || null,
-        core: p.harnessId ? (p.harnessId + ':' + (p.modelId || '')) : (p.core || null),
-        ts: new Date().toLocaleTimeString()
-      });
-    }
-    refreshState();
-  }
-
-  function bumpUnread(item) {
-    const ch = currentChannel;
-    const involves = (id) => item.from === id || item.to === id;
-    if (!(ch === 'all' || involves(ch))) {
-      [item.from, item.to].forEach((id) => {
-        if (id && id !== 'commander' && id !== 'all') {
-          unreadMap[id] = (unreadMap[id] || 0) + 1;
-        }
-      });
-    }
-  }
-
-  function hasDuplicateItem(item) {
-    if (item.id && feedItems.some((x) => x.id === item.id)) return true;
-    const recent = feedItems.slice(-4);
-    return recent.some((x) => x.from === item.from && x.to === item.to && x.message === item.message);
-  }
-
-  function pushTimelineEvent(item) {
-    if (hasDuplicateItem(item)) return;
-    feedItems.push(item);
-    if (feedItems.length > 300) feedItems.shift();
-    bumpUnread(item);
-    document.getElementById('totalHandoffsBadge').innerText = String(feedItems.length);
-    document.getElementById('totalHandoffsBadge').classList.toggle('hidden', false);
-    renderRoster(agentsCache);
-    renderThread();
-  }
-
-  // 3. State snapshot (merges new handoffs continuously so POLLING mode never misses messages)
   async function refreshState() {
     try {
-      const res = await api('/api/state');
+      const res = await apiFetch('/api/state');
       if (!res.ok) return;
       const data = await res.json();
       lastStateOkTs = Date.now();
       if (sseState !== 'LIVE') setConnState(sseState);
 
-      agentsCache = data.agents || [];
-      renderRoster(agentsCache);
-      renderHeader();
-      renderWorktrees(agentsCache);
-      renderAuthAndIde(data.auth || {}, data.latestIdeLog);
+      agentsState = Array.isArray(data.agents) ? data.agents : [];
 
-      if (Array.isArray(data.handoffs) && data.handoffs.length > 0) {
+      if (Array.isArray(data.handoffs)) {
         let added = false;
         for (const h of data.handoffs) {
-          const candidate = {
+          const item = {
             id: h.id,
+            ts: h.createdAt,
             from: h.fromAgentId,
             to: h.targetAgentId,
-            delivery: h.delivery || (h.priority ? 'interrupt' : 'send'),
-            message: h.summary,
-            reply: null,
+            delivery: h.delivery || 'send',
+            priority: Boolean(h.priority),
             core: h.core || null,
-            ts: new Date(h.createdAt).toLocaleTimeString()
+            text: h.summary || ''
           };
-          if (!hasDuplicateItem(candidate)) {
-            feedItems.push(candidate);
+          if (!hasDuplicateItem(item)) {
+            feedItems.push(item);
             added = true;
           }
         }
         if (added) {
-          if (feedItems.length > 300) feedItems = feedItems.slice(-300);
-          document.getElementById('totalHandoffsBadge').innerText = String(feedItems.length);
-          document.getElementById('totalHandoffsBadge').classList.toggle('hidden', false);
-          renderThread();
-        } else {
-          renderThread();
+          if (!initialSwitchDone && feedItems.length > 0) {
+            currentChannel = 'all';
+            initialSwitchDone = true;
+          }
+          renderStream();
         }
-      } else if (feedItems.length === 0) {
-        renderThread();
       }
+
+      renderRoster();
+      renderHeader();
+      renderRuntimeModal(data);
     } catch {}
   }
 
-  function statusOf(a) {
-    if (a.status === 'running') {
-      return a.elapsedMs > 90000 ? 'stale' : 'running';
-    }
-    if (a.status === 'error' || a.status === 'aborted') return 'error';
-    if ((a.inboxCount || 0) > 0 || (a.pendingSteers || 0) > 0) return 'queued';
-    return a.status || 'idle';
-  }
+  function renderRoster() {
+    const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+    const groupEl = document.getElementById('groupRoster');
+    const coworkerEl = document.getElementById('coworkerRoster');
+    if (!groupEl || !coworkerEl) return;
 
-  function renderRoster(agents) {
-    document.getElementById('squadCount').innerText = agents.length + ' AGENTS';
-    const container = document.getElementById('rosterContainer');
-    container.innerHTML = agents.map((a) => {
-      const st = statusOf(a);
-      const elapsed = a.status === 'running' && a.elapsedMs ? Math.round(a.elapsedMs / 1000) + 's' : '';
-      const unread = unreadMap[a.id] || 0;
-      const selected = currentChannel === a.id;
-      const roleLabel = a.id === 'lead' ? 'lead' : (a.role || 'writer');
-      const lastAct = Array.isArray(a.recentActivity) && a.recentActivity.length > 0
-        ? a.recentActivity[a.recentActivity.length - 1]
-        : (a.name || a.preferredCore || 'idle');
-      return \`
-        <div class="chan \${selected ? 'active' : ''}" onclick="selectChannel('\${esc(a.id)}')">
-          <span class="dot \${esc(st)}"></span>
-          <div class="chan-body">
-            <div class="chan-row">
-              <span class="hash">@\${esc(a.id)}</span>
-              <span class="role-pill">\${esc(roleLabel)}</span>
-              \${unread ? '<span class="badge">' + unread + '</span>' : (elapsed ? '<span class="sub mono">' + elapsed + '</span>' : '')}
-            </div>
-            <div class="sub">\${esc(lastAct)}</div>
+    // 1. Group Room ("Phòng điều phối nhóm #mesh-command-room")
+    const runningCount = agentsState.filter((a) => a.status === 'running').length;
+    const lastGroupMsg = feedItems[feedItems.length - 1];
+    const groupSub = runningCount > 0
+      ? (runningCount + ' đồng nghiệp đang xử lý...')
+      : (lastGroupMsg ? ('@' + lastGroupMsg.from + ': ' + lastGroupMsg.text.slice(0, 36)) : '@lead, @coder, @reviewer');
+
+    groupEl.innerHTML = \`
+      <button class="roster-item \${currentChannel === 'all' ? 'active' : ''}" onclick="selectChannel('all')">
+        <div class="bot-avatar" style="background:\${getAvatarColor('all')}">
+          <div class="bot-avatar-face"><i></i><i></i></div>
+          <span class="status-dot \${runningCount > 0 ? 'working' : 'online'}"></span>
+        </div>
+        <div class="roster-meta">
+          <div class="roster-title-row">
+            <span class="roster-name">Nhóm Đồng Nghiệp</span>
+            <span class="roster-badge">\${agentsState.length} bot</span>
           </div>
-        </div>\`;
+          <div class="roster-sub">\${escapeHtml(groupSub)}</div>
+        </div>
+      </button>
+    \`;
+
+    // 2. Individual Coworkers (like Meiiie / Davin in the screenshot)
+    const filtered = agentsState.filter((a) => {
+      if (!q) return true;
+      return (
+        a.id.toLowerCase().includes(q) ||
+        (a.name || '').toLowerCase().includes(q) ||
+        (a.description || '').toLowerCase().includes(q)
+      );
+    });
+
+    coworkerEl.innerHTML = filtered.map((a) => {
+      const isRunning = a.status === 'running';
+      const isQueued = (a.inboxCount || 0) > 0 || (a.pendingSteers || 0) > 0;
+      const dotCls = isRunning ? 'working' : (a.status === 'error' ? 'error' : (isQueued ? 'queued' : 'online'));
+      const displayName = a.id.charAt(0).toUpperCase() + a.id.slice(1);
+      const subText = isRunning
+        ? 'Đang phản hồi...'
+        : ('@' + a.id + (a.preferredCore && a.preferredCore !== 'auto' ? ' · ' + a.preferredCore : ''));
+
+      return \`
+        <button class="roster-item \${currentChannel === a.id ? 'active' : ''}" onclick="selectChannel('\${escapeHtml(a.id)}')">
+          <div class="bot-avatar" style="background:\${getAvatarColor(a.id)}">
+            <div class="bot-avatar-face"><i></i><i></i></div>
+            <span class="status-dot \${dotCls}"></span>
+          </div>
+          <div class="roster-meta">
+            <div class="roster-title-row">
+              <span class="roster-name">\${escapeHtml(displayName)}</span>
+              <span class="roster-badge">\${escapeHtml(a.role || 'bot')}</span>
+            </div>
+            <div class="roster-sub">\${escapeHtml(subText)}</div>
+          </div>
+        </button>
+      \`;
     }).join('');
   }
 
   function renderHeader() {
-    const head = document.getElementById('chatHead');
-    const active = document.activeElement;
-    if (active && head.contains(active) && active.tagName === 'SELECT') return;
+    const avatar = document.getElementById('headerAvatar');
+    const title = document.getElementById('headerTitle');
+    const sub = document.getElementById('headerSubtitle');
+    const input = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendOrStopBtn');
+    const coreSelect = document.getElementById('coreSelect');
+
     if (currentChannel === 'all') {
-      const running = agentsCache.filter((a) => statusOf(a) === 'running').length;
-      head.innerHTML = \`
-        <div class="ch-id">
-          <span class="dot \${running > 0 ? 'running' : ''}"></span>
-          <div style="min-width:0">
-            <div class="ch-title">#mesh-command-room</div>
-            <div class="ch-sub">\${agentsCache.length} agents · \${running > 0 ? running + ' running now · ' : ''}all inter-agent handoffs & tool calls</div>
+      avatar.style.background = getAvatarColor('all');
+      title.textContent = 'Nhóm Đồng Nghiệp';
+      sub.textContent = 'Phòng phối hợp tự động (@lead · @coder · @reviewer) · #mesh-command-room';
+      if (input) input.placeholder = 'Giao việc cho cả nhóm đồng nghiệp...';
+    } else {
+      const a = agentsState.find((x) => x.id === currentChannel);
+      const displayName = currentChannel.charAt(0).toUpperCase() + currentChannel.slice(1);
+      avatar.style.background = getAvatarColor(currentChannel);
+      title.textContent = displayName;
+      sub.textContent = a
+        ? (a.status === 'running' ? 'Đang thực thi nhiệm vụ...' : (a.name || 'Hội thoại ban đầu'))
+        : 'Hội thoại ban đầu';
+      if (input) input.placeholder = 'Nhắn cho ' + displayName + '...';
+      if (a && coreSelect && document.activeElement !== coreSelect) {
+        coreSelect.value = a.preferredCore || 'auto';
+      }
+    }
+
+    const activeRunning = currentChannel === 'all'
+      ? agentsState.some((a) => a.status === 'running')
+      : agentsState.some((a) => a.id === currentChannel && a.status === 'running');
+
+    if (sendBtn) {
+      if (activeRunning) {
+        sendBtn.className = 'send-circle-btn stop-btn';
+        sendBtn.innerHTML = ICONS.stop;
+        sendBtn.title = 'Dừng thực thi (Stop)';
+      } else {
+        sendBtn.className = 'send-circle-btn';
+        sendBtn.innerHTML = ICONS.up;
+        sendBtn.title = 'Gửi tin nhắn';
+      }
+    }
+  }
+
+  function getVisibleMessages() {
+    if (currentChannel === 'all') return feedItems;
+    return feedItems.filter((m) => m.from === currentChannel || m.to === currentChannel);
+  }
+
+  function renderStream() {
+    const stream = document.getElementById('chatStream');
+    if (!stream) return;
+    const msgs = getVisibleMessages();
+
+    const runningAgents = currentChannel === 'all'
+      ? agentsState.filter((a) => a.status === 'running')
+      : agentsState.filter((a) => a.id === currentChannel && a.status === 'running');
+
+    if (msgs.length === 0 && runningAgents.length === 0) {
+      stream.innerHTML = \`
+        <div class="empty-welcome">
+          \${ICONS.cat}
+          <h2>Mình bắt đầu từ đâu?</h2>
+          <p>Một câu hỏi nhỏ, một ý tưởng mới,<br/>hay một việc bạn muốn cùng làm.</p>
+          <div class="quick-pills">
+            <button class="quick-pill" onclick="prefillPrompt('Hãy khảo sát kiến trúc dự án và làm rõ các điểm cần cải thiện tiếp theo.')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg>
+              <span>Làm rõ ý tưởng</span>
+            </button>
+            <button class="quick-pill" onclick="prefillPrompt('Lên kế hoạch triển khai chi tiết từng bước cho tính năng tiếp theo của dự án.')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              <span>Lên kế hoạch</span>
+            </button>
+            <button class="quick-pill" onclick="prefillPrompt('Chạy kiểm thử toàn bộ dự án và chuẩn bị báo cáo đánh giá chất lượng.')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>Chuẩn bị báo cáo</span>
+            </button>
           </div>
         </div>
-        <div class="ch-actions">
-          <button class="gbtn \${stopAllArmed ? 'danger-armed' : ''}" id="stopAllBtn" onclick="triggerStopAll()">
-            \${SVG.stop}<span id="stopAllText">\${stopAllArmed ? 'Confirm (3s)' : 'Stop all'}</span>
-          </button>
-          <button class="gbtn tele-toggle" onclick="toggleTelemetry()">Telemetry</button>
-        </div>\`;
+      \`;
       return;
     }
 
-    const a = agentsCache.find((x) => x.id === currentChannel);
-    if (!a) { head.innerHTML = '<div class="ch-id"><div class="ch-title">@' + esc(currentChannel) + '</div></div>'; return; }
-    const st = statusOf(a);
-    const elapsed = a.status === 'running' && a.elapsedMs ? ' · ' + Math.round(a.elapsedMs / 1000) + 's' : '';
-    const isWriter = (a.role || 'writer') === 'writer';
-    const isArmed = Boolean(stopArmedTimers[a.id]);
-    const coreOpts = CORE_OPTIONS.map((c) =>
-      \`<option value="\${esc(c.value)}" \${a.preferredCore === c.value ? 'selected' : ''}>\${esc(c.label)}</option>\`
-    ).join('');
+    let html = '<div class="day-sep">Hôm nay</div>';
+    for (const m of msgs) {
+      const isOut = m.from === 'commander';
+      const senderLabel = isOut ? 'Bạn' : (m.from.charAt(0).toUpperCase() + m.from.slice(1));
+      const routeBadge = (!isOut && m.to && m.to !== 'commander' && m.to !== 'all')
+        ? \`<span class="msg-route-pill">→ @\${escapeHtml(m.to)}</span>\`
+        : (isOut && currentChannel === 'all' && m.to && m.to !== 'all'
+          ? \`<span class="msg-route-pill">→ @\${escapeHtml(m.to)}</span>\`
+          : '');
+      const coreBadge = m.core ? \`<span class="msg-sender-meta">· \${escapeHtml(m.core)}</span>\` : '';
 
-    head.innerHTML = \`
-      <div class="ch-id">
-        <span class="dot \${esc(st)}"></span>
-        <div style="min-width:0">
-          <div class="ch-title">@\${esc(a.id)} <span style="color:var(--fg-3);font-weight:400">· \${esc(a.name)}</span></div>
-          <div class="ch-sub">\${esc(st.toUpperCase())}\${elapsed} · \${a.toolCallCount || 0} calls · inbox \${a.inboxCount || 0} · steers \${a.pendingSteers || 0}</div>
-        </div>
-      </div>
-      <div class="ch-actions">
-        <select class="core-sel" onchange="changeAgentCore('\${esc(a.id)}', this.value)" title="Hot-swap AI core / model">
-          \${coreOpts}
-        </select>
-        \${isWriter ? \`<button class="gbtn" onclick="mergeAgentWorktree('\${esc(a.id)}')" title="Verify (\${esc(currentVerifyCmd)}) & merge isolated worktree into main">\${SVG.branch} Merge</button>\` : ''}
-        <button class="gbtn \${isArmed ? 'danger-armed' : ''}" onclick="armOrStopAgent('\${esc(a.id)}')">
-          \${SVG.stop}<span>\${isArmed ? 'Confirm (3s)' : 'Stop'}</span>
-        </button>
-        <button class="gbtn tele-toggle" onclick="toggleTelemetry()">Telemetry</button>
-      </div>\`;
-  }
-
-  function filteredFeed() {
-    return currentChannel === 'all'
-      ? feedItems
-      : feedItems.filter((x) => x.from === currentChannel || x.to === currentChannel);
-  }
-
-  function renderThread() {
-    const el = document.getElementById('threadEl');
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
-    const items = filteredFeed();
-    const runningAgents = agentsCache.filter(
-      (a) => a.status === 'running' && (currentChannel === 'all' || a.id === currentChannel)
-    );
-
-    if (items.length === 0 && runningAgents.length === 0) {
-      el.innerHTML = currentChannel === 'all' ? renderHero() : renderAgentEmpty();
-      pendingScroll = false;
-      updateNewPill(0);
-      return;
-    }
-
-    const sepHtml = '<div class="day-sep"><span>SESSION TRANSCRIPT · HANDOFF PROTOCOL v1</span></div>';
-    const msgsHtml = items.map((item) => {
-      const mine = item.from === 'commander';
-      const system = item.to === 'main-branch' || item.from === 'main-branch';
-      return \`
-        <div class="msg \${mine ? 'out' : ''} \${system ? 'system' : ''}">
-          <div class="msg-meta">
-            <span class="who">@\${esc(item.from)}</span>
-            \${SVG.arrowRight}
-            <span class="who">@\${esc(item.to)}</span>
-            <span class="deliv \${esc(item.delivery || 'send')}">\${esc(item.delivery || 'send')}</span>
-            \${item.core ? '<span class="core-tag">' + esc(item.core) + '</span>' : ''}
-            <span>\${esc(item.ts)}</span>
+      html += \`
+        <div class="msg-row \${isOut ? 'outgoing' : 'incoming'}">
+          \${!isOut ? \`
+            <div class="bot-avatar sm" style="background:\${getAvatarColor(m.from)}">
+              <div class="bot-avatar-face"><i></i><i></i></div>
+            </div>
+          \` : ''}
+          <div class="msg-col">
+            <div class="msg-sender-line">
+              <span class="msg-sender-name">\${escapeHtml(senderLabel)}</span>
+              \${routeBadge}
+              \${coreBadge}
+              <span class="msg-sender-meta">\${formatTime(m.ts)}</span>
+            </div>
+            <div class="msg-bubble \${m.priority ? 'priority' : ''}">\${escapeHtml(m.text)}</div>
           </div>
-          <div class="bubble">\${esc(item.message)}\${item.reply ? '<div class="quote">' + esc(item.reply) + '</div>' : ''}</div>
-        </div>\`;
-    }).join('');
-
-    const runningHtml = runningAgents.map((a) => {
-      const sec = a.elapsedMs ? Math.round(a.elapsedMs / 1000) + 's' : '0s';
-      const act = Array.isArray(a.recentActivity) && a.recentActivity.length > 0
-        ? a.recentActivity[a.recentActivity.length - 1]
-        : 'Executing agent turn…';
-      return \`
-        <div class="live-activity">
-          <span class="dot running"></span>
-          <span><b>@\${esc(a.id)}</b> (\${sec}) — \${esc(act)}</span>
-        </div>\`;
-    }).join('');
-
-    el.innerHTML = sepHtml + msgsHtml + runningHtml;
-
-    if (nearBottom || pendingScroll) {
-      el.scrollTop = el.scrollHeight;
-      pendingScroll = false;
-    }
-    updateNewPill(items.length);
-  }
-
-  function updateNewPill(count) {
-    const el = document.getElementById('threadEl');
-    const pill = document.getElementById('newPill');
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
-    pill.style.display = (!atBottom && count > 0) ? 'inline-flex' : 'none';
-  }
-
-  function jumpToLatest() {
-    const el = document.getElementById('threadEl');
-    el.scrollTop = el.scrollHeight;
-  }
-
-  function renderHero() {
-    const chips = TEMPLATES.map((t, i) => \`
-      <button class="chip" onclick="prefillMission(\${i})">
-        <span><b>\${esc(t.title)}</b> — \${esc(t.goal.slice(0, 64))}…</span>
-        <span class="go">USE ↵</span>
-      </button>\`).join('');
-    return \`
-      <div class="hero">
-        <h1>Mission ready.</h1>
-        <p>Dispatch a goal to the squad — <b>@lead</b> decomposes, <b>@coder</b> implements in an isolated Git worktree, <b>@reviewer</b> verifies. Or pick a template:</p>
-        <div class="chips">\${chips}</div>
-      </div>\`;
-  }
-
-  function renderAgentEmpty() {
-    const a = agentsCache.find((x) => x.id === currentChannel);
-    const name = a ? a.name : currentChannel;
-    return \`
-      <div class="hero">
-        <h1>@\${esc(currentChannel)}</h1>
-        <p>\${esc(name || '')}. No messages in this thread yet — send the first directive with the composer below.</p>
-        <div class="chips">
-          <button class="chip" onclick="quickChip('Give a one-paragraph status report on current progress.')"><span><b>Status report</b> — ask for a progress summary</span><span class="go">USE ↵</span></button>
-          <button class="chip" onclick="quickChip('Stay on scope. Do not touch files outside the module. Prioritize passing tests.')"><span><b>Steer scope</b> — keep the agent on target</span><span class="go">USE ↵</span></button>
         </div>
-      </div>\`;
+      \`;
+    }
+
+    for (const a of runningAgents) {
+      const dName = a.id.charAt(0).toUpperCase() + a.id.slice(1);
+      const lastAct = (a.recentActivity || []).slice(-1)[0] || 'Đang suy nghĩ...';
+      html += \`
+        <div class="typing-bubble">
+          <div class="typing-dots"><i></i><i></i><i></i></div>
+          <span><strong>\${escapeHtml(dName)}</strong>: \${escapeHtml(lastAct.slice(0, 90))}</span>
+        </div>
+      \`;
+    }
+
+    stream.innerHTML = html;
+    stream.scrollTop = stream.scrollHeight;
   }
 
-  function quickChip(text) {
-    const input = document.getElementById('composerInput');
+  function renderRuntimeModal(data) {
+    const sumEl = document.getElementById('runtimeAgentsSummary');
+    if (sumEl) {
+      sumEl.innerHTML = agentsState.map((a) => {
+        const act = (a.recentActivity || []).slice(-1)[0] || 'Sẵn sàng';
+        return \`<div class="auth-row">
+          <span><strong>@\${escapeHtml(a.id)}</strong> (\${escapeHtml(a.role)})</span>
+          <span>\${escapeHtml(a.status.toUpperCase())} · \${escapeHtml(act.slice(0, 48))}</span>
+        </div>\`;
+      }).join('');
+    }
+
+    const authEl = document.getElementById('authList');
+    if (authEl && data.auth) {
+      authEl.innerHTML = Object.entries(data.auth).map(([k, v]) => \`
+        <div class="auth-row">
+          <span><strong>\${escapeHtml(k)}</strong> (\${escapeHtml(v.authMode || 'cli')})</span>
+          <span style="color:\${v.authenticated ? 'var(--ok)' : 'var(--text-muted)'};font-weight:600;">
+            \${v.authenticated ? 'ĐÃ KẾT NỐI' : (v.installed ? 'CHƯA ĐĂNG NHẬP' : 'CHƯA CÀI ĐẶT')}
+          </span>
+        </div>
+      \`).join('');
+    }
+
+    const ideEl = document.getElementById('ideLogBox');
+    if (ideEl && data.latestIdeLog) {
+      ideEl.textContent = \`Session: \${data.latestIdeLog.conversationId || 'N/A'} [\${data.latestIdeLog.status || 'IDLE'}]\\n\${data.latestIdeLog.lastResponse || ''}\`;
+    }
+  }
+
+  function selectChannel(ch) {
+    currentChannel = ch;
+    initialSwitchDone = true;
+    document.getElementById('sidebar')?.classList.remove('mobile-open');
+    renderRoster();
+    renderHeader();
+    renderStream();
+  }
+
+  function toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    const layout = document.getElementById('appLayout');
+    if (window.innerWidth <= 760) {
+      sb?.classList.toggle('mobile-open');
+    } else {
+      layout?.classList.toggle('sidebar-collapsed');
+    }
+  }
+
+  function prefillPrompt(text) {
+    const input = document.getElementById('msgInput');
+    if (!input) return;
     input.value = text;
     input.focus();
-    autoGrow(input);
   }
 
-  function prefillMission(idx) {
-    const t = TEMPLATES[idx] || TEMPLATES[0];
-    const input = document.getElementById('composerInput');
-    input.value = t.goal;
-    currentVerifyCmd = t.check;
-    const checkEl = document.getElementById('checkInput');
-    if (checkEl) checkEl.value = t.check;
-    autoGrow(input);
-    input.focus();
+  function clearCurrentView() {
+    feedItems = [];
+    renderStream();
   }
 
-  function focusNewMission() {
-    selectChannel('all');
-    setMobileView('comms');
-    const input = document.getElementById('composerInput');
-    input.focus();
-    autoGrow(input);
+  function openModal(id) {
+    closeTelemetry();
+    document.getElementById(id)?.classList.add('open');
   }
 
-  // 4. Composer
-  function autoGrow(el) {
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+  function closeTelemetry() {
+    document.querySelectorAll('.tele-drawer-backdrop').forEach((el) => el.classList.remove('open'));
   }
 
-  function syncVerifyCmd(val) {
-    currentVerifyCmd = String(val || '').trim();
-  }
-
-  function renderComposerRow() {
-    const row = document.getElementById('compRow');
-    const input = document.getElementById('composerInput');
-    if (currentChannel === 'all') {
-      input.placeholder = 'Describe the mission for the squad — @lead will coordinate @coder and @reviewer…';
-      row.innerHTML = \`
-        <input class="check-in" id="checkInput" placeholder="verify: npm test" value="\${esc(currentVerifyCmd)}" oninput="syncVerifyCmd(this.value)" title="Verification command required before completion"/>
-        <button class="sendbtn" id="sendBtn" onclick="submitComposer()" title="Dispatch mission">\${SVG.send}</button>\`;
-      document.getElementById('compHint').innerHTML =
-        '<b>Enter</b> dispatch mission · @lead → @coder (worktree) → @reviewer · auto-failover on 429';
-    } else {
-      input.placeholder = 'Message @' + esc(currentChannel) + ' — direct instruction, course correction, or handoff…';
-      const agents = agentsCache.length ? agentsCache : [{ id: currentChannel, name: currentChannel }];
-      const opts = '<option value="all">@all (broadcast)</option>' +
-        agents.map((a) => \`<option value="\${esc(a.id)}" \${a.id === currentChannel ? 'selected' : ''}>@\${esc(a.id)}</option>\`).join('');
-      row.innerHTML = \`
-        <select class="tgt-sel" id="dockTarget" onchange="syncChannelFromTarget()" title="Target coworker">\${opts}</select>
-        <div class="seg" title="Delivery mode">
-          <button id="modeSend" class="\${currentDelivery === 'send' ? 'active' : ''}" onclick="setDeliveryMode('send')">SEND</button>
-          <button id="modeInterrupt" class="\${currentDelivery === 'interrupt' ? 'active' : ''}" onclick="setDeliveryMode('interrupt')">INTERRUPT</button>
-          <button id="modeQueue" class="\${currentDelivery === 'queue' ? 'active' : ''}" onclick="setDeliveryMode('queue')">QUEUE</button>
-        </div>
-        <input class="check-in" id="checkInput" placeholder="verify cmd (optional)" value="\${esc(currentVerifyCmd)}" oninput="syncVerifyCmd(this.value)" title="Verification command used when merging worktree"/>
-        <label class="wait-toggle" title="Run a full agent turn and stream the reply back"><input type="checkbox" id="dockRunTurn" checked/>run turn</label>
-        <button class="sendbtn" id="sendBtn" onclick="submitComposer()" title="Transmit">\${SVG.send}</button>\`;
-      document.getElementById('compHint').innerHTML =
-        '<b>Enter</b> transmit · <b>Shift+Enter</b> newline · SEND delivers now · INTERRUPT kills the running turn first · QUEUE waits for turn end';
+  async function onCoreSelectChange(val) {
+    const targets = currentChannel === 'all' ? agentsState.map((a) => a.id) : [currentChannel];
+    for (const id of targets) {
+      await apiFetch('/api/agents/' + encodeURIComponent(id) + '/core', {
+        method: 'POST',
+        body: JSON.stringify({ nonce: 'core-' + Date.now() + '-' + id, preferredCore: val })
+      });
     }
+    refreshState();
   }
 
-  function syncChannelFromTarget() {
-    const sel = document.getElementById('dockTarget');
-    if (!sel || sel.value === 'all') return;
-    if (sel.value !== currentChannel) selectChannel(sel.value);
-  }
-
-  function setDeliveryMode(mode) {
-    currentDelivery = mode;
-    ['send', 'interrupt', 'queue'].forEach((m) => {
-      const btn = document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1));
-      if (btn) btn.className = m === mode ? 'active' : '';
-    });
-  }
-
-  async function submitComposer() {
-    const input = document.getElementById('composerInput');
-    const text = input.value.trim();
+  async function sendComposerMessage() {
+    const input = document.getElementById('msgInput');
+    const text = (input?.value || '').trim();
     if (!text) return;
+    input.value = '';
+
+    const delivery = document.getElementById('deliverySelect')?.value || 'send';
+    const checkInput = document.getElementById('checkInput');
+    if (checkInput && checkInput.value.trim()) {
+      currentVerifyCmd = checkInput.value.trim();
+    }
 
     if (currentChannel === 'all') {
-      const checkEl = document.getElementById('checkInput');
-      if (checkEl) currentVerifyCmd = checkEl.value.trim();
-      const check = currentVerifyCmd || null;
-      input.value = '';
-      autoGrow(input);
-      await launchTeamMission(text, check);
+      await apiFetch('/api/team/start', {
+        method: 'POST',
+        body: JSON.stringify({
+          nonce: 'team-' + Date.now(),
+          goal: text,
+          check: currentVerifyCmd
+        })
+      });
+    } else {
+      await apiFetch('/api/agents/' + encodeURIComponent(currentChannel) + '/message', {
+        method: 'POST',
+        body: JSON.stringify({
+          nonce: 'msg-' + Date.now(),
+          text,
+          delivery,
+          priority: delivery === 'interrupt',
+          wait: false
+        })
+      });
+    }
+    refreshState();
+  }
+
+  async function onSendOrStopClick() {
+    const activeRunning = currentChannel === 'all'
+      ? agentsState.some((a) => a.status === 'running')
+      : agentsState.some((a) => a.id === currentChannel && a.status === 'running');
+
+    if (activeRunning) {
+      if (currentChannel === 'all') {
+        await apiFetch('/api/agents/stop-all', {
+          method: 'POST',
+          body: JSON.stringify({ confirm: true })
+        });
+      } else {
+        await apiFetch('/api/agents/' + encodeURIComponent(currentChannel) + '/stop', {
+          method: 'POST',
+          body: JSON.stringify({ confirm: true })
+        });
+      }
+      refreshState();
       return;
     }
-
-    const target = document.getElementById('dockTarget').value;
-    const wait = document.getElementById('dockRunTurn').checked;
-    input.value = '';
-    autoGrow(input);
-    await sendDockMessage(target, text, wait);
-  }
-
-  async function sendDockMessage(target, text, wait) {
-    const nonce = makeNonce();
-    pendingScroll = true;
-    const res = await api('/api/agents/' + encodeURIComponent(target) + '/message', {
-      method: 'POST',
-      body: JSON.stringify({ nonce, text, delivery: currentDelivery, wait })
-    });
-    const out = await res.json().catch(() => ({}));
-    setHint(out.status === 'duplicate'
-      ? 'Duplicate nonce ignored — nothing re-sent'
-      : 'Acked · ' + (out.status || out.delivered || currentDelivery));
-    refreshState();
-  }
-
-  async function launchTeamMission(goal, check) {
-    const nonce = makeNonce();
-    pendingScroll = true;
-    const res = await api('/api/team/start', {
-      method: 'POST',
-      body: JSON.stringify({ nonce, goal, check: check || null })
-    });
-    const out = await res.json().catch(() => ({}));
-    setHint(out.status === 'dispatched'
-      ? 'Mission dispatched to @lead — live progress streams below'
-      : 'Dispatch reply: ' + JSON.stringify(out));
-    refreshState();
-  }
-
-  function setHint(html) {
-    const hint = document.getElementById('compHint');
-    const prev = hint.dataset.base || hint.innerHTML;
-    hint.dataset.base = prev;
-    hint.innerHTML = '<b>' + esc(html) + '</b>';
-    setTimeout(() => { if (hint.dataset.base) hint.innerHTML = hint.dataset.base; }, 4000);
-  }
-
-  // 5. Channel & controls
-  function selectChannel(chanId) {
-    const checkEl = document.getElementById('checkInput');
-    if (checkEl) currentVerifyCmd = checkEl.value.trim();
-    currentChannel = chanId;
-    unreadMap[chanId] = 0;
-    document.getElementById('chanAll').className = 'chan' + (chanId === 'all' ? ' active' : '');
-    renderRoster(agentsCache);
-    renderHeader();
-    renderComposerRow();
-    pendingScroll = true;
-    renderThread();
-    setMobileView('comms');
-  }
-
-  async function changeAgentCore(agentId, preferredCore) {
-    await api('/api/agents/' + encodeURIComponent(agentId) + '/core', {
-      method: 'POST',
-      body: JSON.stringify({ nonce: makeNonce(), preferredCore })
-    });
-    setHint('@' + agentId + ' core → ' + preferredCore);
-    refreshState();
-  }
-
-  async function armOrStopAgent(agentId) {
-    if (!stopArmedTimers[agentId]) {
-      stopArmedTimers[agentId] = setTimeout(() => {
-        delete stopArmedTimers[agentId];
-        renderHeader();
-      }, 3000);
-      renderHeader();
-      return;
-    }
-    clearTimeout(stopArmedTimers[agentId]);
-    delete stopArmedTimers[agentId];
-    await api('/api/agents/' + encodeURIComponent(agentId) + '/stop', {
-      method: 'POST',
-      body: JSON.stringify({ nonce: makeNonce(), confirm: true })
-    });
-    setHint('@' + agentId + ' stopped');
-    refreshState();
-  }
-
-  async function triggerStopAll() {
-    if (!stopAllArmed) {
-      stopAllArmed = true;
-      renderHeader();
-      setTimeout(() => { stopAllArmed = false; renderHeader(); }, 3000);
-      return;
-    }
-    stopAllArmed = false;
-    renderHeader();
-    await api('/api/agents/stop-all', {
-      method: 'POST',
-      body: JSON.stringify({ nonce: makeNonce(), confirm: true })
-    });
-    setHint('All agents stopped');
-    refreshState();
+    await sendComposerMessage();
   }
 
   async function mergeAgentWorktree(agentId) {
     const checkEl = document.getElementById('checkInput');
-    if (checkEl) currentVerifyCmd = checkEl.value.trim();
-    const verifyCmd = currentVerifyCmd || null;
-    const res = await api('/api/agents/' + encodeURIComponent(agentId) + '/merge', {
+    const verifyCmd = (checkEl && checkEl.value.trim()) ? checkEl.value.trim() : currentVerifyCmd;
+    await apiFetch('/api/agents/' + encodeURIComponent(agentId || 'coder') + '/merge', {
       method: 'POST',
-      body: JSON.stringify({ nonce: makeNonce(), verifyCmd })
-    });
-    const out = await res.json().catch(() => ({}));
-    pendingScroll = true;
-    pushTimelineEvent({
-      id: 'merge-' + Date.now(),
-      from: agentId,
-      to: 'main-branch',
-      delivery: 'send',
-      message: out.success
-        ? 'Worktree verified & merged into main (commit ' + (out.sha || 'HEAD') + ')'
-        : 'Merge aborted (' + (out.reason || 'conflict') + '): ' + JSON.stringify(out.conflicts || out.error || ''),
-      ts: new Date().toLocaleTimeString()
+      body: JSON.stringify({
+        nonce: 'merge-' + Date.now(),
+        verifyCmd
+      })
     });
     refreshState();
   }
 
-  function toggleTelemetry() {
-    if (window.innerWidth < 1150) {
-      document.getElementById('appEl').classList.toggle('mob-insp');
-      return;
-    }
-    const el = document.getElementById('teleEl');
-    el.classList.toggle('hidden');
-  }
-
-  function closeTelemetry() {
-    document.getElementById('appEl').classList.remove('mob-insp');
-    if (window.innerWidth >= 1150) {
-      document.getElementById('teleEl').classList.add('hidden');
-    } else {
-      setMobileView('comms');
-    }
-  }
-
-  // 6. Telemetry rail
-  function renderWorktrees(agents) {
-    const wtList = document.getElementById('worktreeList');
-    const writers = agents.filter((a) => (a.role || 'writer') === 'writer');
-    if (writers.length === 0) {
-      wtList.innerHTML = '<div class="tblock">No writer agents registered.</div>';
-      return;
-    }
-    wtList.innerHTML = writers.map((w) => \`
-      <div class="wt-row">
-        <div class="wt-top">
-          <span class="wt-id">@\${esc(w.id)}</span>
-          <span class="dot \${esc(statusOf(w))}"></span>
-        </div>
-        <div class="wt-branch">botautotask/agent-\${esc(w.id)}</div>
-        <div class="wt-path">\${esc(w.worktreePath || '.botautotask/worktrees/' + w.id)}</div>
-        <button class="wt-merge" onclick="mergeAgentWorktree('\${esc(w.id)}')">
-          \${SVG.branch} Verify & merge
-        </button>
-      </div>\`).join('');
-  }
-
-  function renderAuthAndIde(auth, ideLog) {
-    const authEl = document.getElementById('authList');
-    const entries = Object.entries(auth || {});
-    if (entries.length === 0) {
-      authEl.innerText = 'No auth bridge data.';
-    } else {
-      authEl.innerHTML = entries.map(([k, v]) => {
-        const ok = v.authenticated || v.signedIn;
-        const badge = ok ? '● IN' : (v.installed ? '○ INSTALLED' : '○ NOT FOUND');
-        return '<span class="auth-line"><span>' + esc(k) + '</span><span class="st ' + (ok ? 'ok' : 'no') + '">' + badge + '</span></span>';
-      }).join('');
-    }
-
-    const ideEl = document.getElementById('ideTranscriptBox');
-    if (!ideLog) {
-      ideEl.innerText = 'No active Antigravity IDE transcript found.';
-    } else {
-      ideEl.innerText = 'Status: ' + (ideLog.status || 'IDLE') + '\\n\\n' + (ideLog.lastResponse || '');
-    }
-  }
-
-  // 7. Spawn modal
-  function openSpawnModal() { document.getElementById('spawnModal').classList.add('open'); }
-  function closeSpawnModal() { document.getElementById('spawnModal').classList.remove('open'); }
-
-  async function submitSpawnAgent() {
-    const id = document.getElementById('spId').value.trim();
-    const name = document.getElementById('spName').value.trim();
-    const role = document.getElementById('spRole').value;
-    const preferredCore = document.getElementById('spCore').value;
-    const description = document.getElementById('spDesc').value.trim();
-    if (!name) return;
-
-    await api('/api/agents', {
+  async function spawnNewCoworker() {
+    const id = (document.getElementById('spawnId')?.value || '').trim();
+    const name = (document.getElementById('spawnName')?.value || '').trim();
+    const role = document.getElementById('spawnRole')?.value || 'writer';
+    const description = (document.getElementById('spawnDesc')?.value || '').trim();
+    if (!id) return;
+    await apiFetch('/api/agents', {
       method: 'POST',
-      body: JSON.stringify({ nonce: makeNonce(), id, name, role, preferredCore, description })
+      body: JSON.stringify({
+        nonce: 'spawn-' + Date.now(),
+        id,
+        name: name || id,
+        role,
+        preferredCore: 'auto',
+        description
+      })
     });
-    closeSpawnModal();
-    if (id) selectChannel(id);
+    closeTelemetry();
+    selectChannel(id);
     refreshState();
   }
 
-  // 8. Mobile views
-  function setMobileView(view) {
-    const app = document.getElementById('appEl');
-    app.classList.remove('mob-roster', 'mob-insp');
-    if (view === 'roster') app.classList.add('mob-roster');
-    if (view === 'insp') app.classList.add('mob-insp');
-    document.getElementById('mobBtnSquad').className = view === 'roster' ? 'active' : '';
-    document.getElementById('mobBtnComms').className = view === 'comms' ? 'active' : '';
-    document.getElementById('mobBtnInsp').className = view === 'insp' ? 'active' : '';
-  }
-
-  // 9. Boot
-  const composerInput = document.getElementById('composerInput');
-  composerInput.addEventListener('input', () => autoGrow(composerInput));
-  composerInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      submitComposer();
-    }
-  });
-  document.getElementById('threadEl').addEventListener('scroll', () => updateNewPill(filteredFeed().length));
-
-  renderComposerRow();
-  renderHeader();
-  connectStream();
+  connectSse();
   refreshState();
+  setInterval(refreshState, 3000);
   setInterval(() => {
-    if (!document.hidden) refreshState();
-  }, 2500);
-  // Watchdog: reconnect whenever sseState !== 'LIVE' (including when displaying POLLING) or EventSource is CLOSED
-  setInterval(() => {
-    if (!esHandle || esHandle.readyState === 2 || sseState !== 'LIVE') connectStream();
+    if (sseState !== 'LIVE') connectSse();
   }, 5000);
 </script>
 </body>

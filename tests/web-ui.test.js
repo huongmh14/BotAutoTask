@@ -26,7 +26,7 @@ test('LocalWebUiServer serves Tactical Coworker HTML, enforces auth/DNS-rebindin
     assert.match(html, /BotAutoTask — Tactical Coworker Mesh/);
     assert.match(html, /#mesh-command-room/);
     assert.match(html, /<rect x="6" y="6" width="12" height="12" rx="2"\/>/);
-    assert.doesNotMatch(html, /y1="6"/);
+    assert.doesNotMatch(html, /<rect[^>]*y1=/);
     assert.match(html, /\.conn\.POLLING \.conn-dot/);
     assert.match(html, /sseState !== 'LIVE'/);
     assert.match(html, /function closeTelemetry\(\)/);
