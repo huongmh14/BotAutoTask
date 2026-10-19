@@ -214,7 +214,7 @@ export class AgentMesh {
     });
   }
 
-  createAgent({ id, name, description = '', role = 'writer', preferredCore = 'auto', baseBranch = null }) {
+  createAgent({ id, name, description = '', role = null, preferredCore = 'auto', baseBranch = null }) {
     const cleanId = id ? slugifyId(id) : slugifyId(name);
     const existing = this.agents.get(cleanId);
     if (existing) {
@@ -558,38 +558,86 @@ export class AgentMesh {
     promptLines.push(incomingPrompt);
 
     const fullPrompt = promptLines.join('\n');
-    const { harness, modelId } = await this._resolveAgentHarness(agent);
-
-    agent.recentActivity.push(`Running turn on ${harness.id}:${modelId} in ${runDir}`);
-    this._persistState();
-
-    let stepResult;
+    const primary = await this._resolveAgentHarness(agent);
+    let fallbackCandidates = [];
     try {
-      stepResult = await harness.executeStep({
-        goal: fullPrompt,
-        journal: agent.transcript.slice(-5),
-        workspaceDir: runDir,
-        modelId,
-        signal: agent._abortController.signal
-      });
-    } catch (err) {
-      stepResult = {
-        outcome: OUTCOME.ERROR,
-        summary: `Harness execution error: ${err.message}`,
-        harnessId: harness.id,
-        modelId
-      };
-    } finally {
-      agent._abortController = null;
+      if (this.registry && this.ranker) {
+        const allCands = await this.registry.getCandidates(this.ranker, agent.preferredCore || 'auto');
+        fallbackCandidates = allCands.filter(
+          (c) => !(c.harness.id === primary.harness.id && c.modelId === primary.modelId)
+        );
+      }
+    } catch {}
+
+    const candidates = [primary, ...fallbackCandidates];
+    let stepResult = null;
+    let activeHarnessId = primary.harness.id;
+    let activeModelId = primary.modelId;
+
+    for (let i = 0; i < candidates.length; i++) {
+      const { harness, modelId } = candidates[i];
+      activeHarnessId = harness.id;
+      activeModelId = modelId;
+
+      agent.recentActivity.push(`Running turn on ${harness.id}:${modelId} in ${runDir}`);
+      this._persistState();
+
+      try {
+        stepResult = await harness.executeStep({
+          goal: fullPrompt,
+          journal: agent.transcript.slice(-5),
+          workspaceDir: runDir,
+          modelId,
+          signal: agent._abortController.signal
+        });
+      } catch (err) {
+        stepResult = {
+          outcome: OUTCOME.ERROR,
+          summary: `Harness execution error: ${err.message}`,
+          harnessId: harness.id,
+          modelId
+        };
+      }
+
+      if (agent.aborted) break;
+
+      if (stepResult.outcome === OUTCOME.RATE_LIMITED && i + 1 < candidates.length) {
+        this.ranker?.markCooldown?.(harness.id, modelId);
+        agent.recentActivity.push(`Rate limited on ${harness.id}:${modelId}, failing over...`);
+        continue;
+      }
+
+      if (stepResult.outcome === OUTCOME.ERROR && i + 1 < candidates.length) {
+        this.ranker?.markCooldown?.(harness.id, modelId, 5 * 60 * 1000);
+        agent.recentActivity.push(`Error on ${harness.id}:${modelId}, failing over...`);
+        continue;
+      }
+
+      break;
     }
+
+    agent._abortController = null;
 
     if (agent.aborted) {
       return {
         outcome: OUTCOME.ERROR,
         summary: `Agent ${agent.id} was aborted mid-turn.`,
-        harnessId: harness.id,
-        modelId
+        harnessId: activeHarnessId,
+        modelId: activeModelId
       };
+    }
+
+    // Auto-commit any edits made by a writer agent in its isolated worktree
+    if (agent.role === 'writer' && agent.worktreePath) {
+      try {
+        const commitRes = this.worktreeManager.commit(
+          agent.id,
+          `feat(${agent.id}): turn ${agent.toolCallCount} via ${activeHarnessId}/${activeModelId}`
+        );
+        if (commitRes.committed) {
+          agent.recentActivity.push(`Committed worktree (${commitRes.sha.slice(0, 7)})`);
+        }
+      } catch {}
     }
 
     const rawOutput = stepResult.rawOutput || stepResult.summary || '';
@@ -613,8 +661,8 @@ export class AgentMesh {
     const entry = {
       step: agent.transcript.length + 1,
       fromId,
-      harnessId: harness.id,
-      modelId,
+      harnessId: activeHarnessId,
+      modelId: activeModelId,
       outcome: stepResult.outcome,
       summary: combinedSummary,
       timestamp: new Date().toISOString()
@@ -627,8 +675,8 @@ export class AgentMesh {
     return {
       ...stepResult,
       summary: combinedSummary,
-      harnessId: harness.id,
-      modelId
+      harnessId: activeHarnessId,
+      modelId: activeModelId
     };
   }
 

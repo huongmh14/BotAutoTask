@@ -44,8 +44,14 @@ export function parseStepTags(stdout = '') {
 /**
  * Builds a self-contained handover prompt so any core (OpenCode, Antigravity, Claude, Neko Core, or custom)
  * can pick up seamlessly from previous steps in the journal.
+ * Supports both a Goal object `{ id, title, target_prompt, acceptance_cmd }` or a raw prompt string.
  */
 export function buildHandoverPrompt(goal, journal = []) {
+  const normalizedGoal =
+    typeof goal === 'string'
+      ? { id: 'agent-turn', title: 'Agent Turn Directive', target_prompt: goal, acceptance_cmd: null }
+      : goal || {};
+
   const historyLines =
     journal.length === 0
       ? 'No previous steps executed yet.'
@@ -53,17 +59,17 @@ export function buildHandoverPrompt(goal, journal = []) {
           .slice(-8)
           .map(
             (entry, idx) =>
-              `Step ${entry.step_number ?? idx + 1} [${entry.core_used || entry.harnessId}/${entry.model_used || entry.modelId} -> ${entry.outcome}]: ${entry.summary}`
+              `Step ${entry.step_number ?? entry.step ?? idx + 1} [${entry.core_used || entry.harnessId}/${entry.model_used || entry.modelId} -> ${entry.outcome}]: ${entry.summary}`
           )
           .join('\n');
 
-  const acceptance = goal.acceptance_cmd
-    ? `\nAcceptance Verification Command: \`${goal.acceptance_cmd}\` (run this to verify before declaring completion).`
+  const acceptance = normalizedGoal.acceptance_cmd
+    ? `\nAcceptance Verification Command: \`${normalizedGoal.acceptance_cmd}\` (run this to verify before declaring completion).`
     : '';
 
   return [
-    `# TARGET GOAL: ${goal.title || goal.id}`,
-    goal.target_prompt,
+    `# TARGET GOAL: ${normalizedGoal.title || normalizedGoal.id || 'Autonomous Task'}`,
+    normalizedGoal.target_prompt || '',
     acceptance,
     `\n## DURABLE JOURNAL (Previous Cores' Progress):`,
     historyLines,

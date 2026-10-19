@@ -4,8 +4,24 @@ import { runCliProcess, commandExists } from '../core/spawn-cli.js';
 import { parseOpenCodeJsonStream } from '../core/log-reader.js';
 
 /**
- * OpenCode CLI Harness (`opencode run --format json --auto -m <model> <prompt>`).
- * Supports Strategy 1: structured NDJSON event stream parsing, session continuation (`--session`),
+ * Default lightweight OpenCode runtime override that disables heavy external MCP servers
+ * (e.g. 200-tool REA or Playwright headless servers) and duplicate global skills that
+ * otherwise overflow context and trigger infinite compaction loops during automated runs.
+ */
+const FAST_OPENCODE_CONFIG = JSON.stringify({
+  mcp: {
+    playwright: { enabled: false },
+    'code-review-graph': { enabled: false },
+    rea: { enabled: false }
+  },
+  tools: {
+    skill: false
+  }
+});
+
+/**
+ * OpenCode CLI Harness (`opencode run --pure --auto --format json -m <model> <prompt>`).
+ * Supports structured NDJSON event stream parsing, session continuation (`--session`),
  * and optional attachment to a headless `opencode serve` instance (`--attach`).
  */
 export class OpenCodeHarness {
@@ -31,6 +47,7 @@ export class OpenCodeHarness {
     if (!this.ranker) {
       return [
         { harnessId: this.id, modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true },
+        { harnessId: this.id, modelId: 'opencode/big-pickle', isFree: true },
         { harnessId: this.id, modelId: 'freemodel/claude-sonnet-4-6', isFree: true }
       ];
     }
@@ -49,16 +66,16 @@ export class OpenCodeHarness {
     return merged;
   }
 
-  async executeStep({ goal, journal = [], workspaceDir = process.cwd(), modelId }) {
+  async executeStep({ goal, journal = [], workspaceDir = process.cwd(), modelId, signal = null }) {
     const prompt = buildHandoverPrompt(goal, journal);
-    const args = ['run'];
+    const args = ['run', '--pure', '--auto'];
     if (this.useJsonFormat) {
       args.push('--format', 'json');
     }
     if (this.attachUrl) {
       args.push('--attach', this.attachUrl);
     }
-    if (this.lastSessionId && goal.reuse_session) {
+    if (this.lastSessionId && goal?.reuse_session) {
       args.push('--session', this.lastSessionId);
     }
     if (modelId) {
@@ -66,10 +83,17 @@ export class OpenCodeHarness {
     }
     args.push(prompt);
 
+    const env = {
+      ...process.env,
+      OPENCODE_CONFIG_CONTENT: process.env.OPENCODE_CONFIG_CONTENT || FAST_OPENCODE_CONFIG
+    };
+
     try {
       const { stdout, stderr } = await runCliProcess(this.binary, args, {
         cwd: workspaceDir,
-        timeoutMs: 15 * 60 * 1000
+        timeoutMs: 10 * 60 * 1000,
+        env,
+        signal
       });
       const combined = `${stdout || ''}\n${stderr || ''}`;
       if (isRateLimitError(combined, 0)) {
@@ -90,10 +114,11 @@ export class OpenCodeHarness {
         this.lastSessionId = streamParsed.sessionId;
       }
 
-      const parsed = parseStepTags(streamParsed.textOutput || stdout || stderr);
+      const fullText = streamParsed.textOutput || stdout || stderr || '';
+      const parsed = parseStepTags(fullText);
       const rawLog = [
         streamParsed.toolCalls.length ? `Tools: ${streamParsed.toolCalls.join(', ')}` : '',
-        (streamParsed.textOutput || stdout || '').slice(-800)
+        fullText.slice(-800)
       ]
         .filter(Boolean)
         .join('\n');
@@ -101,6 +126,7 @@ export class OpenCodeHarness {
       return {
         outcome: parsed.completed ? OUTCOME.GOAL_COMPLETED : OUTCOME.STEP_DONE,
         summary: parsed.summary,
+        rawOutput: fullText,
         harnessId: this.id,
         modelId,
         sessionId: this.lastSessionId,

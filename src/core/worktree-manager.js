@@ -145,11 +145,11 @@ export class WorktreeManager {
   }
 
   /**
-   * Runs acceptance / test command inside the agent's worktree.
+   * Runs acceptance / test command inside the agent's worktree (or a specified cwd).
    */
-  verify(agentId, cmd, timeoutMs = 300000) {
+  verify(agentId, cmd, timeoutMs = 300000, customCwd = null) {
     const wtPath = this.getWorktreePath(agentId);
-    const cwd = existsSync(wtPath) ? wtPath : this.repoPath;
+    const cwd = customCwd || (existsSync(wtPath) ? wtPath : this.repoPath);
     const start = Date.now();
 
     const isWindows = process.platform === 'win32';
@@ -183,6 +183,11 @@ export class WorktreeManager {
 
     const branchName = this.getBranchName(agentId);
 
+    // 0. Auto-commit any uncommitted edits left by the writer agent in its worktree
+    try {
+      this.commit(agentId, `feat(${agentId}): auto-commit agent worktree changes`);
+    } catch {}
+
     // 1. Verify in worktree first
     if (verifyCmd) {
       const wtVerify = this.verify(agentId, verifyCmd);
@@ -213,7 +218,7 @@ export class WorktreeManager {
 
     // 3. Verify on main branch after merge
     if (verifyCmd) {
-      const mainVerify = this.verify(agentId, verifyCmd);
+      const mainVerify = this.verify(agentId, verifyCmd, 300000, this.repoPath);
       if (!mainVerify.passed) {
         // Revert merge commit cleanly
         this._runGit(['reset', '--hard', 'HEAD~1']);
