@@ -11,9 +11,11 @@ docs/feature/
 ├── 04-harness2-integration.md         # Harness² c1..c8, Propose–Probe–Compose, Experience Library, ngân sách k
 ├── 05-verification-policy-auth.md     # Completion contract, validator độc lập, policy quyền, failover an toàn
 ├── 06-cloudflare-auto-provision.md    # Playwright + wrangler tự dựng Cloudflare (ĐÃ TRIỂN KHAI)
+├── 07-orca-arena-accounts-ratchet-awake.md # Arena fan-out, multi-account pool, ratchet guard, awake lease (từ Orca)
 └── research/
     ├── grokbot-findings.md            # REA GrokBot 0.71.2 (file:dòng, nhãn Verified/Inferred)
-    └── neko-core-findings.md          # Pattern Neko Core + bug BotAutoTask phát hiện được
+    ├── neko-core-findings.md          # Pattern Neko Core + bug BotAutoTask phát hiện được
+    └── orca-findings.md               # stablyai/orca v1.4.214: worktree fan-out, account pool, hooks, ratchet
 ```
 
 ## Trạng thái
