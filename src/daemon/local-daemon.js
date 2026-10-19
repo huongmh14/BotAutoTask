@@ -10,6 +10,7 @@ import { AntigravityHarness } from '../harnesses/antigravity-harness.js';
 import { ClaudeCodexHarness } from '../harnesses/claude-codex-harness.js';
 import { NekoCoreHarness } from '../harnesses/neko-core-harness.js';
 import { waitForNetwork } from './network-monitor.js';
+import { sendMobileNotification, formatGoalNotification } from './mobile-notify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '..', '..');
@@ -182,7 +183,7 @@ export class LocalDaemon {
         if (res.ok) {
           const { goal, journal } = await res.json();
           if (goal) {
-            console.log(`[BotAutoTask] Acquired Cloud Goal ${goal.id}: ${goal.title}`);
+            console.log(`[BotAutoTask] Acquired Cloud Goal ${goal.id}: ${goal.title} (epoch: ${goal.lease_epoch || 0})`);
             const orchestrator = new GoalOrchestrator({
               registry: this.registry,
               ranker: this.ranker,
@@ -192,8 +193,17 @@ export class LocalDaemon {
                 await fetch(`${this.cloudUrl}/api/lease/step`, {
                   method: 'POST',
                   headers: this._headers(),
-                  body: JSON.stringify({ ...entry, worker_id: this.workerId })
+                  body: JSON.stringify({
+                    ...entry,
+                    worker_id: this.workerId,
+                    lease_epoch: goal.lease_epoch
+                  })
                 }).catch(() => {});
+
+                const notif = formatGoalNotification({ goal, entry, dashboardUrl: `${this.cloudUrl}/#token=${this.apiToken}` });
+                if (notif && (entry.outcome === 'GOAL_COMPLETED' || entry.outcome === 'RATE_LIMITED')) {
+                  await sendMobileNotification({ ...notif, config: this.config.ntfy || {} }).catch(() => {});
+                }
               }
             });
             return await orchestrator.runGoal(goal, journal || []);

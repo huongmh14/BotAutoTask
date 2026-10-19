@@ -1,36 +1,47 @@
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
+import { randomUUID, createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { OUTCOME } from './types.js';
-import { findLatestAntigravityTranscript, parseAntigravityTranscript } from './log-reader.js';
+import { findLatestAntigravityTranscript } from './log-reader.js';
+import { WorktreeManager } from './worktree-manager.js';
+import { atomicWriteJsonSync } from './atomic-write.js';
 
 /**
- * Multi-Agent Mesh & Routed Loopback MCP Bridge
- * Combines:
- * 1. Grok Bot 0.18 (`routed-mcp-bridge.ts`, `sand-agent-management-tools.ts`, `sand-subagent-management-tools.ts`)
- *    - Loopback HTTP MCP Server (`http://127.0.0.1:<port>/mcp/<secret>`)
- *    - Inter-agent tools: `CreateAgent`, `ListAgents`, `SendToAgent`, `CheckSubagent`, `MessageSubagent`, `StopSubagent`
- * 2. Neko-Bot (`REQ-PB-006 Autonomous coworkers` + `session-handoff.ts`)
- *    - Multi-bot persona roster, durable handoff envelopes, and priority steering under human commander control.
+ * Multi-Agent Mesh & Routed Loopback MCP Bridge (v2)
+ * Features:
+ * 1. Grok Bot & Neko-Bot schema:
+ *    - 3 Delivery Modes: "send" | "interrupt" | "queue"
+ *    - Subagent timeout & status: complete | still_running | not_found | error
+ *    - Loop guard (detects 3 identical repeated calls)
+ * 2. Parallel Isolated Git Worktrees per Writer Agent:
+ *    - Writers get dedicated `.botautotask/worktrees/<agentId>`
+ *    - Readers/reviewers inspect shared workspace
+ *    - Verified isolated merge back into base branch
+ * 3. Crash-safe atomic state writes via `atomicWriteJsonSync`
  */
 
 export const MESH_TOOLS = [
   {
     name: 'CreateAgent',
     description:
-      'Create a new specialist teammate agent with a name, persona/description, and optional preferred core (claude, codex, opencode, antigravity, or auto). Returns the new agent id.',
+      'Create a new specialist teammate agent with a name, role ("writer" | "reader"), persona/description, and optional preferred core. Returns the new agent id.',
     inputSchema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Optional short slug id (e.g. "architect", "coder", "qa").' },
         name: { type: 'string', description: 'Human-readable name for the teammate agent.' },
         description: { type: 'string', description: 'Persona and instructions for this teammate.' },
+        role: {
+          type: 'string',
+          enum: ['writer', 'reader'],
+          description: 'Role of agent: "writer" gets an isolated git worktree; "reader" inspects shared repo.'
+        },
         preferred_core: {
           type: 'string',
           description: 'Optional preferred runtime: "claude", "codex", "opencode", "antigravity", or "auto".'
-        }
+        },
+        base_branch: { type: 'string', description: 'Base git branch to fork worktree from.' }
       },
       required: ['name']
     }
@@ -38,7 +49,7 @@ export const MESH_TOOLS = [
   {
     name: 'ListAgents',
     description:
-      'List all teammate agents in the mesh, including their id, name, role, preferred core, live status, and recent activity.',
+      'List all teammate agents in the mesh, including their id, name, role, worktree path, live status, and recent activity.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -47,19 +58,24 @@ export const MESH_TOOLS = [
   {
     name: 'SendToAgent',
     description:
-      'Send a task or message to another teammate agent by its target_id (or "all" for group broadcast). Pass priority=true to interrupt/steer its current work immediately.',
+      'Send a task or message to another teammate agent. Supports 3 delivery modes: "send" (normal turn), "interrupt" (abort running turn and steer immediately), or "queue" (append to pending queue).',
     inputSchema: {
       type: 'object',
       properties: {
-        target_id: { type: 'string', description: 'Target agent id from ListAgents.' },
+        target_id: { type: 'string', description: 'Target agent id from ListAgents (or "all" for broadcast).' },
         message: { type: 'string', description: 'Actionable instruction or handoff message for the teammate.' },
+        delivery: {
+          type: 'string',
+          enum: ['send', 'interrupt', 'queue'],
+          description: 'Delivery mode: "send" (default), "interrupt" (steer/stop current turn), or "queue" (enqueue for later).'
+        },
         priority: {
           type: 'boolean',
-          description: 'When true, interrupts/steers the target agent immediately.'
+          description: 'Legacy alias: when true, maps to delivery="interrupt".'
         },
         wait: {
           type: 'boolean',
-          description: 'When true (default), runs the target agent turn and returns its reply.'
+          description: 'When true (default for "send"), awaits the target agent turn and returns reply.'
         }
       },
       required: ['target_id', 'message']
@@ -68,13 +84,17 @@ export const MESH_TOOLS = [
   {
     name: 'CheckSubagent',
     description:
-      'Check how a running or completed teammate/subagent is doing, including elapsed time, tool call count, recent activity, and live IDE transcript.',
+      'Check how a running or completed subagent is doing. Supports timeout_ms to await completion or return still_running.',
     inputSchema: {
       type: 'object',
       properties: {
         subagent_id: {
           type: 'string',
-          description: 'Agent ID to inspect. Omit to list all agents and their current status.'
+          description: 'Agent ID to inspect. Omit to list all agents and their status.'
+        },
+        timeout_ms: {
+          type: 'number',
+          description: 'Optional milliseconds to wait for subagent to complete before returning still_running.'
         }
       }
     }
@@ -82,7 +102,7 @@ export const MESH_TOOLS = [
   {
     name: 'MessageSubagent',
     description:
-      'Inject a mid-run steering instruction into an agent without losing its context. The agent incorporates your message on its current/next step.',
+      'Inject a mid-run steering instruction into an agent without losing its context (alias for SendToAgent with delivery="queue" or "send").',
     inputSchema: {
       type: 'object',
       properties: {
@@ -102,39 +122,45 @@ export const MESH_TOOLS = [
       },
       required: ['subagent_id']
     }
+  },
+  {
+    name: 'MergeAgentWorktree',
+    description: 'Atomically verifies and merges a writer agent isolated git worktree back into the main branch.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agent_id: { type: 'string', description: 'Agent ID whose worktree branch should be merged.' },
+        verify_cmd: { type: 'string', description: 'Optional test/acceptance command to verify in worktree before merge.' }
+      },
+      required: ['agent_id']
+    }
   }
 ];
 
-function slugifyId(text) {
+export function slugifyId(text) {
   return (
     String(text || 'agent')
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/[^a-z0-9_-]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 32) || `agent-${randomUUID().slice(0, 6)}`
   );
 }
 
-/**
- * Parses inline agent tool directives emitted by CLI models that don't use HTTP MCP directly, e.g.:
- * [AGENT_TOOL: {"tool":"SendToAgent","args":{"target_id":"coder","message":"..."}}]
- */
-export function parseInlineAgentToolCalls(outputText = '') {
+export function parseInlineAgentToolCalls(rawText = '') {
   const calls = [];
-  const regex = /\[AGENT_TOOL:\s*(\{[\s\S]*?\})\s*\]/g;
+  const regex = /\[AGENT_TOOL:\s*(\{.+?\})\]/gs;
   let match;
-  while ((match = regex.exec(outputText)) !== null) {
+  while ((match = regex.exec(rawText)) !== null) {
     try {
       const parsed = JSON.parse(match[1]);
-      if (parsed && typeof parsed.tool === 'string') {
+      if (parsed.tool) {
         calls.push({
           name: parsed.tool,
           args: parsed.args || {}
         });
       }
-    } catch {
-      // Ignore malformed inline JSON
-    }
+    } catch {}
   }
   return calls;
 }
@@ -144,17 +170,19 @@ export class AgentMesh {
     registry,
     ranker,
     workspaceDir = process.cwd(),
-    stateFile = join(homedir(), '.botautotask', 'mesh-state.json'),
+    stateFile = null,
     onEvent = () => {}
   } = {}) {
     this.registry = registry;
     this.ranker = ranker;
     this.workspaceDir = workspaceDir;
-    this.stateFile = stateFile;
+    this.stateFile = stateFile || `${workspaceDir}/.botautotask/mesh-state.json`;
     this.onEvent = onEvent;
     this.agents = new Map();
     this.handoffs = [];
     this.mcpBridge = null;
+    this.worktreeManager = new WorktreeManager({ repoPath: workspaceDir });
+    this.loopGuardCounts = new Map();
 
     this._seedDefaultTeam();
   }
@@ -165,13 +193,15 @@ export class AgentMesh {
       name: 'Team Lead (Orchestrator)',
       description:
         'Coordinates tasks under the human commander, decomposes goals, delegates to coder/reviewer, and verifies completion.',
+      role: 'reader',
       preferredCore: 'auto'
     });
     this.createAgent({
       id: 'coder',
       name: 'Senior Implementation Engineer',
       description:
-        'Writes clean, minimal, production-ready code and unit tests in the workspace using Codex / Claude / OpenCode.',
+        'Writes clean, minimal, production-ready code and unit tests in isolated worktree using Codex / Claude / OpenCode.',
+      role: 'writer',
       preferredCore: 'auto'
     });
     this.createAgent({
@@ -179,16 +209,18 @@ export class AgentMesh {
       name: 'Adversarial Reviewer & QA',
       description:
         'Reviews git diff, runs verification checks, inspects IDE logs, and sends surgical fix requests back to coder.',
+      role: 'reader',
       preferredCore: 'auto'
     });
   }
 
-  createAgent({ id, name, description = '', preferredCore = 'auto' }) {
+  createAgent({ id, name, description = '', role = 'writer', preferredCore = 'auto', baseBranch = null }) {
     const cleanId = id ? slugifyId(id) : slugifyId(name);
     const existing = this.agents.get(cleanId);
     if (existing) {
       if (name) existing.name = name;
       if (description) existing.description = description;
+      if (role) existing.role = role;
       if (preferredCore) existing.preferredCore = preferredCore;
       this._persistState();
       return existing;
@@ -198,7 +230,10 @@ export class AgentMesh {
       id: cleanId,
       name: name || cleanId,
       description,
+      role: role === 'reader' ? 'reader' : 'writer',
       preferredCore: preferredCore || 'auto',
+      baseBranch: baseBranch || null,
+      worktreePath: null,
       status: 'idle',
       startedAtMs: null,
       toolCallCount: 0,
@@ -206,11 +241,12 @@ export class AgentMesh {
       pendingSteers: [],
       inbox: [],
       transcript: [],
-      aborted: false
+      aborted: false,
+      _abortController: null
     };
     this.agents.set(cleanId, agent);
     this._persistState();
-    this.onEvent({ type: 'agent_created', agentId: cleanId, name: agent.name });
+    this.onEvent({ type: 'agent_created', agentId: cleanId, name: agent.name, role: agent.role });
     return agent;
   }
 
@@ -218,9 +254,11 @@ export class AgentMesh {
     return Array.from(this.agents.values()).map((a) => ({
       id: a.id,
       name: a.name,
+      role: a.role,
       description: a.description,
       preferredCore: a.preferredCore,
       status: a.status,
+      worktreePath: a.worktreePath,
       elapsedMs: a.startedAtMs ? Date.now() - a.startedAtMs : 0,
       toolCallCount: a.toolCallCount,
       recentActivity: a.recentActivity.slice(-5),
@@ -249,13 +287,16 @@ export class AgentMesh {
     if (!agent) return { ok: false, reason: `No agent "${agentId}" found.` };
     agent.aborted = true;
     agent.status = 'aborted';
+    if (agent._abortController) {
+      try { agent._abortController.abort(); } catch {}
+    }
     agent.recentActivity.push('Aborted by StopSubagent.');
     this._persistState();
     this.onEvent({ type: 'agent_stopped', agentId });
     return { ok: true, message: `Stopped agent ${agent.name} (${agent.id}).` };
   }
 
-  checkAgent(agentId) {
+  _checkAgentSync(agentId) {
     if (!agentId) {
       return {
         agents: this.listAgents(),
@@ -264,20 +305,52 @@ export class AgentMesh {
     }
     const agent = this.agents.get(agentId);
     if (!agent) {
-      return { error: `No agent "${agentId}" found.`, available: this.listAgents().map((a) => a.id) };
+      return { status: 'not_found', error: `No agent "${agentId}" found.`, available: this.listAgents().map((a) => a.id) };
     }
+
     return {
+      status: agent.status === 'running' ? 'still_running' : agent.aborted ? 'error' : 'complete',
       id: agent.id,
       name: agent.name,
-      status: agent.status,
-      preferredCore: agent.preferredCore,
+      role: agent.role,
+      worktreePath: agent.worktreePath,
       elapsedMs: agent.startedAtMs ? Date.now() - agent.startedAtMs : 0,
       toolCallCount: agent.toolCallCount,
       recentActivity: agent.recentActivity.slice(-10),
       pendingSteers: agent.pendingSteers,
+      inboxCount: agent.inbox.length,
       lastTranscriptEntry: agent.transcript.slice(-1)[0] || null,
       latestIdeLog: this._readLatestIdeSummary()
     };
+  }
+
+  async _checkAgentAsync(agentId, timeoutMs) {
+    const agent = this.agents.get(agentId);
+    if (!agent) return this._checkAgentSync(agentId);
+
+    if (agent.status === 'running') {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        if (agent.status !== 'running') break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (agent.status === 'running') {
+        return {
+          status: 'still_running',
+          agent_id: agentId,
+          elapsedMs: agent.startedAtMs ? Date.now() - agent.startedAtMs : 0,
+          toolCallCount: agent.toolCallCount
+        };
+      }
+    }
+    return this._checkAgentSync(agentId);
+  }
+
+  checkAgent(agentId, timeoutMs = 0) {
+    if (timeoutMs > 0) {
+      return this._checkAgentAsync(agentId, timeoutMs);
+    }
+    return this._checkAgentSync(agentId);
   }
 
   _readLatestIdeSummary() {
@@ -295,10 +368,6 @@ export class AgentMesh {
     }
   }
 
-  /**
-   * Selects the best execution harness & model for a given agent based on its `preferredCore`
-   * and the live `FreeModelRanker`.
-   */
   async _resolveAgentHarness(agent) {
     const candidates = await this.registry.getCandidates(this.ranker, agent.preferredCore || 'auto');
     if (candidates.length > 0) {
@@ -308,10 +377,20 @@ export class AgentMesh {
   }
 
   /**
-   * Sends a message from one agent (or the user commander) to another agent,
-   * creating a durable Neko-style SessionHandoff envelope and optionally running the target's turn.
+   * Sends a message to another agent with support for 3 delivery modes:
+   * - "send": runs turn normally or queues if waiting is false.
+   * - "interrupt": aborts ongoing turn and steers immediately.
+   * - "queue": queues message without interrupting active work.
    */
-  async sendToAgent({ fromId = 'commander', targetId, message, priority = false, wait = true, depth = 0 }) {
+  async sendToAgent({
+    fromId = 'commander',
+    targetId,
+    message,
+    delivery = null,
+    priority = false,
+    wait = true,
+    depth = 0
+  }) {
     if (targetId === 'all') {
       const targets = Array.from(this.agents.keys()).filter((id) => id !== fromId);
       const replies = [];
@@ -320,6 +399,7 @@ export class AgentMesh {
           fromId,
           targetId: id,
           message,
+          delivery,
           priority,
           wait,
           depth
@@ -344,32 +424,58 @@ export class AgentMesh {
       };
     }
 
+    // Loop Guard: detect identical (target, sha256(message)) repeated >= 3 times
+    const msgHash = createHash('sha256').update(message).digest('hex').slice(0, 16);
+    const loopKey = `${fromId}->${targetId}:${msgHash}`;
+    const seenCount = (this.loopGuardCounts.get(loopKey) || 0) + 1;
+    this.loopGuardCounts.set(loopKey, seenCount);
+    if (seenCount >= 3) {
+      return {
+        delivered: false,
+        error: `Loop detected: same message sent to "${targetId}" 3 times. Operation rejected.`
+      };
+    }
+
+    // Resolve delivery mode
+    const resolvedDelivery = delivery || (priority ? 'interrupt' : 'send');
+
     const handoff = {
       schema: 'neko.session-handoff/v1',
       id: randomUUID(),
       createdAt: new Date().toISOString(),
       fromAgentId: fromId,
       targetAgentId: targetId,
-      priority: Boolean(priority),
+      delivery: resolvedDelivery,
+      priority: resolvedDelivery === 'interrupt',
       summary: message
     };
     this.handoffs.push(handoff);
 
-    if (priority) {
-      target.pendingSteers.push(`[PRIORITY from ${fromId}]: ${message}`);
+    if (resolvedDelivery === 'interrupt') {
+      if (target.status === 'running' && target._abortController) {
+        try { target._abortController.abort(); } catch {}
+        target.status = 'interrupted';
+      }
+      target.pendingSteers.push(`[INTERRUPT STEER from ${fromId}]: ${message}`);
+      target.recentActivity.push(`Interrupted by ${fromId}: ${message.slice(0, 80)}`);
+    } else if (resolvedDelivery === 'queue') {
+      target.inbox.push({ fromId, message, timestamp: handoff.createdAt });
+      target.recentActivity.push(`Queued message from ${fromId}: ${message.slice(0, 80)}`);
     } else {
       target.inbox.push({ fromId, message, timestamp: handoff.createdAt });
+      target.recentActivity.push(`Received task from ${fromId}: ${message.slice(0, 80)}`);
     }
-    target.recentActivity.push(`Received message from ${fromId}: ${message.slice(0, 80)}`);
-    this._persistState();
-    this.onEvent({ type: 'agent_message', fromId, targetId, priority, message });
 
-    if (!wait) {
+    this._persistState();
+    this.onEvent({ type: 'agent_message', fromId, targetId, delivery: resolvedDelivery, message });
+
+    if (!wait || resolvedDelivery === 'queue') {
       return {
         delivered: true,
         handoffId: handoff.id,
         status: 'queued',
-        message: `Message queued for ${target.name} (${target.id}).`
+        delivery: resolvedDelivery,
+        message: `Message ${resolvedDelivery}ed for ${target.name} (${target.id}).`
       };
     }
 
@@ -385,8 +491,7 @@ export class AgentMesh {
   }
 
   /**
-   * Executes a single turn for `agentId` using its resolved CLI/IDE harness,
-   * injecting teammate roster, pending steers, and processing any inter-agent tool calls.
+   * Executes a single turn for `agentId`, isolating writers into git worktrees.
    */
   async runAgentTurn(agentId, incomingPrompt, { fromId = 'commander', depth = 0, maxDepth = 3 } = {}) {
     const agent = this.agents.get(agentId);
@@ -396,33 +501,47 @@ export class AgentMesh {
     agent.status = 'running';
     agent.startedAtMs = Date.now();
     agent.toolCallCount += 1;
+    agent._abortController = new AbortController();
+
+    // Isolated Worktree for writers
+    let runDir = this.workspaceDir;
+    if (agent.role === 'writer') {
+      try {
+        const wtInfo = this.worktreeManager.ensure(agent.id, agent.baseBranch || undefined);
+        runDir = wtInfo.path;
+        agent.worktreePath = wtInfo.path;
+      } catch (err) {
+        agent.recentActivity.push(`Worktree ensure warning: ${err.message}`);
+      }
+    }
 
     const steers = agent.pendingSteers.splice(0, agent.pendingSteers.length);
     const inboxItems = agent.inbox.splice(0, agent.inbox.length);
 
     const teammatesList = this.listAgents()
       .filter((a) => a.id !== agentId)
-      .map((a) => `- id: "${a.id}" | name: "${a.name}" | role: ${a.description}`)
+      .map((a) => `- id: "${a.id}" | name: "${a.name}" | role: ${a.role} | instructions: ${a.description}`)
       .join('\n');
 
     const promptLines = [
       `# AGENT IDENTITY`,
-      `You are "${agent.name}" (id: "${agent.id}").`,
+      `You are "${agent.name}" (id: "${agent.id}", role: "${agent.role}").`,
       `Role & Instructions: ${agent.description}`,
+      agent.worktreePath ? `Isolated Worktree: ${agent.worktreePath}` : `Workspace: ${runDir}`,
       ``,
       `# TEAMMATES IN MESH (You can control/delegate to them)`,
       teammatesList || '(No other teammates yet)',
       ``,
       `# INTER-AGENT CONTROL PROTOCOL`,
-      `If you need to create a teammate, delegate a task to another agent, or steer/check a subagent, you may either call the MCP tool directly OR output an inline directive on its own line:`,
-      `[AGENT_TOOL: {"tool":"SendToAgent","args":{"target_id":"coder","message":"Implement X"}}]`,
-      `[AGENT_TOOL: {"tool":"CreateAgent","args":{"id":"security","name":"Security Auditor","description":"Audits auth code"}}]`,
-      `[AGENT_TOOL: {"tool":"MessageSubagent","args":{"subagent_id":"coder","message":"Use node:crypto instead"}}]`,
+      `You may delegate to other agents by calling MCP tools or outputting an inline directive:`,
+      `[AGENT_TOOL: {"tool":"SendToAgent","args":{"target_id":"coder","message":"Implement X","delivery":"send"}}]`,
+      `[AGENT_TOOL: {"tool":"CreateAgent","args":{"id":"qa","name":"QA Tester","role":"reader","description":"Runs unit tests"}}]`,
+      `[AGENT_TOOL: {"tool":"MessageSubagent","args":{"subagent_id":"coder","message":"Switch to node:crypto"}}]`,
       ``
     ];
 
     if (steers.length > 0) {
-      promptLines.push(`# URGENT STEERING DIRECTIVES (HIGHEST PRIORITY — APPLY IMMEDIATELY)`);
+      promptLines.push(`# URGENT STEERING DIRECTIVES (APPLY IMMEDIATELY)`);
       promptLines.push(...steers);
       promptLines.push(``);
     }
@@ -441,15 +560,28 @@ export class AgentMesh {
     const fullPrompt = promptLines.join('\n');
     const { harness, modelId } = await this._resolveAgentHarness(agent);
 
-    agent.recentActivity.push(`Running turn on ${harness.id}:${modelId}`);
+    agent.recentActivity.push(`Running turn on ${harness.id}:${modelId} in ${runDir}`);
     this._persistState();
 
-    const stepResult = await harness.executeStep({
-      goal: fullPrompt,
-      journal: agent.transcript.slice(-5),
-      workspaceDir: this.workspaceDir,
-      modelId
-    });
+    let stepResult;
+    try {
+      stepResult = await harness.executeStep({
+        goal: fullPrompt,
+        journal: agent.transcript.slice(-5),
+        workspaceDir: runDir,
+        modelId,
+        signal: agent._abortController.signal
+      });
+    } catch (err) {
+      stepResult = {
+        outcome: OUTCOME.ERROR,
+        summary: `Harness execution error: ${err.message}`,
+        harnessId: harness.id,
+        modelId
+      };
+    } finally {
+      agent._abortController = null;
+    }
 
     if (agent.aborted) {
       return {
@@ -500,10 +632,6 @@ export class AgentMesh {
     };
   }
 
-  /**
-   * Executes one of the 6 GrokBot/NekoBot inter-agent tools (`CreateAgent`, `ListAgents`,
-   * `SendToAgent`, `CheckSubagent`, `MessageSubagent`, `StopSubagent`).
-   */
   async executeMeshTool(toolName, args = {}, { callerAgentId = 'commander', depth = 0 } = {}) {
     switch (toolName) {
       case 'CreateAgent': {
@@ -511,13 +639,16 @@ export class AgentMesh {
           id: args.id,
           name: args.name,
           description: args.description || '',
-          preferredCore: args.preferred_core || 'auto'
+          role: args.role || 'writer',
+          preferredCore: args.preferred_core || 'auto',
+          baseBranch: args.base_branch || null
         });
         return {
           created: true,
           id: created.id,
           name: created.name,
-          message: `Created agent "${created.name}" (id: ${created.id}). Message it with SendToAgent.`
+          role: created.role,
+          message: `Created agent "${created.name}" (id: ${created.id}, role: ${created.role}). Message it with SendToAgent.`
         };
       }
       case 'ListAgents': {
@@ -528,13 +659,14 @@ export class AgentMesh {
           fromId: callerAgentId,
           targetId: args.target_id,
           message: args.message,
+          delivery: args.delivery || null,
           priority: Boolean(args.priority),
           wait: args.wait !== false,
           depth
         });
       }
       case 'CheckSubagent': {
-        return this.checkAgent(args.subagent_id);
+        return await this.checkAgent(args.subagent_id, Number(args.timeout_ms || 0));
       }
       case 'MessageSubagent': {
         return this.steerAgent(args.subagent_id, args.message, callerAgentId);
@@ -542,17 +674,14 @@ export class AgentMesh {
       case 'StopSubagent': {
         return this.stopAgent(args.subagent_id);
       }
+      case 'MergeAgentWorktree': {
+        return this.worktreeManager.merge(args.agent_id, { verifyCmd: args.verify_cmd });
+      }
       default:
         throw new Error(`Unknown AgentMesh tool: ${toolName}`);
     }
   }
 
-  /**
-   * Starts a local loopback HTTP MCP Server (`http://127.0.0.1:<port>/mcp/<secret>`)
-   * modeled after Grok Bot's `createRoutedMcpBridge` (`routed-mcp-bridge.ts`).
-   * Any local agent (Claude Code, Codex, OpenCode, Antigravity) can connect and invoke
-   * the 6 inter-agent orchestration tools over standard MCP JSON-RPC 2.0.
-   */
   async startMcpBridgeServer() {
     if (this.mcpBridge) return this.mcpBridge;
     const secret = randomUUID();
@@ -595,7 +724,7 @@ export class AgentMesh {
           reply({
             protocolVersion: '2025-03-26',
             capabilities: { tools: { listChanged: false } },
-            serverInfo: { name: 'botautotask-agent-mesh', version: '1.0.0' }
+            serverInfo: { name: 'botautotask-agent-mesh', version: '2.0.0' }
           });
           return;
         }
@@ -651,10 +780,13 @@ export class AgentMesh {
       const snapshot = {
         updatedAt: new Date().toISOString(),
         workspaceDir: this.workspaceDir,
-        agents: Array.from(this.agents.values()),
+        agents: Array.from(this.agents.values()).map((a) => {
+          const { _abortController, ...clean } = a;
+          return clean;
+        }),
         handoffs: this.handoffs.slice(-50)
       };
-      writeFileSync(this.stateFile, JSON.stringify(snapshot, null, 2), 'utf8');
+      atomicWriteJsonSync(this.stateFile, snapshot);
     } catch {
       // Non-fatal in read-only environments
     }

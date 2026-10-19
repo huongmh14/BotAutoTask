@@ -422,13 +422,13 @@ export default {
       return Response.json({ ok: true });
     }
 
-    // 2. Lease Acquire / Heartbeat
+    // 2. Lease Acquire (Atomic CAS)
     if (request.method === 'POST' && url.pathname === '/api/lease/acquire') {
       const { workerId = 'local-pc', goalId = null } = await request.json().catch(() => ({}));
       const now = Date.now();
       const leaseExpiry = now + 90_000;
 
-      const goal = goalId
+      const candidate = goalId
         ? await env.DB.prepare(`SELECT * FROM goals WHERE id = ?`).bind(goalId).first()
         : await env.DB.prepare(
             `SELECT * FROM goals
@@ -439,33 +439,80 @@ export default {
             .bind(now, workerId)
             .first();
 
-      if (!goal) {
+      if (!candidate) {
         return Response.json({ goal: null });
       }
 
       const nextStatus = workerId === 'local-pc' ? 'RUNNING_LOCAL' : 'RUNNING_CLOUD';
-      await env.DB.prepare(
-        `UPDATE goals SET status = ?, lease_owner = ?, lease_expires_at = ?, updated_at = ? WHERE id = ?`
+      const casRes = await env.DB.prepare(
+        `UPDATE goals
+         SET status = ?, lease_owner = ?, lease_expires_at = ?, lease_epoch = COALESCE(lease_epoch, 0) + 1, updated_at = ?
+         WHERE id = ? AND (lease_expires_at < ? OR lease_owner = ?)`
       )
-        .bind(nextStatus, workerId, leaseExpiry, now, goal.id)
+        .bind(nextStatus, workerId, leaseExpiry, now, candidate.id, now, workerId)
         .run();
 
+      const changes = casRes?.meta?.changes ?? casRes?.changes ?? 0;
+      if (changes !== 1) {
+        // Race condition: another worker acquired the lease in this window
+        return Response.json({ goal: null, conflict: true });
+      }
+
+      const updatedGoal = await env.DB.prepare(`SELECT * FROM goals WHERE id = ?`).bind(candidate.id).first();
       const { results: journal } = await env.DB.prepare(
         `SELECT * FROM journal_entries WHERE goal_id = ? ORDER BY step_number ASC`
       )
-        .bind(goal.id)
+        .bind(candidate.id)
         .all();
 
-      return Response.json({ goal: { ...goal, status: nextStatus }, journal: journal || [] });
+      return Response.json({ goal: updatedGoal, journal: journal || [] });
     }
 
-    // 3. Record Step Journal & Completion
+    // 2b. Lease Heartbeat
+    if (request.method === 'POST' && url.pathname === '/api/lease/heartbeat') {
+      const { goal_id, worker_id = 'local-pc', lease_epoch } = await request.json().catch(() => ({}));
+      if (!goal_id) return Response.json({ error: 'Missing goal_id' }, { status: 400 });
+      const now = Date.now();
+      const leaseExpiry = now + 90_000;
+
+      let query = `UPDATE goals SET lease_expires_at = ?, updated_at = ? WHERE id = ? AND lease_owner = ?`;
+      const binds = [leaseExpiry, now, goal_id, worker_id];
+
+      if (typeof lease_epoch === 'number') {
+        query += ` AND lease_epoch = ?`;
+        binds.push(lease_epoch);
+      }
+
+      const res = await env.DB.prepare(query).bind(...binds).run();
+      const changes = res?.meta?.changes ?? res?.changes ?? 0;
+      if (changes !== 1) {
+        return Response.json({ error: 'Fenced: lease lost or epoch mismatch' }, { status: 409 });
+      }
+      return Response.json({ ok: true, lease_expires_at: leaseExpiry });
+    }
+
+    // 3. Record Step Journal & Completion (with Epoch Fencing & Idempotent Journal)
     if (request.method === 'POST' && url.pathname === '/api/lease/step') {
       const body = await request.json();
       const now = Date.now();
 
+      if (typeof body.lease_epoch === 'number') {
+        const currentGoal = await env.DB.prepare(
+          `SELECT lease_owner, lease_epoch FROM goals WHERE id = ?`
+        ).bind(body.goal_id).first();
+
+        if (currentGoal) {
+          if (currentGoal.lease_epoch !== body.lease_epoch || currentGoal.lease_owner !== (body.worker_id || 'local-pc')) {
+            return Response.json(
+              { error: 'Fenced: lease expired or acquired by another worker', epoch_mismatch: true },
+              { status: 409 }
+            );
+          }
+        }
+      }
+
       await env.DB.prepare(
-        `INSERT INTO journal_entries (goal_id, step_number, worker_id, core_used, model_used, outcome, summary, git_commit, created_at)
+        `INSERT OR IGNORE INTO journal_entries (goal_id, step_number, worker_id, core_used, model_used, outcome, summary, git_commit, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
@@ -497,6 +544,40 @@ export default {
       }
 
       return Response.json({ ok: true });
+    }
+
+    // 4. Remote Commands API (Mobile/PWA Remote Steer & Interrupt)
+    if (request.method === 'POST' && url.pathname === '/api/commands') {
+      const body = await request.json().catch(() => ({}));
+      const id = body.id || `cmd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      const now = Date.now();
+      await env.DB.prepare(
+        `INSERT INTO remote_commands (id, goal_id, target_id, command_type, payload, status, created_at)
+         VALUES (?, ?, ?, ?, ?, 'PENDING', ?)`
+      )
+        .bind(
+          id,
+          body.goal_id || null,
+          body.target_id || null,
+          body.command_type || 'STEER',
+          typeof body.payload === 'string' ? body.payload : JSON.stringify(body.payload || {}),
+          now
+        )
+        .run();
+      return Response.json({ ok: true, id });
+    }
+
+    if (request.method === 'GET' && url.pathname === '/api/commands') {
+      const goalId = url.searchParams.get('goalId');
+      let query = `SELECT * FROM remote_commands WHERE status = 'PENDING'`;
+      const binds = [];
+      if (goalId) {
+        query += ` AND (goal_id = ? OR goal_id IS NULL)`;
+        binds.push(goalId);
+      }
+      query += ` ORDER BY created_at ASC LIMIT 10`;
+      const { results: commands } = await env.DB.prepare(query).bind(...binds).all();
+      return Response.json({ commands: commands || [] });
     }
 
     return Response.json({ service: 'BotAutoTask Cloud Core', status: 'healthy' });

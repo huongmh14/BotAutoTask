@@ -4,6 +4,7 @@ import { findLatestAntigravityTranscript } from '../core/log-reader.js';
 import { SupervisorLoop } from '../core/supervisor.js';
 import { getZeroKeyAuthStatus } from '../core/auth-bridge.js';
 import { AgentMesh } from '../core/agent-mesh.js';
+import { LocalWebUiServer } from './web-ui.js';
 
 const [, , subcommand = 'help', ...rest] = process.argv;
 
@@ -220,12 +221,29 @@ async function main() {
     }
   }
 
+  if (subcommand === 'ui' || subcommand === 'dashboard') {
+    const { flags } = parseCliFlags(rest);
+    const port = parseInt(flags.port || '8765', 10);
+    const mesh = new AgentMesh({ registry, ranker, workspaceDir: flags.path || process.cwd() });
+    const ui = new LocalWebUiServer({ mesh, port });
+    await ui.start();
+    console.log(`[BotAutoTask] Local Web UI live at: ${ui.url}`);
+    console.log(`Open in browser to monitor agents, stream logs, and steer tasks.`);
+    if (flags.open === 'true') {
+      const { exec } = await import('node:child_process');
+      const startCmd = process.platform === 'win32' ? `start "" "${ui.url}"` : `open "${ui.url}"`;
+      exec(startCmd);
+    }
+    return;
+  }
+
   console.log(`BotAutoTask CLI — Pluggable Multi-Core & Free-Model Orchestrator
 Commands:
   botautotask cores                                         List all pluggable AI cores & health
   botautotask auth                                          Inspect Zero-API-Key local login sessions
   botautotask models                                        Discover & rank best free/idle models
   botautotask agents                                        List Multi-Agent Mesh coworkers & status
+  botautotask ui [--port 8765] [--open]                     Open local live multi-agent control web UI
   botautotask team "<goal>" [--path <dir>]                  Run GrokBot+NekoBot multi-agent coworker mesh
   botautotask steer <agentId> "<instruction>"               Inject priority mid-run steer into an agent
   botautotask logs [--conv <id>]                            Read latest Antigravity IDE transcript.jsonl
