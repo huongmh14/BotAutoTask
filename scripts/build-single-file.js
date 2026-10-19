@@ -16,6 +16,9 @@ const MODULE_ORDER = [
   'src/core/spawn-cli.js',
   'src/core/log-reader.js',
   'src/core/atomic-write.js',
+  'src/core/policy.js',
+  'src/core/completion-contract.js',
+  'src/core/harness2-engine.js',
   'src/core/auth-bridge.js',
   'src/core/model-discovery.js',
   'src/harnesses/custom-cmd-harness.js',
@@ -48,6 +51,7 @@ for (const relPath of MODULE_ORDER) {
     if (line.startsWith('#!')) continue;
     if (/^\s*import\s+.*from\s+['"]node:/.test(line)) continue;
     if (/^\s*import\s+.*from\s+['"]\./.test(line)) continue;
+    if (/^\s*export\s*\{/.test(line)) continue;
     filteredLines.push(line.replace(/^\s*export\s+(class|function|async\s+function|const|let)\s+/, '$1 '));
   }
 
@@ -57,10 +61,10 @@ for (const relPath of MODULE_ORDER) {
 const mergedImports = [
   `import { exec, execFile, spawn, spawnSync } from 'node:child_process';`,
   `import { createServer } from 'node:http';`,
-  `import { randomUUID, randomBytes } from 'node:crypto';`,
+  `import { randomUUID, randomBytes, createHash } from 'node:crypto';`,
   `import { promisify } from 'node:util';`,
   `import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync, lstatSync, renameSync, appendFileSync, rmSync, copyFileSync, openSync, fsyncSync, closeSync } from 'node:fs';`,
-  `import { join, dirname, basename, resolve } from 'node:path';`,
+  `import { join, dirname, basename, resolve, isAbsolute, normalize } from 'node:path';`,
   `import { homedir, tmpdir } from 'node:os';`,
   `import { fileURLToPath } from 'node:url';`
 ];

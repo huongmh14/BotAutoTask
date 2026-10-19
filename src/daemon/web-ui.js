@@ -230,16 +230,6 @@ export class LocalWebUiServer {
                 delivery: body.delivery || 'send',
                 wait: true
               })
-              .then((turnOut) => {
-                this.broadcastEvent('team_step', {
-                  fromId: targetId,
-                  targetId: 'commander',
-                  delivery: 'send',
-                  message: turnOut.reply || `Completed (${turnOut.status})`,
-                  harnessId: turnOut.harnessId,
-                  modelId: turnOut.modelId
-                });
-              })
               .catch((err) => {
                 this.broadcastEvent('team_step', {
                   fromId: targetId,
@@ -335,7 +325,7 @@ export class LocalWebUiServer {
         return;
       }
 
-      // 10. POST /api/team/start — Dispatch autonomous squad mission to @lead
+      // 10. POST /api/team/start — Dispatch autonomous squad mission (@lead -> @coder -> @reviewer -> merge)
       if (req.method === 'POST' && url.pathname === '/api/team/start') {
         const body = await readJson().catch(() => ({}));
         if (this._checkDuplicateNonce(body.nonce, res)) return;
@@ -346,33 +336,25 @@ export class LocalWebUiServer {
         }
 
         if (this.mesh) {
-          const checkNote = body.check ? `\nVerification command required before completion: \`${body.check}\`` : '';
-          this.mesh
-            .sendToAgent({
-              fromId: 'commander',
-              targetId: 'lead',
-              message: `${goal}${checkNote}\nCoordinate with @coder and @reviewer to implement, test, and verify.`,
-              delivery: 'send',
-              wait: true
-            })
-            .then((turnOut) => {
-              this.broadcastEvent('team_step', {
-                fromId: 'lead',
-                targetId: 'commander',
-                delivery: 'send',
-                message: turnOut.reply || `Mission step finished (${turnOut.status})`,
-                harnessId: turnOut.harnessId,
-                modelId: turnOut.modelId
-              });
-            })
-            .catch((err) => {
-              this.broadcastEvent('team_step', {
-                fromId: 'lead',
-                targetId: 'commander',
-                delivery: 'interrupt',
-                message: `Squad execution error: ${err.message}`
-              });
+          const runFn = typeof this.mesh.runTeamMission === 'function'
+            ? () => this.mesh.runTeamMission({ goal, check: body.check || null })
+            : () =>
+                this.mesh.sendToAgent({
+                  fromId: 'commander',
+                  targetId: 'lead',
+                  message: `${goal}\nCoordinate with @coder and @reviewer to implement, test, and verify.`,
+                  delivery: 'send',
+                  wait: true
+                });
+
+          runFn().catch((err) => {
+            this.broadcastEvent('team_step', {
+              fromId: 'lead',
+              targetId: 'commander',
+              delivery: 'interrupt',
+              message: `Squad execution error: ${err.message}`
             });
+          });
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ status: 'dispatched', goal }));

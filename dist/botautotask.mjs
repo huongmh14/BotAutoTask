@@ -5,10 +5,10 @@
  */
 import { exec, execFile, spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync, lstatSync, renameSync, appendFileSync, rmSync, copyFileSync, openSync, fsyncSync, closeSync } from 'node:fs';
-import { join, dirname, basename, resolve } from 'node:path';
+import { join, dirname, basename, resolve, isAbsolute, normalize } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -615,6 +615,402 @@ function atomicWriteFileSync(filePath, content, { makeBackup = false } = {}) {
 function atomicWriteJsonSync(filePath, data, options = {}) {
   const str = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   return atomicWriteFileSync(filePath, str, options);
+}
+
+
+// --- MODULE: src/core/policy.js ---
+/**
+ * BotAutoTask — Permission & Security Policy Engine.
+ * Implements GrokBot & Neko-Bot security policies:
+ * - Hard Refuse: Always blocked even in YOLO mode (destructive system calls, credential leaks).
+ * - Ask Once: Destructive workspace commands requiring explicit user or phone approval.
+ * - Modes: plan (read-only), default (workspace safe), auto (autonomous), yolo (unattended).
+ * - Kill-Switch: Fail-closed emergency stop.
+ */
+
+const HARD_REFUSE_PATTERNS = [
+  /\brm\s+-[a-z]*r[a-z]*f\s+[\/\\]/i,
+  /\brm\s+-[a-z]*r[a-z]*f\s+~[\/\\]?/i,
+  /\bformat\s+[a-z]:/i,
+  /\brd\s+\/s(\s+\/q)?\s+[a-z]:\\/i,
+  /\bmkfs(\.[a-z0-9]+)?\s+/i,
+  /\bdd\s+.*of=\/dev\/(sd[a-z]|nvme|disk)/i,
+  /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/, // Fork bomb
+  /auth\.json/i,
+  /\.credentials\.json/i,
+  /\.ssh[\/\\](id_rsa|id_ed25519|known_hosts)/i
+];
+
+const ASK_ONCE_PATTERNS = [
+  /\brm\s+-[a-z]*r/i,
+  /\brm\s+-[a-z]*f/i,
+  /\bgit\s+reset\s+--hard/i,
+  /\bgit\s+clean\s+-[a-z]*f/i,
+  /\bgit\s+push\s+.*--force/i,
+  /\bcurl\s+.*\|\s*(ba)?sh/i,
+  /\bwget\s+.*\|\s*(ba)?sh/i,
+  /\bsudo\s+/i,
+  /\.git[\/\\](hooks|config)/i
+];
+
+function isHardRefuseCommand(command = '', path = '') {
+  const target = `${command} ${path}`.trim();
+  return HARD_REFUSE_PATTERNS.some((regex) => regex.test(target));
+}
+
+function isAskOnceCommand(command = '', path = '') {
+  const target = `${command} ${path}`.trim();
+  return ASK_ONCE_PATTERNS.some((regex) => regex.test(target));
+}
+
+/**
+ * Evaluates whether an agent action should be allowed, asked, or refused.
+ * Returns: 'allow' | 'ask' | 'refused'
+ */
+function decide({
+  mode = 'default',
+  yolo = false,
+  action = 'exec',
+  command = '',
+  path = '',
+  grants = [],
+  killSwitch = false
+} = {}) {
+  // 1. Kill-Switch: If triggered or invalid, fail-closed
+  if (killSwitch === true || (typeof killSwitch === 'object' && killSwitch !== null && killSwitch.isOn === false)) {
+    return 'refused';
+  }
+
+  // 2. Hard Refuse: NEVER allowed under any circumstances, even with YOLO
+  if (isHardRefuseCommand(command, path)) {
+    return 'refused';
+  }
+
+  // Check standing user grants
+  if (grants.includes(command) || grants.includes(path)) {
+    return 'allow';
+  }
+
+  // 3. Ask Once: Destructive workspace actions
+  if (isAskOnceCommand(command, path)) {
+    if (yolo && mode === 'auto') {
+      return 'allow';
+    }
+    return 'ask';
+  }
+
+  // 4. Mode-based evaluation
+  if (mode === 'plan') {
+    // Plan mode is strictly read-only
+    if (action === 'read') return 'allow';
+    return 'ask';
+  }
+
+  if (mode === 'default') {
+    // Default mode permits read and workspace file edits, but asks for shell execution
+    if (action === 'read' || action === 'write') return 'allow';
+    return 'ask';
+  }
+
+  if (mode === 'auto') {
+    // Auto mode executes autonomously within safety boundaries
+    return 'allow';
+  }
+
+  return 'ask';
+}
+
+
+// --- MODULE: src/core/completion-contract.js ---
+/**
+ * BotAutoTask — Closed-Loop Completion Contract & Independent Validator.
+ * Implements Neko-Bot & GrokBot formal verification:
+ * - Up to 16 append-only criteria (no silent deletion or alteration of specs).
+ * - mutation_epoch binding (validations are only valid for the exact code state they tested).
+ * - gap_signature anti-looping (detects 2 consecutive identical failures -> swap core, 3 -> STALLED).
+ * - No silent self-passing (goals without contracts or acceptance checks conclude as "outcome_unverified").
+ */
+
+
+class CompletionContract {
+  constructor({ goalId, initialCriteria = [] } = {}) {
+    this.goalId = goalId;
+    this.criteria = [];
+    this.historySignatures = [];
+
+    for (const c of initialCriteria.slice(0, 16)) {
+      this.addCriterion(c);
+    }
+  }
+
+  /**
+   * Appends a new criterion. Append-only: cannot modify or delete existing criteria.
+   */
+  addCriterion({ id, requirement, check = null }) {
+    if (this.criteria.length >= 16) {
+      throw new Error('Contract criteria limit reached (max 16 criteria per goal).');
+    }
+    const cleanId = String(id || `c-${this.criteria.length + 1}`).trim();
+    if (this.criteria.some((c) => c.id === cleanId)) {
+      throw new Error(`Criterion "${cleanId}" already exists in contract.`);
+    }
+    this.criteria.push({
+      id: cleanId,
+      requirement: String(requirement || '').trim(),
+      check: check || null,
+      addedAtEpoch: null
+    });
+  }
+
+  static calculateMutationEpoch(diffOrCommitSha = '') {
+    return createHash('sha256')
+      .update(String(diffOrCommitSha || 'empty'))
+      .digest('hex')
+      .slice(0, 16);
+  }
+
+  static calculateGapSignature(failingCriteriaIds = [], mutationEpoch = '') {
+    const sorted = failingCriteriaIds.slice().sort().join(',');
+    return createHash('sha256')
+      .update(`${sorted}:${mutationEpoch}`)
+      .digest('hex')
+      .slice(0, 16);
+  }
+
+  recordStepGap(failingCriteriaIds, mutationEpoch) {
+    const sig = CompletionContract.calculateGapSignature(failingCriteriaIds, mutationEpoch);
+    this.historySignatures.push(sig);
+
+    const len = this.historySignatures.length;
+    if (len >= 3 && this.historySignatures[len - 1] === this.historySignatures[len - 2] && this.historySignatures[len - 2] === this.historySignatures[len - 3]) {
+      return { status: 'STALLED', signature: sig };
+    }
+    if (len >= 2 && this.historySignatures[len - 1] === this.historySignatures[len - 2]) {
+      return { status: 'SWAP_CORE', signature: sig };
+    }
+    return { status: 'PROGRESSING', signature: sig };
+  }
+
+  /**
+   * Evaluates overall contract status.
+   * Returns: 'complete' | 'validation_missing' | 'validation_failed' | 'outcome_unverified'
+   */
+  evaluate({
+    results = {}, // { [criterionId]: { passed: boolean, epoch: string } }
+    currentMutationEpoch = '',
+    hasAcceptanceCmd = false,
+    acceptancePassed = false
+  } = {}) {
+    // If no contract criteria exist and no acceptance command exists -> outcome_unverified
+    if (this.criteria.length === 0 && !hasAcceptanceCmd) {
+      return {
+        verdict: 'outcome_unverified',
+        passed: false,
+        summary: 'Goal completed turn without an independent verification contract or test command.'
+      };
+    }
+
+    // If only acceptanceCmd exists without granular contract criteria
+    if (this.criteria.length === 0 && hasAcceptanceCmd) {
+      return {
+        verdict: acceptancePassed ? 'complete' : 'validation_failed',
+        passed: Boolean(acceptancePassed),
+        summary: acceptancePassed ? 'Acceptance command passed.' : 'Acceptance command failed.'
+      };
+    }
+
+    const failingIds = [];
+    const missingEpochIds = [];
+
+    for (const c of this.criteria) {
+      const res = results[c.id];
+      if (!res) {
+        failingIds.push(c.id);
+        continue;
+      }
+      if (res.epoch !== currentMutationEpoch) {
+        missingEpochIds.push(c.id);
+      } else if (!res.passed) {
+        failingIds.push(c.id);
+      }
+    }
+
+    if (missingEpochIds.length > 0) {
+      return {
+        verdict: 'validation_missing',
+        passed: false,
+        missingEpochIds,
+        summary: 'Code was modified after validation; re-validation required for current mutation epoch.'
+      };
+    }
+
+    if (failingIds.length > 0) {
+      return {
+        verdict: 'validation_failed',
+        passed: false,
+        failingIds,
+        summary: `Failed criteria: ${failingIds.join(', ')}`
+      };
+    }
+
+    if (hasAcceptanceCmd && !acceptancePassed) {
+      return {
+        verdict: 'validation_failed',
+        passed: false,
+        summary: 'All criteria passed but acceptance command failed.'
+      };
+    }
+
+    return {
+      verdict: 'complete',
+      passed: true,
+      summary: 'All contract criteria verified successfully on current mutation epoch.'
+    };
+  }
+}
+
+
+// --- MODULE: src/core/harness2-engine.js ---
+/**
+ * BotAutoTask — Google Research Harness² Engine.
+ * Implements "Harness²: Recursive Agent Harnessing for an Open World" (arXiv:2610.14224).
+ * Features:
+ * 1. 8-Component Surface Tree (c1..c8): system prompt, guardrails, memory, tools, subagents, skills, verifiers, hooks.
+ * 2. Autotrigger discovery: Automatically registers discovered skills into guardrails.
+ * 3. Two-Level Recursion:
+ *    - Task-Level: Propose -> Probe (Invariant & Domain worktrees) -> Compose
+ *    - System-Level: Experience Library R with { cue, lesson, evidence } triples
+ * 4. Context Budget & Path Validation: Rejects path escapes (..) and enforces always_on limits.
+ */
+
+
+const SURFACE_COMPONENTS = {
+  C1_SYSTEM_PROMPT: 'c1_system_prompt',
+  C2_GUARDRAILS: 'c2_guardrails',
+  C3_LONG_TERM_MEMORY: 'c3_long_term_memory',
+  C4_TOOL_GUIDANCE: 'c4_tool_guidance',
+  C5_SUBAGENTS: 'c5_subagents',
+  C6_SKILLS: 'c6_skills',
+  C7_VERIFIERS: 'c7_verifiers',
+  C8_HOOKS: 'c8_hooks'
+};
+
+class Harness2Engine {
+  constructor({ workspaceDir = process.cwd(), alwaysOnMaxChars = 24000 } = {}) {
+    this.workspaceDir = resolve(workspaceDir);
+    this.alwaysOnMaxChars = alwaysOnMaxChars;
+    this.libraryDir = join(this.workspaceDir, '.botautotask', 'library');
+  }
+
+  /**
+   * Validates relative file paths within the surface tree.
+   * Prevents directory escape (..) and unauthorized paths across Windows and POSIX.
+   */
+  validatePath(relativePath) {
+    if (!relativePath || typeof relativePath !== 'string') return false;
+    const str = String(relativePath).trim();
+    if (str.startsWith('/') || str.startsWith('\\') || /^[a-zA-Z]:/.test(str)) {
+      return false; // Absolute or root-relative path
+    }
+    const norm = normalize(str);
+    if (isAbsolute(norm) || norm.startsWith('..') || norm.startsWith(`..${normalize('/')}`)) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Scans discovered skills and builds auto-trigger lines for guardrails (c2).
+   */
+  generateAutotriggers(skills = []) {
+    const lines = [];
+    for (const skill of skills) {
+      if (skill.name && skill.description) {
+        lines.push(`- When ${skill.description}, load the ${skill.name} skill.`);
+      }
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * Validates that total always-on components (c1 + c2 + c3) do not exceed context window limits.
+   */
+  validateContextBudget(components = {}) {
+    let totalChars = 0;
+    for (const [key, content] of Object.entries(components)) {
+      if ([SURFACE_COMPONENTS.C1_SYSTEM_PROMPT, SURFACE_COMPONENTS.C2_GUARDRAILS, SURFACE_COMPONENTS.C3_LONG_TERM_MEMORY].includes(key)) {
+        totalChars += String(content || '').length;
+      }
+    }
+    return {
+      valid: totalChars <= this.alwaysOnMaxChars,
+      totalChars,
+      maxChars: this.alwaysOnMaxChars
+    };
+  }
+
+  /**
+   * Composes Invariant Probe and Domain Probe outputs into a unified refined Harness H*.
+   */
+  composeProbes({ invariantProbe = {}, domainProbe = {} } = {}) {
+    const verified = invariantProbe.testPassed === true;
+    return {
+      success: verified,
+      harness: {
+        codeChanges: domainProbe.codeChanges || [],
+        verifiers: invariantProbe.verifiers || [],
+        guardrails: [
+          ...(domainProbe.guardrails || []),
+          ...(invariantProbe.guardrails || [])
+        ],
+        skills: domainProbe.skills || []
+      },
+      summary: verified
+        ? 'Domain implementation verified against Invariant Probe verifiers.'
+        : 'Invariant verification failed. Refinements required.'
+    };
+  }
+
+  /**
+   * Saves an experience entry triple: { cue, lesson, evidence }
+   */
+  saveExperience({ domain = 'general', name, cue, lesson, evidence }) {
+    if (!cue || !lesson || !evidence) {
+      throw new Error('Experience entry must contain cue, lesson, and evidence.');
+    }
+    const cleanDomain = String(domain).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const cleanName = String(name || `exp-${Date.now().toString(36)}`).replace(/[^a-z0-9_-]/g, '-');
+    const targetDir = join(this.libraryDir, cleanDomain);
+    mkdirSync(targetDir, { recursive: true });
+
+    const content = `# EXPERIENCE ENTRY: ${cleanName}
+- **Cue:** ${cue}
+- **Lesson:** ${lesson}
+- **Evidence:** ${evidence}
+`;
+    const targetFile = join(targetDir, `${cleanName}.md`);
+    writeFileSync(targetFile, content, 'utf8');
+    return { saved: true, file: targetFile };
+  }
+
+  /**
+   * Loads all experiences for a given domain into a prompt-ready format.
+   */
+  loadExperiences(domain = 'general') {
+    const cleanDomain = String(domain).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const targetDir = join(this.libraryDir, cleanDomain);
+    if (!existsSync(targetDir)) return [];
+
+    const entries = [];
+    try {
+      const files = readdirSync(targetDir).filter((f) => f.endsWith('.md'));
+      for (const f of files) {
+        const text = readFileSync(join(targetDir, f), 'utf8');
+        entries.push(text);
+      }
+    } catch {}
+    return entries;
+  }
 }
 
 
@@ -2846,7 +3242,14 @@ class AgentMesh {
     }
 
     this._persistState();
-    this.onEvent({ type: 'agent_message', fromId, targetId, delivery: resolvedDelivery, message });
+    this.onEvent({
+      type: 'agent_message',
+      id: handoff.id,
+      fromId,
+      targetId,
+      delivery: resolvedDelivery,
+      message
+    });
 
     if (!wait || resolvedDelivery === 'queue') {
       return {
@@ -2859,14 +3262,121 @@ class AgentMesh {
     }
 
     const turnResult = await this.runAgentTurn(targetId, message, { fromId, depth });
+    const replyText = turnResult.summary || `Completed turn (${turnResult.outcome})`;
+    const replyHandoff = {
+      schema: 'neko.session-handoff/v1',
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+      fromAgentId: targetId,
+      targetAgentId: fromId,
+      delivery: 'send',
+      priority: false,
+      core: turnResult.harnessId ? `${turnResult.harnessId}:${turnResult.modelId || ''}` : null,
+      summary: replyText
+    };
+    this.handoffs.push(replyHandoff);
+    this._persistState();
+    this.onEvent({
+      type: 'team_step',
+      id: replyHandoff.id,
+      fromId: targetId,
+      targetId: fromId,
+      delivery: 'send',
+      message: replyText,
+      harnessId: turnResult.harnessId,
+      modelId: turnResult.modelId
+    });
+
     return {
       delivered: true,
       handoffId: handoff.id,
+      replyHandoffId: replyHandoff.id,
       status: turnResult.outcome,
-      reply: turnResult.summary,
+      reply: replyText,
       harnessId: turnResult.harnessId,
       modelId: turnResult.modelId
     };
+  }
+
+  /**
+   * Orchestrates a full multi-agent squad mission across @lead -> @coder -> @reviewer -> merge,
+   * streaming every inter-agent handoff in real time to the Messenger feed.
+   */
+  async runTeamMission({ goal, check = null } = {}) {
+    const coderBefore = this.agents.get('coder')?.toolCallCount || 0;
+    const reviewerBefore = this.agents.get('reviewer')?.toolCallCount || 0;
+    const checkNote = check ? `\nVerification command: \`${check}\`` : '';
+
+    // 1. Commander -> @lead (Architecture & Spec Decomposition)
+    const leadRes = await this.sendToAgent({
+      fromId: 'commander',
+      targetId: 'lead',
+      message: `${goal}${checkNote}\nInspect the project briefly and write a clear, actionable implementation specification for @coder.`,
+      delivery: 'send',
+      wait: true
+    });
+
+    // 2. @lead -> @coder (Isolated Git Worktree Implementation) if @lead didn't already invoke @coder inline
+    const coderAfterLead = this.agents.get('coder')?.toolCallCount || 0;
+    let coderRes = null;
+    if (coderAfterLead === coderBefore && this.agents.has('coder')) {
+      coderRes = await this.sendToAgent({
+        fromId: 'lead',
+        targetId: 'coder',
+        message: `Task Goal: ${goal}${checkNote}\n\nLead Specification:\n${leadRes.reply}\n\nImplement the requested changes and unit tests inside your isolated worktree.`,
+        delivery: 'send',
+        wait: true
+      });
+    }
+
+    // 3. @coder -> @reviewer (QA Verification & Diff Review)
+    const reviewerAfterCoder = this.agents.get('reviewer')?.toolCallCount || 0;
+    let verifyReport = '';
+    if (check) {
+      const vRes = this.worktreeManager.verify('coder', check);
+      verifyReport = `\n\nAutomated Worktree Check (\`${check}\`): ${vRes.passed ? 'PASSED (exit 0)' : 'FAILED (exit ' + vRes.exitCode + ')'}\nOutput:\n${(vRes.stdout || vRes.stderr || '').slice(-600)}`;
+    }
+    if (reviewerAfterCoder === reviewerBefore && this.agents.has('reviewer')) {
+      await this.sendToAgent({
+        fromId: 'coder',
+        targetId: 'reviewer',
+        message: `Implemented changes on branch \`botautotask/agent-coder\`.\nSummary:\n${coderRes ? coderRes.reply : leadRes.reply}${verifyReport}\n\nPlease review the implementation and confirm readiness to merge.`,
+        delivery: 'send',
+        wait: true
+      });
+    }
+
+    // 4. Auto-verify & merge @coder worktree into main branch
+    const mergeOut = this.worktreeManager.merge('coder', { verifyCmd: check || null });
+    const finalMsg = mergeOut.success
+      ? `[MISSION COMPLETE & MERGED] Branch \`botautotask/agent-coder\` passed verification and merged into main (commit: ${(mergeOut.sha || 'HEAD').slice(0, 7)}).`
+      : `[MISSION VERIFICATION NOTE] Worktree merge status: ${mergeOut.reason || 'skipped'} ${mergeOut.error ? '— ' + mergeOut.error.slice(0, 240) : ''}`;
+
+    const finalHandoff = {
+      schema: 'neko.session-handoff/v1',
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+      fromAgentId: 'lead',
+      targetAgentId: 'commander',
+      delivery: 'send',
+      priority: false,
+      core: 'worktree:merger',
+      summary: finalMsg
+    };
+    this.handoffs.push(finalHandoff);
+    this._persistState();
+    this.onEvent({
+      type: 'team_step',
+      id: finalHandoff.id,
+      fromId: 'lead',
+      targetId: 'commander',
+      delivery: 'send',
+      message: finalMsg,
+      harnessId: 'worktree',
+      modelId: 'merger'
+    });
+
+    return { ok: mergeOut.success, mergeOut, leadRes, coderRes };
   }
 
   /**
@@ -2881,6 +3391,8 @@ class AgentMesh {
     agent.startedAtMs = Date.now();
     agent.toolCallCount += 1;
     agent._abortController = new AbortController();
+    this._persistState();
+    this.onEvent({ type: 'agent_status', agentId, status: 'running' });
 
     // Isolated Worktree for writers
     let runDir = this.workspaceDir;
@@ -3050,6 +3562,7 @@ class AgentMesh {
     agent.status = stepResult.outcome === OUTCOME.ERROR ? 'error' : 'idle';
     agent.recentActivity.push(`Completed turn (${stepResult.outcome})`);
     this._persistState();
+    this.onEvent({ type: 'agent_status', agentId, status: agent.status });
 
     return {
       ...stepResult,
@@ -3523,8 +4036,14 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px;
     width: 2px; background: var(--fg); border-radius: 2px;
   }
+  .chan-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .chan-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .chan .hash { font-family: var(--mono); font-size: 0.78rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chan .sub { font-size: 0.68rem; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chan .sub { font-size: 0.66rem; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .role-pill {
+    font-family: var(--mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0 4px; border-radius: 3px; border: 1px solid var(--line-2); color: var(--fg-3); flex-shrink: 0;
+  }
 
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--idle); flex-shrink: 0; position: relative; }
   .dot.running { background: var(--ok); }
@@ -3534,7 +4053,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   }
   .dot.queued, .dot.composing { background: var(--warn); }
   .dot.stale { background: #8a8a8a; }
-  .dot.error { background: var(--err); }
+  .dot.error, .dot.aborted { background: var(--err); }
   @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(1.6); opacity: 0; } }
 
   .badge {
@@ -3561,6 +4080,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   .conn { display: inline-flex; align-items: center; gap: 6px; }
   .conn-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--err); }
   .conn.LIVE .conn-dot { background: var(--ok); }
+  .conn.POLLING .conn-dot { background: var(--warn); }
   .conn.CONNECTING .conn-dot, .conn.DISCONNECTED .conn-dot { background: var(--err); }
 
   /* ─── CHAT COLUMN ─── */
@@ -3572,7 +4092,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   }
   .ch-id { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1; }
   .ch-title { font-weight: 650; font-size: 0.9rem; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ch-sub { font-family: var(--mono); font-size: 0.62rem; color: var(--fg-3); white-space: nowrap; }
+  .ch-sub { font-family: var(--mono); font-size: 0.62rem; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ch-actions { display: flex; align-items: center; gap: 8px; }
 
   .core-sel {
@@ -3611,20 +4131,21 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   .chip b { color: var(--fg); font-weight: 600; }
   .chip .go { color: var(--fg-3); font-family: var(--mono); font-size: 0.7rem; }
 
-  .day-sep { display: flex; align-items: center; gap: 12px; margin: 18px 0; }
+  .day-sep { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; }
   .day-sep::before, .day-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-  .day-sep span { font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3); letter-spacing: 0.1em; }
+  .day-sep span { font-family: var(--mono); font-size: 0.58rem; color: var(--fg-3); letter-spacing: 0.1em; }
 
-  .msg { display: flex; flex-direction: column; margin-bottom: 16px; max-width: 76%; }
+  .msg { display: flex; flex-direction: column; margin-bottom: 16px; max-width: 78%; }
   .msg.out { margin-left: auto; align-items: flex-end; }
   .msg-meta {
     font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3);
-    display: flex; align-items: center; gap: 7px; margin-bottom: 5px; letter-spacing: 0.02em;
+    display: flex; align-items: center; gap: 7px; margin-bottom: 5px; letter-spacing: 0.02em; flex-wrap: wrap;
   }
-  .msg-meta .who { color: var(--fg-2); }
+  .msg-meta .who { color: var(--fg-2); font-weight: 600; }
   .msg-meta .deliv { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
   .msg-meta .deliv.interrupt { color: var(--err); border-color: rgba(239,68,68,0.4); }
-  .msg-meta .deliv.queue { color: var(--fg-3); }
+  .msg-meta .deliv.queue { color: var(--warn); border-color: rgba(229,177,19,0.35); }
+  .msg-meta .core-tag { background: var(--panel-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 5px; color: var(--fg-2); }
   .bubble {
     background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 12px; padding: 10px 13px; font-size: 0.84rem; line-height: 1.55;
@@ -3635,6 +4156,11 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   .bubble .quote {
     margin-top: 8px; padding: 7px 10px; border-left: 2px solid var(--line-2);
     color: var(--fg-2); font-size: 0.78rem; border-radius: 0 6px 6px 0; background: rgba(255,255,255,0.02);
+  }
+  .live-activity {
+    display: flex; align-items: center; gap: 9px; padding: 9px 13px; margin-top: 4px;
+    border: 1px dashed var(--line-2); border-radius: 10px; background: var(--panel);
+    font-family: var(--mono); font-size: 0.68rem; color: var(--fg-2); max-width: 78%;
   }
 
   .new-pill {
@@ -3661,7 +4187,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   }
   .check-in {
     font-family: var(--mono); font-size: 0.68rem; color: var(--fg-3);
-    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; width: 148px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; width: 168px;
   }
   .check-in:focus { color: var(--fg-2); border-color: var(--line-2); }
   .tgt-sel {
@@ -3698,6 +4224,11 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     background: var(--panel); overflow-y: auto; display: flex; flex-direction: column;
   }
   .tele.hidden { display: none; }
+  .tele-head {
+    height: 54px; flex-shrink: 0; padding: 0 16px; border-bottom: 1px solid var(--line);
+    display: none; align-items: center; justify-content: space-between;
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; color: var(--fg-2);
+  }
   .tsec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
   .tsec h3 {
     font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em;
@@ -3752,6 +4283,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   .mobnav { display: none; }
   @media (max-width: 1149px) {
     .tele { position: fixed; inset: 0; width: 100%; z-index: 30; display: none; }
+    .tele-head { display: flex; }
     .app.mob-insp .tele { display: flex; }
   }
   @media (max-width: 760px) {
@@ -3770,7 +4302,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     }
     .mobnav button.active { color: var(--fg); }
     .composer-wrap { padding-bottom: calc(12px + 52px); }
-    .msg { max-width: 92%; }
+    .msg, .live-activity { max-width: 92%; }
     .tele-toggle { display: none; }
   }
 </style>
@@ -3798,7 +4330,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
       Add specialist
     </button>
     <div class="sb-foot">
-      <span class="conn DISCONNECTED" id="connPill"><span class="conn-dot"></span><span id="sseText">CONNECTING</span></span>
+      <span class="conn CONNECTING" id="connPill"><span class="conn-dot"></span><span id="sseText">CONNECTING</span></span>
       <span id="seqPill">—</span>
     </div>
   </aside>
@@ -3819,6 +4351,10 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
 
   <!-- ══ TELEMETRY RAIL ══ -->
   <aside class="tele" id="teleEl">
+    <div class="tele-head">
+      <span>TELEMETRY & WORKTREES</span>
+      <button class="gbtn" onclick="closeTelemetry()">Close ×</button>
+    </div>
     <div class="tsec">
       <h3><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>WORKTREES</h3>
       <div id="worktreeList"></div>
@@ -3893,6 +4429,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
 
   let currentChannel = 'all';
   let currentDelivery = 'send';
+  let currentVerifyCmd = 'npm test';
   let agentsCache = [];
   let feedItems = [];
   let unreadMap = {};
@@ -3900,10 +4437,11 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   let stopAllArmed = false;
   let pendingScroll = false;
   let lastStateOkTs = 0;
+  let sseState = 'CONNECTING';
 
   const SVG = {
     send: '<svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
-    stop: '<svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="6" y1="6" width="12" height="12" rx="2"/></svg>',
+    stop: '<svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     bolt: '<svg class="ico ico-sm" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
     branch: '<svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
     arrowRight: '<svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'
@@ -3953,17 +4491,16 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     return fetch(path, { ...opts, headers });
   }
 
-  // 2. Live SSE stream with replay
+  // 2. Live SSE stream with replay & honest POLLING fallback
   function setConnState(state, seq) {
+    sseState = state;
     const pill = document.getElementById('connPill');
     let label = state;
-    // Honest fallback: if the live stream is down but state polling still works,
-    // show POLLING instead of a scary DISCONNECTED.
-    if (state === 'DISCONNECTED' && Date.now() - lastStateOkTs < 9000) {
+    if (state !== 'LIVE' && lastStateOkTs > 0 && Date.now() - lastStateOkTs < 9000) {
       label = 'POLLING';
     }
     document.getElementById('sseText').innerText = label;
-    pill.className = 'conn ' + state;
+    pill.className = 'conn ' + label;
     if (seq !== undefined) {
       document.getElementById('seqPill').innerText = '#' + seq;
     }
@@ -3993,13 +4530,13 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     const p = frame.payload || {};
     if (frame.family === 'agent_message' || frame.family === 'agent_steered' || frame.family === 'team_step') {
       pushTimelineEvent({
-        id: 'evt-' + frame.seq,
+        id: p.id || ('evt-' + frame.seq),
         from: p.fromId || p.from || 'commander',
         to: p.targetId || p.agentId || 'all',
         delivery: p.delivery || (p.priority ? 'interrupt' : 'send'),
         message: p.message || p.summary || '',
         reply: p.reply || null,
-        core: p.harnessId ? (p.harnessId + ':' + (p.modelId || '')) : null,
+        core: p.harnessId ? (p.harnessId + ':' + (p.modelId || '')) : (p.core || null),
         ts: new Date().toLocaleTimeString()
       });
     }
@@ -4018,7 +4555,14 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     }
   }
 
+  function hasDuplicateItem(item) {
+    if (item.id && feedItems.some((x) => x.id === item.id)) return true;
+    const recent = feedItems.slice(-4);
+    return recent.some((x) => x.from === item.from && x.to === item.to && x.message === item.message);
+  }
+
   function pushTimelineEvent(item) {
+    if (hasDuplicateItem(item)) return;
     feedItems.push(item);
     if (feedItems.length > 300) feedItems.shift();
     bumpUnread(item);
@@ -4028,30 +4572,47 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     renderThread();
   }
 
-  // 3. State snapshot
+  // 3. State snapshot (merges new handoffs continuously so POLLING mode never misses messages)
   async function refreshState() {
     try {
       const res = await api('/api/state');
       if (!res.ok) return;
       const data = await res.json();
       lastStateOkTs = Date.now();
+      if (sseState !== 'LIVE') setConnState(sseState);
+
       agentsCache = data.agents || [];
       renderRoster(agentsCache);
       renderHeader();
       renderWorktrees(agentsCache);
       renderAuthAndIde(data.auth || {}, data.latestIdeLog);
-      if (Array.isArray(data.handoffs) && feedItems.length === 0 && data.handoffs.length > 0) {
-        feedItems = data.handoffs.map((h) => ({
-          id: h.id,
-          from: h.fromAgentId,
-          to: h.targetAgentId,
-          delivery: h.delivery || (h.priority ? 'interrupt' : 'send'),
-          message: h.summary,
-          reply: null,
-          ts: new Date(h.createdAt).toLocaleTimeString()
-        }));
-        document.getElementById('totalHandoffsBadge').innerText = String(feedItems.length);
-        renderThread();
+
+      if (Array.isArray(data.handoffs) && data.handoffs.length > 0) {
+        let added = false;
+        for (const h of data.handoffs) {
+          const candidate = {
+            id: h.id,
+            from: h.fromAgentId,
+            to: h.targetAgentId,
+            delivery: h.delivery || (h.priority ? 'interrupt' : 'send'),
+            message: h.summary,
+            reply: null,
+            core: h.core || null,
+            ts: new Date(h.createdAt).toLocaleTimeString()
+          };
+          if (!hasDuplicateItem(candidate)) {
+            feedItems.push(candidate);
+            added = true;
+          }
+        }
+        if (added) {
+          if (feedItems.length > 300) feedItems = feedItems.slice(-300);
+          document.getElementById('totalHandoffsBadge').innerText = String(feedItems.length);
+          document.getElementById('totalHandoffsBadge').classList.toggle('hidden', false);
+          renderThread();
+        } else {
+          renderThread();
+        }
       } else if (feedItems.length === 0) {
         renderThread();
       }
@@ -4059,8 +4620,12 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   }
 
   function statusOf(a) {
-    const isStale = a.status === 'running' && a.elapsedMs > 90000;
-    return isStale ? 'stale' : (a.status || 'idle');
+    if (a.status === 'running') {
+      return a.elapsedMs > 90000 ? 'stale' : 'running';
+    }
+    if (a.status === 'error' || a.status === 'aborted') return 'error';
+    if ((a.inboxCount || 0) > 0 || (a.pendingSteers || 0) > 0) return 'queued';
+    return a.status || 'idle';
   }
 
   function renderRoster(agents) {
@@ -4071,18 +4636,27 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
       const elapsed = a.status === 'running' && a.elapsedMs ? Math.round(a.elapsedMs / 1000) + 's' : '';
       const unread = unreadMap[a.id] || 0;
       const selected = currentChannel === a.id;
+      const roleLabel = a.id === 'lead' ? 'lead' : (a.role || 'writer');
+      const lastAct = Array.isArray(a.recentActivity) && a.recentActivity.length > 0
+        ? a.recentActivity[a.recentActivity.length - 1]
+        : (a.name || a.preferredCore || 'idle');
       return \`
         <div class="chan \${selected ? 'active' : ''}" onclick="selectChannel('\${esc(a.id)}')">
           <span class="dot \${esc(st)}"></span>
-          <span class="hash">@\${esc(a.id)}</span>
-          \${unread ? '<span class="badge">' + unread + '</span>' : (elapsed ? '<span class="sub">' + elapsed + '</span>' : '')}
+          <div class="chan-body">
+            <div class="chan-row">
+              <span class="hash">@\${esc(a.id)}</span>
+              <span class="role-pill">\${esc(roleLabel)}</span>
+              \${unread ? '<span class="badge">' + unread + '</span>' : (elapsed ? '<span class="sub mono">' + elapsed + '</span>' : '')}
+            </div>
+            <div class="sub">\${esc(lastAct)}</div>
+          </div>
         </div>\`;
     }).join('');
   }
 
   function renderHeader() {
     const head = document.getElementById('chatHead');
-    // Don't wipe the header while the user is interacting with a control inside it
     const active = document.activeElement;
     if (active && head.contains(active) && active.tagName === 'SELECT') return;
     if (currentChannel === 'all') {
@@ -4090,9 +4664,9 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
       head.innerHTML = \`
         <div class="ch-id">
           <span class="dot \${running > 0 ? 'running' : ''}"></span>
-          <div>
+          <div style="min-width:0">
             <div class="ch-title">#mesh-command-room</div>
-            <div class="ch-sub">\${agentsCache.length} agents · all inter-agent handoffs & tool calls</div>
+            <div class="ch-sub">\${agentsCache.length} agents · \${running > 0 ? running + ' running now · ' : ''}all inter-agent handoffs & tool calls</div>
           </div>
         </div>
         <div class="ch-actions">
@@ -4126,7 +4700,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
         <select class="core-sel" onchange="changeAgentCore('\${esc(a.id)}', this.value)" title="Hot-swap AI core / model">
           \${coreOpts}
         </select>
-        \${isWriter ? \`<button class="gbtn" onclick="mergeAgentWorktree('\${esc(a.id)}')" title="Verify & merge isolated worktree into main">\${SVG.branch} Merge</button>\` : ''}
+        \${isWriter ? \`<button class="gbtn" onclick="mergeAgentWorktree('\${esc(a.id)}')" title="Verify (\${esc(currentVerifyCmd)}) & merge isolated worktree into main">\${SVG.branch} Merge</button>\` : ''}
         <button class="gbtn \${isArmed ? 'danger-armed' : ''}" onclick="armOrStopAgent('\${esc(a.id)}')">
           \${SVG.stop}<span>\${isArmed ? 'Confirm (3s)' : 'Stop'}</span>
         </button>
@@ -4144,15 +4718,19 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     const el = document.getElementById('threadEl');
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
     const items = filteredFeed();
+    const runningAgents = agentsCache.filter(
+      (a) => a.status === 'running' && (currentChannel === 'all' || a.id === currentChannel)
+    );
 
-    if (items.length === 0) {
+    if (items.length === 0 && runningAgents.length === 0) {
       el.innerHTML = currentChannel === 'all' ? renderHero() : renderAgentEmpty();
       pendingScroll = false;
       updateNewPill(0);
       return;
     }
 
-    el.innerHTML = items.map((item) => {
+    const sepHtml = '<div class="day-sep"><span>SESSION TRANSCRIPT · HANDOFF PROTOCOL v1</span></div>';
+    const msgsHtml = items.map((item) => {
       const mine = item.from === 'commander';
       const system = item.to === 'main-branch' || item.from === 'main-branch';
       return \`
@@ -4162,12 +4740,26 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
             \${SVG.arrowRight}
             <span class="who">@\${esc(item.to)}</span>
             <span class="deliv \${esc(item.delivery || 'send')}">\${esc(item.delivery || 'send')}</span>
-            \${item.core ? '<span>' + esc(item.core) + '</span>' : ''}
+            \${item.core ? '<span class="core-tag">' + esc(item.core) + '</span>' : ''}
             <span>\${esc(item.ts)}</span>
           </div>
           <div class="bubble">\${esc(item.message)}\${item.reply ? '<div class="quote">' + esc(item.reply) + '</div>' : ''}</div>
         </div>\`;
     }).join('');
+
+    const runningHtml = runningAgents.map((a) => {
+      const sec = a.elapsedMs ? Math.round(a.elapsedMs / 1000) + 's' : '0s';
+      const act = Array.isArray(a.recentActivity) && a.recentActivity.length > 0
+        ? a.recentActivity[a.recentActivity.length - 1]
+        : 'Executing agent turn…';
+      return \`
+        <div class="live-activity">
+          <span class="dot running"></span>
+          <span><b>@\${esc(a.id)}</b> (\${sec}) — \${esc(act)}</span>
+        </div>\`;
+    }).join('');
+
+    el.innerHTML = sepHtml + msgsHtml + runningHtml;
 
     if (nearBottom || pendingScroll) {
       el.scrollTop = el.scrollHeight;
@@ -4227,7 +4819,9 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     const t = TEMPLATES[idx] || TEMPLATES[0];
     const input = document.getElementById('composerInput');
     input.value = t.goal;
-    document.getElementById('checkInput').value = t.check;
+    currentVerifyCmd = t.check;
+    const checkEl = document.getElementById('checkInput');
+    if (checkEl) checkEl.value = t.check;
     autoGrow(input);
     input.focus();
   }
@@ -4246,16 +4840,20 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     el.style.height = Math.min(el.scrollHeight, 150) + 'px';
   }
 
+  function syncVerifyCmd(val) {
+    currentVerifyCmd = String(val || '').trim();
+  }
+
   function renderComposerRow() {
     const row = document.getElementById('compRow');
     const input = document.getElementById('composerInput');
     if (currentChannel === 'all') {
       input.placeholder = 'Describe the mission for the squad — @lead will coordinate @coder and @reviewer…';
       row.innerHTML = \`
-        <input class="check-in" id="checkInput" placeholder="verify: npm test" value="npm test" title="Verification command required before completion"/>
+        <input class="check-in" id="checkInput" placeholder="verify: npm test" value="\${esc(currentVerifyCmd)}" oninput="syncVerifyCmd(this.value)" title="Verification command required before completion"/>
         <button class="sendbtn" id="sendBtn" onclick="submitComposer()" title="Dispatch mission">\${SVG.send}</button>\`;
       document.getElementById('compHint').innerHTML =
-        '<b>Enter</b> dispatch mission · mission goes to @lead · failure hands over to next free core';
+        '<b>Enter</b> dispatch mission · @lead → @coder (worktree) → @reviewer · auto-failover on 429';
     } else {
       input.placeholder = 'Message @' + esc(currentChannel) + ' — direct instruction, course correction, or handoff…';
       const agents = agentsCache.length ? agentsCache : [{ id: currentChannel, name: currentChannel }];
@@ -4268,6 +4866,7 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
           <button id="modeInterrupt" class="\${currentDelivery === 'interrupt' ? 'active' : ''}" onclick="setDeliveryMode('interrupt')">INTERRUPT</button>
           <button id="modeQueue" class="\${currentDelivery === 'queue' ? 'active' : ''}" onclick="setDeliveryMode('queue')">QUEUE</button>
         </div>
+        <input class="check-in" id="checkInput" placeholder="verify cmd (optional)" value="\${esc(currentVerifyCmd)}" oninput="syncVerifyCmd(this.value)" title="Verification command used when merging worktree"/>
         <label class="wait-toggle" title="Run a full agent turn and stream the reply back"><input type="checkbox" id="dockRunTurn" checked/>run turn</label>
         <button class="sendbtn" id="sendBtn" onclick="submitComposer()" title="Transmit">\${SVG.send}</button>\`;
       document.getElementById('compHint').innerHTML =
@@ -4295,7 +4894,9 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     if (!text) return;
 
     if (currentChannel === 'all') {
-      const check = document.getElementById('checkInput').value.trim() || null;
+      const checkEl = document.getElementById('checkInput');
+      if (checkEl) currentVerifyCmd = checkEl.value.trim();
+      const check = currentVerifyCmd || null;
       input.value = '';
       autoGrow(input);
       await launchTeamMission(text, check);
@@ -4347,6 +4948,8 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
 
   // 5. Channel & controls
   function selectChannel(chanId) {
+    const checkEl = document.getElementById('checkInput');
+    if (checkEl) currentVerifyCmd = checkEl.value.trim();
     currentChannel = chanId;
     unreadMap[chanId] = 0;
     document.getElementById('chanAll').className = 'chan' + (chanId === 'all' ? ' active' : '');
@@ -4405,7 +5008,8 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
 
   async function mergeAgentWorktree(agentId) {
     const checkEl = document.getElementById('checkInput');
-    const verifyCmd = (checkEl && checkEl.value.trim()) || 'npm test';
+    if (checkEl) currentVerifyCmd = checkEl.value.trim();
+    const verifyCmd = currentVerifyCmd || null;
     const res = await api('/api/agents/' + encodeURIComponent(agentId) + '/merge', {
       method: 'POST',
       body: JSON.stringify({ nonce: makeNonce(), verifyCmd })
@@ -4432,6 +5036,15 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
     }
     const el = document.getElementById('teleEl');
     el.classList.toggle('hidden');
+  }
+
+  function closeTelemetry() {
+    document.getElementById('appEl').classList.remove('mob-insp');
+    if (window.innerWidth >= 1150) {
+      document.getElementById('teleEl').classList.add('hidden');
+    } else {
+      setMobileView('comms');
+    }
   }
 
   // 6. Telemetry rail
@@ -4523,13 +5136,13 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
   renderComposerRow();
   renderHeader();
   connectStream();
-  setInterval(() => { if (!document.hidden) refreshState(); }, 5000);
-  // Watchdog: a suspended/killed webview can leave the EventSource in CLOSED state
-  // (native auto-retry only covers CONNECTING), and some embedded webviews stall the
-  // retry loop entirely — force a fresh connection while the pill says DISCONNECTED.
+  refreshState();
   setInterval(() => {
-    const dis = document.getElementById('sseText').textContent === 'DISCONNECTED';
-    if (!esHandle || esHandle.readyState === 2 || dis) connectStream();
+    if (!document.hidden) refreshState();
+  }, 2500);
+  // Watchdog: reconnect whenever sseState !== 'LIVE' (including when displaying POLLING) or EventSource is CLOSED
+  setInterval(() => {
+    if (!esHandle || esHandle.readyState === 2 || sseState !== 'LIVE') connectStream();
   }, 5000);
 </script>
 </body>
@@ -4546,7 +5159,6 @@ function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUrl = '' 
  */
 
 
-export { renderDashboardHtml };
 
 class LocalWebUiServer {
   constructor({ mesh, port = 8765, token = null } = {}) {
@@ -4765,16 +5377,6 @@ class LocalWebUiServer {
                 delivery: body.delivery || 'send',
                 wait: true
               })
-              .then((turnOut) => {
-                this.broadcastEvent('team_step', {
-                  fromId: targetId,
-                  targetId: 'commander',
-                  delivery: 'send',
-                  message: turnOut.reply || `Completed (${turnOut.status})`,
-                  harnessId: turnOut.harnessId,
-                  modelId: turnOut.modelId
-                });
-              })
               .catch((err) => {
                 this.broadcastEvent('team_step', {
                   fromId: targetId,
@@ -4870,7 +5472,7 @@ class LocalWebUiServer {
         return;
       }
 
-      // 10. POST /api/team/start — Dispatch autonomous squad mission to @lead
+      // 10. POST /api/team/start — Dispatch autonomous squad mission (@lead -> @coder -> @reviewer -> merge)
       if (req.method === 'POST' && url.pathname === '/api/team/start') {
         const body = await readJson().catch(() => ({}));
         if (this._checkDuplicateNonce(body.nonce, res)) return;
@@ -4881,33 +5483,25 @@ class LocalWebUiServer {
         }
 
         if (this.mesh) {
-          const checkNote = body.check ? `\nVerification command required before completion: \`${body.check}\`` : '';
-          this.mesh
-            .sendToAgent({
-              fromId: 'commander',
-              targetId: 'lead',
-              message: `${goal}${checkNote}\nCoordinate with @coder and @reviewer to implement, test, and verify.`,
-              delivery: 'send',
-              wait: true
-            })
-            .then((turnOut) => {
-              this.broadcastEvent('team_step', {
-                fromId: 'lead',
-                targetId: 'commander',
-                delivery: 'send',
-                message: turnOut.reply || `Mission step finished (${turnOut.status})`,
-                harnessId: turnOut.harnessId,
-                modelId: turnOut.modelId
-              });
-            })
-            .catch((err) => {
-              this.broadcastEvent('team_step', {
-                fromId: 'lead',
-                targetId: 'commander',
-                delivery: 'interrupt',
-                message: `Squad execution error: ${err.message}`
-              });
+          const runFn = typeof this.mesh.runTeamMission === 'function'
+            ? () => this.mesh.runTeamMission({ goal, check: body.check || null })
+            : () =>
+                this.mesh.sendToAgent({
+                  fromId: 'commander',
+                  targetId: 'lead',
+                  message: `${goal}\nCoordinate with @coder and @reviewer to implement, test, and verify.`,
+                  delivery: 'send',
+                  wait: true
+                });
+
+          runFn().catch((err) => {
+            this.broadcastEvent('team_step', {
+              fromId: 'lead',
+              targetId: 'commander',
+              delivery: 'interrupt',
+              message: `Squad execution error: ${err.message}`
             });
+          });
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ status: 'dispatched', goal }));

@@ -467,7 +467,14 @@ export class AgentMesh {
     }
 
     this._persistState();
-    this.onEvent({ type: 'agent_message', fromId, targetId, delivery: resolvedDelivery, message });
+    this.onEvent({
+      type: 'agent_message',
+      id: handoff.id,
+      fromId,
+      targetId,
+      delivery: resolvedDelivery,
+      message
+    });
 
     if (!wait || resolvedDelivery === 'queue') {
       return {
@@ -480,14 +487,121 @@ export class AgentMesh {
     }
 
     const turnResult = await this.runAgentTurn(targetId, message, { fromId, depth });
+    const replyText = turnResult.summary || `Completed turn (${turnResult.outcome})`;
+    const replyHandoff = {
+      schema: 'neko.session-handoff/v1',
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+      fromAgentId: targetId,
+      targetAgentId: fromId,
+      delivery: 'send',
+      priority: false,
+      core: turnResult.harnessId ? `${turnResult.harnessId}:${turnResult.modelId || ''}` : null,
+      summary: replyText
+    };
+    this.handoffs.push(replyHandoff);
+    this._persistState();
+    this.onEvent({
+      type: 'team_step',
+      id: replyHandoff.id,
+      fromId: targetId,
+      targetId: fromId,
+      delivery: 'send',
+      message: replyText,
+      harnessId: turnResult.harnessId,
+      modelId: turnResult.modelId
+    });
+
     return {
       delivered: true,
       handoffId: handoff.id,
+      replyHandoffId: replyHandoff.id,
       status: turnResult.outcome,
-      reply: turnResult.summary,
+      reply: replyText,
       harnessId: turnResult.harnessId,
       modelId: turnResult.modelId
     };
+  }
+
+  /**
+   * Orchestrates a full multi-agent squad mission across @lead -> @coder -> @reviewer -> merge,
+   * streaming every inter-agent handoff in real time to the Messenger feed.
+   */
+  async runTeamMission({ goal, check = null } = {}) {
+    const coderBefore = this.agents.get('coder')?.toolCallCount || 0;
+    const reviewerBefore = this.agents.get('reviewer')?.toolCallCount || 0;
+    const checkNote = check ? `\nVerification command: \`${check}\`` : '';
+
+    // 1. Commander -> @lead (Architecture & Spec Decomposition)
+    const leadRes = await this.sendToAgent({
+      fromId: 'commander',
+      targetId: 'lead',
+      message: `${goal}${checkNote}\nInspect the project briefly and write a clear, actionable implementation specification for @coder.`,
+      delivery: 'send',
+      wait: true
+    });
+
+    // 2. @lead -> @coder (Isolated Git Worktree Implementation) if @lead didn't already invoke @coder inline
+    const coderAfterLead = this.agents.get('coder')?.toolCallCount || 0;
+    let coderRes = null;
+    if (coderAfterLead === coderBefore && this.agents.has('coder')) {
+      coderRes = await this.sendToAgent({
+        fromId: 'lead',
+        targetId: 'coder',
+        message: `Task Goal: ${goal}${checkNote}\n\nLead Specification:\n${leadRes.reply}\n\nImplement the requested changes and unit tests inside your isolated worktree.`,
+        delivery: 'send',
+        wait: true
+      });
+    }
+
+    // 3. @coder -> @reviewer (QA Verification & Diff Review)
+    const reviewerAfterCoder = this.agents.get('reviewer')?.toolCallCount || 0;
+    let verifyReport = '';
+    if (check) {
+      const vRes = this.worktreeManager.verify('coder', check);
+      verifyReport = `\n\nAutomated Worktree Check (\`${check}\`): ${vRes.passed ? 'PASSED (exit 0)' : 'FAILED (exit ' + vRes.exitCode + ')'}\nOutput:\n${(vRes.stdout || vRes.stderr || '').slice(-600)}`;
+    }
+    if (reviewerAfterCoder === reviewerBefore && this.agents.has('reviewer')) {
+      await this.sendToAgent({
+        fromId: 'coder',
+        targetId: 'reviewer',
+        message: `Implemented changes on branch \`botautotask/agent-coder\`.\nSummary:\n${coderRes ? coderRes.reply : leadRes.reply}${verifyReport}\n\nPlease review the implementation and confirm readiness to merge.`,
+        delivery: 'send',
+        wait: true
+      });
+    }
+
+    // 4. Auto-verify & merge @coder worktree into main branch
+    const mergeOut = this.worktreeManager.merge('coder', { verifyCmd: check || null });
+    const finalMsg = mergeOut.success
+      ? `[MISSION COMPLETE & MERGED] Branch \`botautotask/agent-coder\` passed verification and merged into main (commit: ${(mergeOut.sha || 'HEAD').slice(0, 7)}).`
+      : `[MISSION VERIFICATION NOTE] Worktree merge status: ${mergeOut.reason || 'skipped'} ${mergeOut.error ? '— ' + mergeOut.error.slice(0, 240) : ''}`;
+
+    const finalHandoff = {
+      schema: 'neko.session-handoff/v1',
+      id: randomUUID(),
+      createdAt: new Date().toISOString(),
+      fromAgentId: 'lead',
+      targetAgentId: 'commander',
+      delivery: 'send',
+      priority: false,
+      core: 'worktree:merger',
+      summary: finalMsg
+    };
+    this.handoffs.push(finalHandoff);
+    this._persistState();
+    this.onEvent({
+      type: 'team_step',
+      id: finalHandoff.id,
+      fromId: 'lead',
+      targetId: 'commander',
+      delivery: 'send',
+      message: finalMsg,
+      harnessId: 'worktree',
+      modelId: 'merger'
+    });
+
+    return { ok: mergeOut.success, mergeOut, leadRes, coderRes };
   }
 
   /**
@@ -502,6 +616,8 @@ export class AgentMesh {
     agent.startedAtMs = Date.now();
     agent.toolCallCount += 1;
     agent._abortController = new AbortController();
+    this._persistState();
+    this.onEvent({ type: 'agent_status', agentId, status: 'running' });
 
     // Isolated Worktree for writers
     let runDir = this.workspaceDir;
@@ -671,6 +787,7 @@ export class AgentMesh {
     agent.status = stepResult.outcome === OUTCOME.ERROR ? 'error' : 'idle';
     agent.recentActivity.push(`Completed turn (${stepResult.outcome})`);
     this._persistState();
+    this.onEvent({ type: 'agent_status', agentId, status: agent.status });
 
     return {
       ...stepResult,

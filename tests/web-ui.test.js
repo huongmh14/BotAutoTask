@@ -19,12 +19,19 @@ test('LocalWebUiServer serves Tactical Coworker HTML, enforces auth/DNS-rebindin
   try {
     const baseUrl = `http://127.0.0.1:${ui.port}`;
 
-    // 1. GET / serves Tactical Coworker Command Center HTML
+    // 1. GET / serves Tactical Coworker Command Center HTML with PR #1 regression fixes
     const htmlRes = await fetch(`${baseUrl}/`);
     assert.equal(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.match(html, /BotAutoTask — Tactical Coworker Mesh/);
     assert.match(html, /#mesh-command-room/);
+    assert.match(html, /<rect x="6" y="6" width="12" height="12" rx="2"\/>/);
+    assert.doesNotMatch(html, /y1="6"/);
+    assert.match(html, /\.conn\.POLLING \.conn-dot/);
+    assert.match(html, /sseState !== 'LIVE'/);
+    assert.match(html, /function closeTelemetry\(\)/);
+    assert.match(html, /currentVerifyCmd/);
+    assert.match(html, /hasDuplicateItem/);
 
     // 2. GET /api/state rejects unauthorized requests
     const unauthRes = await fetch(`${baseUrl}/api/state`);

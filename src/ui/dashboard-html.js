@@ -102,8 +102,14 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px;
     width: 2px; background: var(--fg); border-radius: 2px;
   }
+  .chan-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .chan-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .chan .hash { font-family: var(--mono); font-size: 0.78rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chan .sub { font-size: 0.68rem; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chan .sub { font-size: 0.66rem; color: var(--fg-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .role-pill {
+    font-family: var(--mono); font-size: 0.54rem; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0 4px; border-radius: 3px; border: 1px solid var(--line-2); color: var(--fg-3); flex-shrink: 0;
+  }
 
   .dot { width: 7px; height: 7px; border-radius: 999px; background: var(--idle); flex-shrink: 0; position: relative; }
   .dot.running { background: var(--ok); }
@@ -113,7 +119,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   }
   .dot.queued, .dot.composing { background: var(--warn); }
   .dot.stale { background: #8a8a8a; }
-  .dot.error { background: var(--err); }
+  .dot.error, .dot.aborted { background: var(--err); }
   @keyframes pulse { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(1.6); opacity: 0; } }
 
   .badge {
@@ -140,6 +146,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   .conn { display: inline-flex; align-items: center; gap: 6px; }
   .conn-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--err); }
   .conn.LIVE .conn-dot { background: var(--ok); }
+  .conn.POLLING .conn-dot { background: var(--warn); }
   .conn.CONNECTING .conn-dot, .conn.DISCONNECTED .conn-dot { background: var(--err); }
 
   /* ─── CHAT COLUMN ─── */
@@ -151,7 +158,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   }
   .ch-id { display: flex; align-items: center; gap: 11px; min-width: 0; flex: 1; }
   .ch-title { font-weight: 650; font-size: 0.9rem; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ch-sub { font-family: var(--mono); font-size: 0.62rem; color: var(--fg-3); white-space: nowrap; }
+  .ch-sub { font-family: var(--mono); font-size: 0.62rem; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ch-actions { display: flex; align-items: center; gap: 8px; }
 
   .core-sel {
@@ -190,20 +197,21 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   .chip b { color: var(--fg); font-weight: 600; }
   .chip .go { color: var(--fg-3); font-family: var(--mono); font-size: 0.7rem; }
 
-  .day-sep { display: flex; align-items: center; gap: 12px; margin: 18px 0; }
+  .day-sep { display: flex; align-items: center; gap: 12px; margin: 4px 0 18px; }
   .day-sep::before, .day-sep::after { content: ''; flex: 1; height: 1px; background: var(--line); }
-  .day-sep span { font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3); letter-spacing: 0.1em; }
+  .day-sep span { font-family: var(--mono); font-size: 0.58rem; color: var(--fg-3); letter-spacing: 0.1em; }
 
-  .msg { display: flex; flex-direction: column; margin-bottom: 16px; max-width: 76%; }
+  .msg { display: flex; flex-direction: column; margin-bottom: 16px; max-width: 78%; }
   .msg.out { margin-left: auto; align-items: flex-end; }
   .msg-meta {
     font-family: var(--mono); font-size: 0.6rem; color: var(--fg-3);
-    display: flex; align-items: center; gap: 7px; margin-bottom: 5px; letter-spacing: 0.02em;
+    display: flex; align-items: center; gap: 7px; margin-bottom: 5px; letter-spacing: 0.02em; flex-wrap: wrap;
   }
-  .msg-meta .who { color: var(--fg-2); }
+  .msg-meta .who { color: var(--fg-2); font-weight: 600; }
   .msg-meta .deliv { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
   .msg-meta .deliv.interrupt { color: var(--err); border-color: rgba(239,68,68,0.4); }
-  .msg-meta .deliv.queue { color: var(--fg-3); }
+  .msg-meta .deliv.queue { color: var(--warn); border-color: rgba(229,177,19,0.35); }
+  .msg-meta .core-tag { background: var(--panel-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 0 5px; color: var(--fg-2); }
   .bubble {
     background: var(--panel-2); border: 1px solid var(--line);
     border-radius: 12px; padding: 10px 13px; font-size: 0.84rem; line-height: 1.55;
@@ -214,6 +222,11 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   .bubble .quote {
     margin-top: 8px; padding: 7px 10px; border-left: 2px solid var(--line-2);
     color: var(--fg-2); font-size: 0.78rem; border-radius: 0 6px 6px 0; background: rgba(255,255,255,0.02);
+  }
+  .live-activity {
+    display: flex; align-items: center; gap: 9px; padding: 9px 13px; margin-top: 4px;
+    border: 1px dashed var(--line-2); border-radius: 10px; background: var(--panel);
+    font-family: var(--mono); font-size: 0.68rem; color: var(--fg-2); max-width: 78%;
   }
 
   .new-pill {
@@ -240,7 +253,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   }
   .check-in {
     font-family: var(--mono); font-size: 0.68rem; color: var(--fg-3);
-    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; width: 148px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; width: 168px;
   }
   .check-in:focus { color: var(--fg-2); border-color: var(--line-2); }
   .tgt-sel {
@@ -277,6 +290,11 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     background: var(--panel); overflow-y: auto; display: flex; flex-direction: column;
   }
   .tele.hidden { display: none; }
+  .tele-head {
+    height: 54px; flex-shrink: 0; padding: 0 16px; border-bottom: 1px solid var(--line);
+    display: none; align-items: center; justify-content: space-between;
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; color: var(--fg-2);
+  }
   .tsec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
   .tsec h3 {
     font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em;
@@ -331,6 +349,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   .mobnav { display: none; }
   @media (max-width: 1149px) {
     .tele { position: fixed; inset: 0; width: 100%; z-index: 30; display: none; }
+    .tele-head { display: flex; }
     .app.mob-insp .tele { display: flex; }
   }
   @media (max-width: 760px) {
@@ -349,7 +368,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     }
     .mobnav button.active { color: var(--fg); }
     .composer-wrap { padding-bottom: calc(12px + 52px); }
-    .msg { max-width: 92%; }
+    .msg, .live-activity { max-width: 92%; }
     .tele-toggle { display: none; }
   }
 </style>
@@ -377,7 +396,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
       Add specialist
     </button>
     <div class="sb-foot">
-      <span class="conn DISCONNECTED" id="connPill"><span class="conn-dot"></span><span id="sseText">CONNECTING</span></span>
+      <span class="conn CONNECTING" id="connPill"><span class="conn-dot"></span><span id="sseText">CONNECTING</span></span>
       <span id="seqPill">—</span>
     </div>
   </aside>
@@ -398,6 +417,10 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
 
   <!-- ══ TELEMETRY RAIL ══ -->
   <aside class="tele" id="teleEl">
+    <div class="tele-head">
+      <span>TELEMETRY & WORKTREES</span>
+      <button class="gbtn" onclick="closeTelemetry()">Close ×</button>
+    </div>
     <div class="tsec">
       <h3><svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>WORKTREES</h3>
       <div id="worktreeList"></div>
@@ -472,6 +495,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
 
   let currentChannel = 'all';
   let currentDelivery = 'send';
+  let currentVerifyCmd = 'npm test';
   let agentsCache = [];
   let feedItems = [];
   let unreadMap = {};
@@ -479,10 +503,11 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   let stopAllArmed = false;
   let pendingScroll = false;
   let lastStateOkTs = 0;
+  let sseState = 'CONNECTING';
 
   const SVG = {
     send: '<svg class="ico" viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
-    stop: '<svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="6" y1="6" width="12" height="12" rx="2"/></svg>',
+    stop: '<svg class="ico ico-sm" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
     bolt: '<svg class="ico ico-sm" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
     branch: '<svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>',
     arrowRight: '<svg class="ico ico-sm" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'
@@ -532,17 +557,16 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     return fetch(path, { ...opts, headers });
   }
 
-  // 2. Live SSE stream with replay
+  // 2. Live SSE stream with replay & honest POLLING fallback
   function setConnState(state, seq) {
+    sseState = state;
     const pill = document.getElementById('connPill');
     let label = state;
-    // Honest fallback: if the live stream is down but state polling still works,
-    // show POLLING instead of a scary DISCONNECTED.
-    if (state === 'DISCONNECTED' && Date.now() - lastStateOkTs < 9000) {
+    if (state !== 'LIVE' && lastStateOkTs > 0 && Date.now() - lastStateOkTs < 9000) {
       label = 'POLLING';
     }
     document.getElementById('sseText').innerText = label;
-    pill.className = 'conn ' + state;
+    pill.className = 'conn ' + label;
     if (seq !== undefined) {
       document.getElementById('seqPill').innerText = '#' + seq;
     }
@@ -572,13 +596,13 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     const p = frame.payload || {};
     if (frame.family === 'agent_message' || frame.family === 'agent_steered' || frame.family === 'team_step') {
       pushTimelineEvent({
-        id: 'evt-' + frame.seq,
+        id: p.id || ('evt-' + frame.seq),
         from: p.fromId || p.from || 'commander',
         to: p.targetId || p.agentId || 'all',
         delivery: p.delivery || (p.priority ? 'interrupt' : 'send'),
         message: p.message || p.summary || '',
         reply: p.reply || null,
-        core: p.harnessId ? (p.harnessId + ':' + (p.modelId || '')) : null,
+        core: p.harnessId ? (p.harnessId + ':' + (p.modelId || '')) : (p.core || null),
         ts: new Date().toLocaleTimeString()
       });
     }
@@ -597,7 +621,14 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     }
   }
 
+  function hasDuplicateItem(item) {
+    if (item.id && feedItems.some((x) => x.id === item.id)) return true;
+    const recent = feedItems.slice(-4);
+    return recent.some((x) => x.from === item.from && x.to === item.to && x.message === item.message);
+  }
+
   function pushTimelineEvent(item) {
+    if (hasDuplicateItem(item)) return;
     feedItems.push(item);
     if (feedItems.length > 300) feedItems.shift();
     bumpUnread(item);
@@ -607,30 +638,47 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     renderThread();
   }
 
-  // 3. State snapshot
+  // 3. State snapshot (merges new handoffs continuously so POLLING mode never misses messages)
   async function refreshState() {
     try {
       const res = await api('/api/state');
       if (!res.ok) return;
       const data = await res.json();
       lastStateOkTs = Date.now();
+      if (sseState !== 'LIVE') setConnState(sseState);
+
       agentsCache = data.agents || [];
       renderRoster(agentsCache);
       renderHeader();
       renderWorktrees(agentsCache);
       renderAuthAndIde(data.auth || {}, data.latestIdeLog);
-      if (Array.isArray(data.handoffs) && feedItems.length === 0 && data.handoffs.length > 0) {
-        feedItems = data.handoffs.map((h) => ({
-          id: h.id,
-          from: h.fromAgentId,
-          to: h.targetAgentId,
-          delivery: h.delivery || (h.priority ? 'interrupt' : 'send'),
-          message: h.summary,
-          reply: null,
-          ts: new Date(h.createdAt).toLocaleTimeString()
-        }));
-        document.getElementById('totalHandoffsBadge').innerText = String(feedItems.length);
-        renderThread();
+
+      if (Array.isArray(data.handoffs) && data.handoffs.length > 0) {
+        let added = false;
+        for (const h of data.handoffs) {
+          const candidate = {
+            id: h.id,
+            from: h.fromAgentId,
+            to: h.targetAgentId,
+            delivery: h.delivery || (h.priority ? 'interrupt' : 'send'),
+            message: h.summary,
+            reply: null,
+            core: h.core || null,
+            ts: new Date(h.createdAt).toLocaleTimeString()
+          };
+          if (!hasDuplicateItem(candidate)) {
+            feedItems.push(candidate);
+            added = true;
+          }
+        }
+        if (added) {
+          if (feedItems.length > 300) feedItems = feedItems.slice(-300);
+          document.getElementById('totalHandoffsBadge').innerText = String(feedItems.length);
+          document.getElementById('totalHandoffsBadge').classList.toggle('hidden', false);
+          renderThread();
+        } else {
+          renderThread();
+        }
       } else if (feedItems.length === 0) {
         renderThread();
       }
@@ -638,8 +686,12 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   }
 
   function statusOf(a) {
-    const isStale = a.status === 'running' && a.elapsedMs > 90000;
-    return isStale ? 'stale' : (a.status || 'idle');
+    if (a.status === 'running') {
+      return a.elapsedMs > 90000 ? 'stale' : 'running';
+    }
+    if (a.status === 'error' || a.status === 'aborted') return 'error';
+    if ((a.inboxCount || 0) > 0 || (a.pendingSteers || 0) > 0) return 'queued';
+    return a.status || 'idle';
   }
 
   function renderRoster(agents) {
@@ -650,18 +702,27 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
       const elapsed = a.status === 'running' && a.elapsedMs ? Math.round(a.elapsedMs / 1000) + 's' : '';
       const unread = unreadMap[a.id] || 0;
       const selected = currentChannel === a.id;
+      const roleLabel = a.id === 'lead' ? 'lead' : (a.role || 'writer');
+      const lastAct = Array.isArray(a.recentActivity) && a.recentActivity.length > 0
+        ? a.recentActivity[a.recentActivity.length - 1]
+        : (a.name || a.preferredCore || 'idle');
       return \`
         <div class="chan \${selected ? 'active' : ''}" onclick="selectChannel('\${esc(a.id)}')">
           <span class="dot \${esc(st)}"></span>
-          <span class="hash">@\${esc(a.id)}</span>
-          \${unread ? '<span class="badge">' + unread + '</span>' : (elapsed ? '<span class="sub">' + elapsed + '</span>' : '')}
+          <div class="chan-body">
+            <div class="chan-row">
+              <span class="hash">@\${esc(a.id)}</span>
+              <span class="role-pill">\${esc(roleLabel)}</span>
+              \${unread ? '<span class="badge">' + unread + '</span>' : (elapsed ? '<span class="sub mono">' + elapsed + '</span>' : '')}
+            </div>
+            <div class="sub">\${esc(lastAct)}</div>
+          </div>
         </div>\`;
     }).join('');
   }
 
   function renderHeader() {
     const head = document.getElementById('chatHead');
-    // Don't wipe the header while the user is interacting with a control inside it
     const active = document.activeElement;
     if (active && head.contains(active) && active.tagName === 'SELECT') return;
     if (currentChannel === 'all') {
@@ -669,9 +730,9 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
       head.innerHTML = \`
         <div class="ch-id">
           <span class="dot \${running > 0 ? 'running' : ''}"></span>
-          <div>
+          <div style="min-width:0">
             <div class="ch-title">#mesh-command-room</div>
-            <div class="ch-sub">\${agentsCache.length} agents · all inter-agent handoffs & tool calls</div>
+            <div class="ch-sub">\${agentsCache.length} agents · \${running > 0 ? running + ' running now · ' : ''}all inter-agent handoffs & tool calls</div>
           </div>
         </div>
         <div class="ch-actions">
@@ -705,7 +766,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
         <select class="core-sel" onchange="changeAgentCore('\${esc(a.id)}', this.value)" title="Hot-swap AI core / model">
           \${coreOpts}
         </select>
-        \${isWriter ? \`<button class="gbtn" onclick="mergeAgentWorktree('\${esc(a.id)}')" title="Verify & merge isolated worktree into main">\${SVG.branch} Merge</button>\` : ''}
+        \${isWriter ? \`<button class="gbtn" onclick="mergeAgentWorktree('\${esc(a.id)}')" title="Verify (\${esc(currentVerifyCmd)}) & merge isolated worktree into main">\${SVG.branch} Merge</button>\` : ''}
         <button class="gbtn \${isArmed ? 'danger-armed' : ''}" onclick="armOrStopAgent('\${esc(a.id)}')">
           \${SVG.stop}<span>\${isArmed ? 'Confirm (3s)' : 'Stop'}</span>
         </button>
@@ -723,15 +784,19 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     const el = document.getElementById('threadEl');
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 90;
     const items = filteredFeed();
+    const runningAgents = agentsCache.filter(
+      (a) => a.status === 'running' && (currentChannel === 'all' || a.id === currentChannel)
+    );
 
-    if (items.length === 0) {
+    if (items.length === 0 && runningAgents.length === 0) {
       el.innerHTML = currentChannel === 'all' ? renderHero() : renderAgentEmpty();
       pendingScroll = false;
       updateNewPill(0);
       return;
     }
 
-    el.innerHTML = items.map((item) => {
+    const sepHtml = '<div class="day-sep"><span>SESSION TRANSCRIPT · HANDOFF PROTOCOL v1</span></div>';
+    const msgsHtml = items.map((item) => {
       const mine = item.from === 'commander';
       const system = item.to === 'main-branch' || item.from === 'main-branch';
       return \`
@@ -741,12 +806,26 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
             \${SVG.arrowRight}
             <span class="who">@\${esc(item.to)}</span>
             <span class="deliv \${esc(item.delivery || 'send')}">\${esc(item.delivery || 'send')}</span>
-            \${item.core ? '<span>' + esc(item.core) + '</span>' : ''}
+            \${item.core ? '<span class="core-tag">' + esc(item.core) + '</span>' : ''}
             <span>\${esc(item.ts)}</span>
           </div>
           <div class="bubble">\${esc(item.message)}\${item.reply ? '<div class="quote">' + esc(item.reply) + '</div>' : ''}</div>
         </div>\`;
     }).join('');
+
+    const runningHtml = runningAgents.map((a) => {
+      const sec = a.elapsedMs ? Math.round(a.elapsedMs / 1000) + 's' : '0s';
+      const act = Array.isArray(a.recentActivity) && a.recentActivity.length > 0
+        ? a.recentActivity[a.recentActivity.length - 1]
+        : 'Executing agent turn…';
+      return \`
+        <div class="live-activity">
+          <span class="dot running"></span>
+          <span><b>@\${esc(a.id)}</b> (\${sec}) — \${esc(act)}</span>
+        </div>\`;
+    }).join('');
+
+    el.innerHTML = sepHtml + msgsHtml + runningHtml;
 
     if (nearBottom || pendingScroll) {
       el.scrollTop = el.scrollHeight;
@@ -806,7 +885,9 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     const t = TEMPLATES[idx] || TEMPLATES[0];
     const input = document.getElementById('composerInput');
     input.value = t.goal;
-    document.getElementById('checkInput').value = t.check;
+    currentVerifyCmd = t.check;
+    const checkEl = document.getElementById('checkInput');
+    if (checkEl) checkEl.value = t.check;
     autoGrow(input);
     input.focus();
   }
@@ -825,16 +906,20 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     el.style.height = Math.min(el.scrollHeight, 150) + 'px';
   }
 
+  function syncVerifyCmd(val) {
+    currentVerifyCmd = String(val || '').trim();
+  }
+
   function renderComposerRow() {
     const row = document.getElementById('compRow');
     const input = document.getElementById('composerInput');
     if (currentChannel === 'all') {
       input.placeholder = 'Describe the mission for the squad — @lead will coordinate @coder and @reviewer…';
       row.innerHTML = \`
-        <input class="check-in" id="checkInput" placeholder="verify: npm test" value="npm test" title="Verification command required before completion"/>
+        <input class="check-in" id="checkInput" placeholder="verify: npm test" value="\${esc(currentVerifyCmd)}" oninput="syncVerifyCmd(this.value)" title="Verification command required before completion"/>
         <button class="sendbtn" id="sendBtn" onclick="submitComposer()" title="Dispatch mission">\${SVG.send}</button>\`;
       document.getElementById('compHint').innerHTML =
-        '<b>Enter</b> dispatch mission · mission goes to @lead · failure hands over to next free core';
+        '<b>Enter</b> dispatch mission · @lead → @coder (worktree) → @reviewer · auto-failover on 429';
     } else {
       input.placeholder = 'Message @' + esc(currentChannel) + ' — direct instruction, course correction, or handoff…';
       const agents = agentsCache.length ? agentsCache : [{ id: currentChannel, name: currentChannel }];
@@ -847,6 +932,7 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
           <button id="modeInterrupt" class="\${currentDelivery === 'interrupt' ? 'active' : ''}" onclick="setDeliveryMode('interrupt')">INTERRUPT</button>
           <button id="modeQueue" class="\${currentDelivery === 'queue' ? 'active' : ''}" onclick="setDeliveryMode('queue')">QUEUE</button>
         </div>
+        <input class="check-in" id="checkInput" placeholder="verify cmd (optional)" value="\${esc(currentVerifyCmd)}" oninput="syncVerifyCmd(this.value)" title="Verification command used when merging worktree"/>
         <label class="wait-toggle" title="Run a full agent turn and stream the reply back"><input type="checkbox" id="dockRunTurn" checked/>run turn</label>
         <button class="sendbtn" id="sendBtn" onclick="submitComposer()" title="Transmit">\${SVG.send}</button>\`;
       document.getElementById('compHint').innerHTML =
@@ -874,7 +960,9 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     if (!text) return;
 
     if (currentChannel === 'all') {
-      const check = document.getElementById('checkInput').value.trim() || null;
+      const checkEl = document.getElementById('checkInput');
+      if (checkEl) currentVerifyCmd = checkEl.value.trim();
+      const check = currentVerifyCmd || null;
       input.value = '';
       autoGrow(input);
       await launchTeamMission(text, check);
@@ -926,6 +1014,8 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
 
   // 5. Channel & controls
   function selectChannel(chanId) {
+    const checkEl = document.getElementById('checkInput');
+    if (checkEl) currentVerifyCmd = checkEl.value.trim();
     currentChannel = chanId;
     unreadMap[chanId] = 0;
     document.getElementById('chanAll').className = 'chan' + (chanId === 'all' ? ' active' : '');
@@ -984,7 +1074,8 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
 
   async function mergeAgentWorktree(agentId) {
     const checkEl = document.getElementById('checkInput');
-    const verifyCmd = (checkEl && checkEl.value.trim()) || 'npm test';
+    if (checkEl) currentVerifyCmd = checkEl.value.trim();
+    const verifyCmd = currentVerifyCmd || null;
     const res = await api('/api/agents/' + encodeURIComponent(agentId) + '/merge', {
       method: 'POST',
       body: JSON.stringify({ nonce: makeNonce(), verifyCmd })
@@ -1011,6 +1102,15 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
     }
     const el = document.getElementById('teleEl');
     el.classList.toggle('hidden');
+  }
+
+  function closeTelemetry() {
+    document.getElementById('appEl').classList.remove('mob-insp');
+    if (window.innerWidth >= 1150) {
+      document.getElementById('teleEl').classList.add('hidden');
+    } else {
+      setMobileView('comms');
+    }
   }
 
   // 6. Telemetry rail
@@ -1102,13 +1202,13 @@ export function renderDashboardHtml(sessionToken = '', { mode = 'local', cloudUr
   renderComposerRow();
   renderHeader();
   connectStream();
-  setInterval(() => { if (!document.hidden) refreshState(); }, 5000);
-  // Watchdog: a suspended/killed webview can leave the EventSource in CLOSED state
-  // (native auto-retry only covers CONNECTING), and some embedded webviews stall the
-  // retry loop entirely — force a fresh connection while the pill says DISCONNECTED.
+  refreshState();
   setInterval(() => {
-    const dis = document.getElementById('sseText').textContent === 'DISCONNECTED';
-    if (!esHandle || esHandle.readyState === 2 || dis) connectStream();
+    if (!document.hidden) refreshState();
+  }, 2500);
+  // Watchdog: reconnect whenever sseState !== 'LIVE' (including when displaying POLLING) or EventSource is CLOSED
+  setInterval(() => {
+    if (!esHandle || esHandle.readyState === 2 || sseState !== 'LIVE') connectStream();
   }, 5000);
 </script>
 </body>
