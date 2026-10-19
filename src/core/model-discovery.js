@@ -96,21 +96,20 @@ export class FreeModelRanker {
       const lines = String(stdout || '')
         .split(/\r?\n/)
         .map((l) => l.trim())
-        .filter((l) => l && /^[a-z0-9_.-]+\/[a-z0-9_./:-]+$/i.test(l));
+        .filter((l) => l && /^[a-z0-9_.-]+\/[a-z0-9_./:-]+$/i.test(l) && !/^freemodel\//i.test(l));
 
       if (lines.length === 0) throw new Error('No model lines parsed');
 
       return lines.map((modelId) => ({
         harnessId: 'opencode',
         modelId,
-        isFree: /free|freemodel\/|opencode\/|luna|pickle|grok|gemini/i.test(modelId)
+        isFree: /free|opencode\/|luna|pickle|grok|gemini/i.test(modelId)
       }));
     } catch {
       return [
-        { harnessId: 'opencode', modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true },
-        { harnessId: 'opencode', modelId: 'openai/gpt-6-luna', isFree: true },
-        { harnessId: 'opencode', modelId: 'freemodel/claude-opus-4-8', isFree: true },
-        { harnessId: 'opencode', modelId: 'freemodel/gpt-5.3-codex', isFree: true }
+        { harnessId: 'opencode', modelId: 'opencode/big-pickle', isFree: true },
+        { harnessId: 'opencode', modelId: 'opencode/mimo-v2.6-flash-free', isFree: true },
+        { harnessId: 'opencode', modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true }
       ];
     }
   }

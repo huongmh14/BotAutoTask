@@ -17,7 +17,7 @@ export class LocalWebUiServer {
   constructor({ mesh, port = 8765, token = null } = {}) {
     this.mesh = mesh;
     this.port = port;
-    this.token = token || randomBytes(16).toString('hex');
+    this.token = token || process.env.BOTAUTOTASK_UI_TOKEN || randomBytes(16).toString('hex');
     this.server = null;
     this.sseClients = new Set();
     this.eventRingBuffer = [];

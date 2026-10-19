@@ -20,7 +20,7 @@ const FAST_OPENCODE_CONFIG = JSON.stringify({
 });
 
 /**
- * OpenCode CLI Harness (`opencode run --pure --auto --format json -m <model> <prompt>`).
+ * OpenCode CLI Harness (`opencode run --pure --format json -m <model> <prompt>`).
  * Supports structured NDJSON event stream parsing, session continuation (`--session`),
  * and optional attachment to a headless `opencode serve` instance (`--attach`).
  */
@@ -46,9 +46,9 @@ export class OpenCodeHarness {
   async discoverModels() {
     if (!this.ranker) {
       return [
-        { harnessId: this.id, modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true },
         { harnessId: this.id, modelId: 'opencode/big-pickle', isFree: true },
-        { harnessId: this.id, modelId: 'freemodel/claude-sonnet-4-6', isFree: true }
+        { harnessId: this.id, modelId: 'opencode/mimo-v2.6-flash-free', isFree: true },
+        { harnessId: this.id, modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true }
       ];
     }
     const [cliModels, orModels] = await Promise.all([
@@ -66,9 +66,16 @@ export class OpenCodeHarness {
     return merged;
   }
 
-  async executeStep({ goal, journal = [], workspaceDir = process.cwd(), modelId, signal = null }) {
+  async executeStep({
+    goal,
+    journal = [],
+    workspaceDir = process.cwd(),
+    modelId,
+    role = 'writer',
+    signal = null
+  }) {
     const prompt = buildHandoverPrompt(goal, journal);
-    const args = ['run', '--pure', '--auto'];
+    const args = ['run', '--pure'];
     if (this.useJsonFormat) {
       args.push('--format', 'json');
     }
@@ -87,11 +94,12 @@ export class OpenCodeHarness {
       ...process.env,
       OPENCODE_CONFIG_CONTENT: process.env.OPENCODE_CONFIG_CONTENT || FAST_OPENCODE_CONFIG
     };
+    const timeoutMs = role === 'reader' ? 60 * 1000 : 120 * 1000;
 
     try {
       const { stdout, stderr } = await runCliProcess(this.binary, args, {
         cwd: workspaceDir,
-        timeoutMs: 10 * 60 * 1000,
+        timeoutMs,
         env,
         signal
       });

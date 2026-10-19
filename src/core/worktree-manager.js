@@ -92,6 +92,13 @@ export class WorktreeManager {
     mkdirSync(this.worktreesRoot, { recursive: true });
 
     if (existsSync(wtPath)) {
+      const wtStatus = this._runGit(['status', '--porcelain'], wtPath);
+      if (!wtStatus.stdout) {
+        const ffRes = this._runGit(['merge', '--no-edit', baseRef], wtPath);
+        if (ffRes.status !== 0) {
+          this._runGit(['merge', '--abort'], wtPath);
+        }
+      }
       return { path: wtPath, branch: branchName, isWorktree: true };
     }
 
@@ -200,7 +207,15 @@ export class WorktreeManager {
       }
     }
 
-    // 2. Merge into main repository working tree
+    // 2. Clean any colliding uncommitted/untracked files in main working tree so verified worktree merges cleanly
+    const changedRes = this._runGit(['diff', '--name-only', `HEAD...${branchName}`]);
+    const changedFiles = changedRes.stdout ? changedRes.stdout.split(/\r?\n/).filter(Boolean) : [];
+    for (const f of changedFiles) {
+      this._runGit(['checkout', '--', f]);
+      this._runGit(['clean', '-f', '--', f]);
+    }
+
+    // 3. Merge into main repository working tree
     const mergeRes = this._runGit(['merge', '--no-ff', branchName, '-m', `Merge worktree of agent ${agentId}`]);
     if (mergeRes.status !== 0) {
       // Collect conflict files
@@ -212,7 +227,8 @@ export class WorktreeManager {
       return {
         success: false,
         reason: 'MERGE_CONFLICT',
-        conflicts
+        conflicts,
+        error: mergeRes.stderr || mergeRes.stdout
       };
     }
 

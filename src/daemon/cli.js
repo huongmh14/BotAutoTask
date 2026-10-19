@@ -225,6 +225,7 @@ async function main() {
     const { flags } = parseCliFlags(rest);
     const port = parseInt(flags.port || '8765', 10);
     const mesh = new AgentMesh({ registry, ranker, workspaceDir: flags.path || process.cwd() });
+    mesh.loadPersistedState();
     const ui = new LocalWebUiServer({ mesh, port });
     await ui.start();
     console.log(`[BotAutoTask] Local Web UI live at: ${ui.url}`);

@@ -18,12 +18,13 @@ const USER_HOME_DIR = join(homedir(), '.botautotask');
 
 export const BUILTIN_DEFAULT_CONFIG = {
   priorityModels: [
+    'opencode/big-pickle',
+    'opencode/mimo-v2.6-flash-free',
     'deepseek-v4.1-flash-free',
     'opencode/deepseek-v4.1-flash-free',
     'gpt-luna',
     'opencode/gpt-luna',
     'opencode/grok-code',
-    'opencode/big-pickle',
     'openrouter/deepseek/deepseek-r1:free',
     'openrouter/qwen/qwen-2.5-coder-32b-instruct:free',
     'google/gemini-2.5-pro',

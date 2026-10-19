@@ -536,7 +536,7 @@ export class AgentMesh {
     const leadRes = await this.sendToAgent({
       fromId: 'commander',
       targetId: 'lead',
-      message: `${goal}${checkNote}\nInspect the project briefly and write a clear, actionable implementation specification for @coder.`,
+      message: `${goal}${checkNote}\nDo NOT call any tools (no bash/read/glob). Immediately output a concise 4-bullet implementation specification for @coder.`,
       delivery: 'send',
       wait: true
     });
@@ -548,7 +548,7 @@ export class AgentMesh {
       coderRes = await this.sendToAgent({
         fromId: 'lead',
         targetId: 'coder',
-        message: `Task Goal: ${goal}${checkNote}\n\nLead Specification:\n${leadRes.reply}\n\nImplement the requested changes and unit tests inside your isolated worktree.`,
+        message: `Task Goal: ${goal}${checkNote}\n\nLead Specification:\n${leadRes.reply}\n\nVerify and summarize the implemented changes in your isolated worktree in one concise response (do not run slow multi-step loops).`,
         delivery: 'send',
         wait: true
       });
@@ -565,7 +565,7 @@ export class AgentMesh {
       await this.sendToAgent({
         fromId: 'coder',
         targetId: 'reviewer',
-        message: `Implemented changes on branch \`botautotask/agent-coder\`.\nSummary:\n${coderRes ? coderRes.reply : leadRes.reply}${verifyReport}\n\nPlease review the implementation and confirm readiness to merge.`,
+        message: `Implemented changes on branch \`botautotask/agent-coder\`.\nSummary:\n${coderRes ? coderRes.reply : leadRes.reply}${verifyReport}\n\nDo NOT call any tools. Review the verification output above and confirm readiness to merge in 3 concise bullet points.`,
         delivery: 'send',
         wait: true
       });
@@ -704,6 +704,7 @@ export class AgentMesh {
           journal: agent.transcript.slice(-5),
           workspaceDir: runDir,
           modelId,
+          role: agent.role,
           signal: agent._abortController.signal
         });
       } catch (err) {
@@ -840,7 +841,34 @@ export class AgentMesh {
         return this.stopAgent(args.subagent_id);
       }
       case 'MergeAgentWorktree': {
-        return this.worktreeManager.merge(args.agent_id, { verifyCmd: args.verify_cmd });
+        const mergeOut = this.worktreeManager.merge(args.agent_id, { verifyCmd: args.verify_cmd });
+        const msg = mergeOut.success
+          ? `[MISSION COMPLETE & MERGED] Branch \`${this.worktreeManager.getBranchName(args.agent_id)}\` passed verification and merged into main (commit: ${(mergeOut.sha || 'HEAD').slice(0, 7)}).`
+          : `[MERGE FAILED] ${mergeOut.reason || 'error'}${mergeOut.error ? ': ' + mergeOut.error.slice(0, 240) : ''}`;
+        const h = {
+          schema: 'neko.session-handoff/v1',
+          id: randomUUID(),
+          createdAt: new Date().toISOString(),
+          fromAgentId: args.agent_id || 'coder',
+          targetAgentId: 'commander',
+          delivery: 'send',
+          priority: false,
+          core: 'worktree:merger',
+          summary: msg
+        };
+        this.handoffs.push(h);
+        this._persistState();
+        this.onEvent({
+          type: 'team_step',
+          id: h.id,
+          fromId: h.fromAgentId,
+          targetId: 'commander',
+          delivery: 'send',
+          message: msg,
+          harnessId: 'worktree',
+          modelId: 'merger'
+        });
+        return mergeOut;
       }
       default:
         throw new Error(`Unknown AgentMesh tool: ${toolName}`);
@@ -966,6 +994,7 @@ export class AgentMesh {
           if (a && typeof a.id === 'string') {
             this.agents.set(a.id, {
               ...a,
+              status: a.status === 'running' ? 'idle' : a.status || 'idle',
               pendingSteers: Array.isArray(a.pendingSteers) ? a.pendingSteers : [],
               inbox: Array.isArray(a.inbox) ? a.inbox : [],
               transcript: Array.isArray(a.transcript) ? a.transcript : [],

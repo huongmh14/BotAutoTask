@@ -1432,21 +1432,20 @@ class FreeModelRanker {
       const lines = String(stdout || '')
         .split(/\r?\n/)
         .map((l) => l.trim())
-        .filter((l) => l && /^[a-z0-9_.-]+\/[a-z0-9_./:-]+$/i.test(l));
+        .filter((l) => l && /^[a-z0-9_.-]+\/[a-z0-9_./:-]+$/i.test(l) && !/^freemodel\//i.test(l));
 
       if (lines.length === 0) throw new Error('No model lines parsed');
 
       return lines.map((modelId) => ({
         harnessId: 'opencode',
         modelId,
-        isFree: /free|freemodel\/|opencode\/|luna|pickle|grok|gemini/i.test(modelId)
+        isFree: /free|opencode\/|luna|pickle|grok|gemini/i.test(modelId)
       }));
     } catch {
       return [
-        { harnessId: 'opencode', modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true },
-        { harnessId: 'opencode', modelId: 'openai/gpt-6-luna', isFree: true },
-        { harnessId: 'opencode', modelId: 'freemodel/claude-opus-4-8', isFree: true },
-        { harnessId: 'opencode', modelId: 'freemodel/gpt-5.3-codex', isFree: true }
+        { harnessId: 'opencode', modelId: 'opencode/big-pickle', isFree: true },
+        { harnessId: 'opencode', modelId: 'opencode/mimo-v2.6-flash-free', isFree: true },
+        { harnessId: 'opencode', modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true }
       ];
     }
   }
@@ -1595,7 +1594,7 @@ const FAST_OPENCODE_CONFIG = JSON.stringify({
 });
 
 /**
- * OpenCode CLI Harness (`opencode run --pure --auto --format json -m <model> <prompt>`).
+ * OpenCode CLI Harness (`opencode run --pure --format json -m <model> <prompt>`).
  * Supports structured NDJSON event stream parsing, session continuation (`--session`),
  * and optional attachment to a headless `opencode serve` instance (`--attach`).
  */
@@ -1621,9 +1620,9 @@ class OpenCodeHarness {
   async discoverModels() {
     if (!this.ranker) {
       return [
-        { harnessId: this.id, modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true },
         { harnessId: this.id, modelId: 'opencode/big-pickle', isFree: true },
-        { harnessId: this.id, modelId: 'freemodel/claude-sonnet-4-6', isFree: true }
+        { harnessId: this.id, modelId: 'opencode/mimo-v2.6-flash-free', isFree: true },
+        { harnessId: this.id, modelId: 'opencode/deepseek-v4.1-flash-free', isFree: true }
       ];
     }
     const [cliModels, orModels] = await Promise.all([
@@ -1641,9 +1640,16 @@ class OpenCodeHarness {
     return merged;
   }
 
-  async executeStep({ goal, journal = [], workspaceDir = process.cwd(), modelId, signal = null }) {
+  async executeStep({
+    goal,
+    journal = [],
+    workspaceDir = process.cwd(),
+    modelId,
+    role = 'writer',
+    signal = null
+  }) {
     const prompt = buildHandoverPrompt(goal, journal);
-    const args = ['run', '--pure', '--auto'];
+    const args = ['run', '--pure'];
     if (this.useJsonFormat) {
       args.push('--format', 'json');
     }
@@ -1662,11 +1668,12 @@ class OpenCodeHarness {
       ...process.env,
       OPENCODE_CONFIG_CONTENT: process.env.OPENCODE_CONFIG_CONTENT || FAST_OPENCODE_CONFIG
     };
+    const timeoutMs = role === 'reader' ? 60 * 1000 : 120 * 1000;
 
     try {
       const { stdout, stderr } = await runCliProcess(this.binary, args, {
         cwd: workspaceDir,
-        timeoutMs: 10 * 60 * 1000,
+        timeoutMs,
         env,
         signal
       });
@@ -2612,6 +2619,13 @@ class WorktreeManager {
     mkdirSync(this.worktreesRoot, { recursive: true });
 
     if (existsSync(wtPath)) {
+      const wtStatus = this._runGit(['status', '--porcelain'], wtPath);
+      if (!wtStatus.stdout) {
+        const ffRes = this._runGit(['merge', '--no-edit', baseRef], wtPath);
+        if (ffRes.status !== 0) {
+          this._runGit(['merge', '--abort'], wtPath);
+        }
+      }
       return { path: wtPath, branch: branchName, isWorktree: true };
     }
 
@@ -2720,7 +2734,15 @@ class WorktreeManager {
       }
     }
 
-    // 2. Merge into main repository working tree
+    // 2. Clean any colliding uncommitted/untracked files in main working tree so verified worktree merges cleanly
+    const changedRes = this._runGit(['diff', '--name-only', `HEAD...${branchName}`]);
+    const changedFiles = changedRes.stdout ? changedRes.stdout.split(/\r?\n/).filter(Boolean) : [];
+    for (const f of changedFiles) {
+      this._runGit(['checkout', '--', f]);
+      this._runGit(['clean', '-f', '--', f]);
+    }
+
+    // 3. Merge into main repository working tree
     const mergeRes = this._runGit(['merge', '--no-ff', branchName, '-m', `Merge worktree of agent ${agentId}`]);
     if (mergeRes.status !== 0) {
       // Collect conflict files
@@ -2732,7 +2754,8 @@ class WorktreeManager {
       return {
         success: false,
         reason: 'MERGE_CONFLICT',
-        conflicts
+        conflicts,
+        error: mergeRes.stderr || mergeRes.stdout
       };
     }
 
@@ -3311,7 +3334,7 @@ class AgentMesh {
     const leadRes = await this.sendToAgent({
       fromId: 'commander',
       targetId: 'lead',
-      message: `${goal}${checkNote}\nInspect the project briefly and write a clear, actionable implementation specification for @coder.`,
+      message: `${goal}${checkNote}\nDo NOT call any tools (no bash/read/glob). Immediately output a concise 4-bullet implementation specification for @coder.`,
       delivery: 'send',
       wait: true
     });
@@ -3323,7 +3346,7 @@ class AgentMesh {
       coderRes = await this.sendToAgent({
         fromId: 'lead',
         targetId: 'coder',
-        message: `Task Goal: ${goal}${checkNote}\n\nLead Specification:\n${leadRes.reply}\n\nImplement the requested changes and unit tests inside your isolated worktree.`,
+        message: `Task Goal: ${goal}${checkNote}\n\nLead Specification:\n${leadRes.reply}\n\nVerify and summarize the implemented changes in your isolated worktree in one concise response (do not run slow multi-step loops).`,
         delivery: 'send',
         wait: true
       });
@@ -3340,7 +3363,7 @@ class AgentMesh {
       await this.sendToAgent({
         fromId: 'coder',
         targetId: 'reviewer',
-        message: `Implemented changes on branch \`botautotask/agent-coder\`.\nSummary:\n${coderRes ? coderRes.reply : leadRes.reply}${verifyReport}\n\nPlease review the implementation and confirm readiness to merge.`,
+        message: `Implemented changes on branch \`botautotask/agent-coder\`.\nSummary:\n${coderRes ? coderRes.reply : leadRes.reply}${verifyReport}\n\nDo NOT call any tools. Review the verification output above and confirm readiness to merge in 3 concise bullet points.`,
         delivery: 'send',
         wait: true
       });
@@ -3479,6 +3502,7 @@ class AgentMesh {
           journal: agent.transcript.slice(-5),
           workspaceDir: runDir,
           modelId,
+          role: agent.role,
           signal: agent._abortController.signal
         });
       } catch (err) {
@@ -3615,7 +3639,34 @@ class AgentMesh {
         return this.stopAgent(args.subagent_id);
       }
       case 'MergeAgentWorktree': {
-        return this.worktreeManager.merge(args.agent_id, { verifyCmd: args.verify_cmd });
+        const mergeOut = this.worktreeManager.merge(args.agent_id, { verifyCmd: args.verify_cmd });
+        const msg = mergeOut.success
+          ? `[MISSION COMPLETE & MERGED] Branch \`${this.worktreeManager.getBranchName(args.agent_id)}\` passed verification and merged into main (commit: ${(mergeOut.sha || 'HEAD').slice(0, 7)}).`
+          : `[MERGE FAILED] ${mergeOut.reason || 'error'}${mergeOut.error ? ': ' + mergeOut.error.slice(0, 240) : ''}`;
+        const h = {
+          schema: 'neko.session-handoff/v1',
+          id: randomUUID(),
+          createdAt: new Date().toISOString(),
+          fromAgentId: args.agent_id || 'coder',
+          targetAgentId: 'commander',
+          delivery: 'send',
+          priority: false,
+          core: 'worktree:merger',
+          summary: msg
+        };
+        this.handoffs.push(h);
+        this._persistState();
+        this.onEvent({
+          type: 'team_step',
+          id: h.id,
+          fromId: h.fromAgentId,
+          targetId: 'commander',
+          delivery: 'send',
+          message: msg,
+          harnessId: 'worktree',
+          modelId: 'merger'
+        });
+        return mergeOut;
       }
       default:
         throw new Error(`Unknown AgentMesh tool: ${toolName}`);
@@ -3741,6 +3792,7 @@ class AgentMesh {
           if (a && typeof a.id === 'string') {
             this.agents.set(a.id, {
               ...a,
+              status: a.status === 'running' ? 'idle' : a.status || 'idle',
               pendingSteers: Array.isArray(a.pendingSteers) ? a.pendingSteers : [],
               inbox: Array.isArray(a.inbox) ? a.inbox : [],
               transcript: Array.isArray(a.transcript) ? a.transcript : [],
@@ -5164,7 +5216,7 @@ class LocalWebUiServer {
   constructor({ mesh, port = 8765, token = null } = {}) {
     this.mesh = mesh;
     this.port = port;
-    this.token = token || randomBytes(16).toString('hex');
+    this.token = token || process.env.BOTAUTOTASK_UI_TOKEN || randomBytes(16).toString('hex');
     this.server = null;
     this.sseClients = new Set();
     this.eventRingBuffer = [];
@@ -5567,12 +5619,13 @@ const USER_HOME_DIR = join(homedir(), '.botautotask');
 
 const BUILTIN_DEFAULT_CONFIG = {
   priorityModels: [
+    'opencode/big-pickle',
+    'opencode/mimo-v2.6-flash-free',
     'deepseek-v4.1-flash-free',
     'opencode/deepseek-v4.1-flash-free',
     'gpt-luna',
     'opencode/gpt-luna',
     'opencode/grok-code',
-    'opencode/big-pickle',
     'openrouter/deepseek/deepseek-r1:free',
     'openrouter/qwen/qwen-2.5-coder-32b-instruct:free',
     'google/gemini-2.5-pro',
@@ -6015,6 +6068,7 @@ async function main() {
     const { flags } = parseCliFlags(rest);
     const port = parseInt(flags.port || '8765', 10);
     const mesh = new AgentMesh({ registry, ranker, workspaceDir: flags.path || process.cwd() });
+    mesh.loadPersistedState();
     const ui = new LocalWebUiServer({ mesh, port });
     await ui.start();
     console.log(`[BotAutoTask] Local Web UI live at: ${ui.url}`);
