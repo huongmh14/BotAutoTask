@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { OUTCOME, parseStepTags, buildHandoverPrompt } from '../core/types.js';
 import { isRateLimitError } from '../core/rate-limit-detector.js';
-
-const execFileAsync = promisify(execFile);
+import { runCliProcess } from '../core/spawn-cli.js';
 
 /**
  * OpenCode CLI Harness (`opencode run -m <model> <prompt>`).
@@ -18,7 +15,7 @@ export class OpenCodeHarness {
 
   async isAvailable() {
     try {
-      await execFileAsync(this.binary, ['--version'], { timeout: 4000, windowsHide: true, shell: true });
+      await runCliProcess(this.binary, ['--version'], { timeoutMs: 4000 });
       return true;
     } catch {
       return false;
@@ -56,11 +53,9 @@ export class OpenCodeHarness {
     args.push(prompt);
 
     try {
-      const { stdout, stderr } = await execFileAsync(this.binary, args, {
+      const { stdout, stderr } = await runCliProcess(this.binary, args, {
         cwd: workspaceDir,
-        timeout: 15 * 60 * 1000,
-        windowsHide: true,
-        shell: true
+        timeoutMs: 15 * 60 * 1000
       });
       const combined = `${stdout || ''}\n${stderr || ''}`;
       if (isRateLimitError(combined, 0)) {

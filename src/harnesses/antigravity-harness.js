@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { OUTCOME, parseStepTags, buildHandoverPrompt } from '../core/types.js';
 import { isRateLimitError } from '../core/rate-limit-detector.js';
-
-const execFileAsync = promisify(execFile);
+import { runCliProcess } from '../core/spawn-cli.js';
 
 /**
  * Antigravity Harness (`agy` / `agentapi new-conversation`).
@@ -17,7 +14,7 @@ export class AntigravityHarness {
   async isAvailable() {
     for (const cmd of [this.binary, 'agentapi']) {
       try {
-        await execFileAsync(cmd, ['--help'], { timeout: 4000, windowsHide: true, shell: true });
+        await runCliProcess(cmd, ['--help'], { timeoutMs: 4000 });
         this.activeBinary = cmd;
         return true;
       } catch {}
@@ -35,11 +32,9 @@ export class AntigravityHarness {
     const args = bin === 'agentapi' ? ['new-conversation', '--', prompt] : ['--', prompt];
 
     try {
-      const { stdout, stderr } = await execFileAsync(bin, args, {
+      const { stdout, stderr } = await runCliProcess(bin, args, {
         cwd: workspaceDir,
-        timeout: 15 * 60 * 1000,
-        windowsHide: true,
-        shell: true
+        timeoutMs: 15 * 60 * 1000
       });
       const combined = `${stdout || ''}\n${stderr || ''}`;
       if (isRateLimitError(combined, 0)) {
