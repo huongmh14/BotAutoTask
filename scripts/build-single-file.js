@@ -19,6 +19,7 @@ const MODULE_ORDER = [
   'src/core/policy.js',
   'src/core/completion-contract.js',
   'src/core/harness2-engine.js',
+  'src/core/core-stats.js',
   'src/core/auth-bridge.js',
   'src/core/model-discovery.js',
   'src/harnesses/custom-cmd-harness.js',

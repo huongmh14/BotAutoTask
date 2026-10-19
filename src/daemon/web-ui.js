@@ -90,6 +90,43 @@ export class LocalWebUiServer {
     return false;
   }
 
+  /**
+   * Per-core availability, active rate-limit cooldowns and usage stats for the
+   * dashboard's Cores & Limits panel. Availability spawns CLI version checks,
+   * so it is cached for 30s to keep /api/state polling cheap.
+   */
+  async _coreStatus() {
+    const registry = this.mesh ? this.mesh.registry : null;
+    const ranker = this.mesh ? this.mesh.ranker : null;
+    if (!registry) return [];
+    if (!this._availCache) this._availCache = new Map();
+
+    const cores = [];
+    for (const harness of registry.list()) {
+      let available;
+      const cached = this._availCache.get(harness.id);
+      if (cached && Date.now() - cached.checkedAt < 30_000) {
+        available = cached.available;
+      } else {
+        try {
+          available = await harness.isAvailable();
+        } catch {
+          available = false;
+        }
+        this._availCache.set(harness.id, { available, checkedAt: Date.now() });
+      }
+
+      const cooldowns = ranker ? ranker.getActiveCooldowns(harness.id) : [];
+      cores.push({
+        id: harness.id,
+        available,
+        cooldowns,
+        stats: (registry.stats && registry.stats.snapshot()[harness.id]) || null
+      });
+    }
+    return cores;
+  }
+
   async start() {
     this.server = createServer(async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
@@ -171,14 +208,15 @@ export class LocalWebUiServer {
           if (body.length > 1_048_576) throw new Error('Body too large');
         }
         return JSON.parse(body || '{}');
-      };
+	      };
 
-      // 3. GET /api/state — Full Roster, Handoffs, Approvals, 0-Key Auth & IDE Transcript
+      // 3. GET /api/state — Full Roster, Handoffs, Approvals, Cores/Limits, 0-Key Auth & IDE Transcript
       if (req.method === 'GET' && url.pathname === '/api/state') {
         const agents = this.mesh ? this.mesh.listAgents() : [];
         const handoffs = this.mesh ? this.mesh.handoffs.slice(-40) : [];
         const approvals = this.mesh && typeof this.mesh.listApprovals === 'function' ? this.mesh.listApprovals() : [];
         const auth = await getZeroKeyAuthStatus();
+        const cores = await this._coreStatus();
         let latestIdeLog = null;
         try {
           const info = findLatestAntigravityTranscript();
@@ -192,7 +230,7 @@ export class LocalWebUiServer {
         } catch {}
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ agents, handoffs, approvals, auth, latestIdeLog }));
+        res.end(JSON.stringify({ agents, handoffs, approvals, cores, auth, latestIdeLog }));
         return;
       }
 

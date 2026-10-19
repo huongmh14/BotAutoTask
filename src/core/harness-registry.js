@@ -7,13 +7,26 @@ import { CustomCmdHarness } from '../harnesses/custom-cmd-harness.js';
  * or any future custom AI core via code or JSON config.
  */
 export class HarnessRegistry {
-  constructor() {
+  constructor({ stats = null } = {}) {
     this.harnesses = new Map();
+    this.stats = stats;
   }
 
   register(harness) {
     if (!harness || !harness.id) {
       throw new Error('Harness must have an id property');
+    }
+    if (this.stats && typeof harness.executeStep === 'function' && !harness.__statsWrapped) {
+      const orig = harness.executeStep.bind(harness);
+      const stats = this.stats;
+      harness.executeStep = async (args) => {
+        const receipt = await orig(args);
+        try {
+          stats.record(harness.id, args && args.modelId, receipt && receipt.outcome);
+        } catch {}
+        return receipt;
+      };
+      harness.__statsWrapped = true;
     }
     this.harnesses.set(harness.id, harness);
   }

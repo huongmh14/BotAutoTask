@@ -1002,6 +1002,92 @@ class Harness2Engine {
 }
 
 
+// --- MODULE: src/core/core-stats.js ---
+/**
+ * Persistent per-core usage & rate-limit statistics (Orca-style usage tracking).
+ * Counts every harness step outcome so the dashboard can show runs, 429 hits,
+ * errors and completion counts per AI core across sessions.
+ */
+
+
+const OUTCOME_WEIGHTS = Object.freeze({
+  RATE_LIMITED: 'rateLimited',
+  ERROR: 'errors'
+});
+
+class CoreStatsStore {
+  constructor(filePath = join(homedir(), '.botautotask', 'core-stats.json')) {
+    this.filePath = filePath;
+    this.data = { cores: {}, updatedAt: null };
+    this._load();
+  }
+
+  _load() {
+    try {
+      if (existsSync(this.filePath)) {
+        const parsed = JSON.parse(readFileSync(this.filePath, 'utf8'));
+        if (parsed && typeof parsed === 'object' && typeof parsed.cores === 'object') {
+          this.data = parsed;
+        }
+      }
+    } catch {
+      // Corrupt stats must never break execution — start fresh.
+    }
+  }
+
+  _save() {
+    this.data.updatedAt = Date.now();
+    try {
+      mkdirSync(dirname(this.filePath), { recursive: true });
+      atomicWriteJsonSync(this.filePath, this.data);
+    } catch {
+      // Best-effort persistence.
+    }
+  }
+
+  _entry(harnessId) {
+    if (!this.data.cores[harnessId]) {
+      this.data.cores[harnessId] = {
+        runs: 0,
+        rateLimited: 0,
+        errors: 0,
+        goalCompleted: 0,
+        lastModelId: null,
+        lastOutcome: null,
+        lastUsedAt: null
+      };
+    }
+    return this.data.cores[harnessId];
+  }
+
+  /**
+   * Records one harness step outcome. Never throws.
+   * @param {string} harnessId
+   * @param {string} modelId
+   * @param {string} outcome One of OUTCOME values
+   */
+  record(harnessId, modelId = null, outcome = null) {
+    try {
+      const e = this._entry(harnessId);
+      e.runs += 1;
+      e.lastModelId = modelId || e.lastModelId;
+      e.lastOutcome = outcome || e.lastOutcome;
+      e.lastUsedAt = Date.now();
+      if (OUTCOME_WEIGHTS[outcome]) e[OUTCOME_WEIGHTS[outcome]] += 1;
+      if (outcome === 'GOAL_COMPLETED') e.goalCompleted += 1;
+      this._save();
+      return e;
+    } catch {
+      return null;
+    }
+  }
+
+  snapshot() {
+    return JSON.parse(JSON.stringify(this.data.cores));
+  }
+}
+
+
 // --- MODULE: src/core/auth-bridge.js ---
 
 /**
@@ -1367,6 +1453,27 @@ class FreeModelRanker {
       return false;
     }
     return true;
+  }
+
+  /**
+   * Lists active cooldowns (expired entries purged) for status dashboards.
+   * @param {string} [harnessId] Optional filter to one harness.
+   * @returns {Array<{harnessId: string, modelId: string, untilMs: number, remainingMs: number}>}
+   */
+  getActiveCooldowns(harnessId = null, nowMs = Date.now()) {
+    const out = [];
+    for (const [key, untilMs] of this.cooldowns) {
+      if (nowMs >= untilMs) {
+        this.cooldowns.delete(key);
+        continue;
+      }
+      const sep = key.indexOf(':');
+      const h = key.slice(0, sep);
+      const m = key.slice(sep + 1);
+      if (harnessId && h !== harnessId) continue;
+      out.push({ harnessId: h, modelId: m, untilMs, remainingMs: untilMs - nowMs });
+    }
+    return out;
   }
 
   /**
@@ -2033,13 +2140,26 @@ class NekoCoreHarness {
  * or any future custom AI core via code or JSON config.
  */
 class HarnessRegistry {
-  constructor() {
+  constructor({ stats = null } = {}) {
     this.harnesses = new Map();
+    this.stats = stats;
   }
 
   register(harness) {
     if (!harness || !harness.id) {
       throw new Error('Harness must have an id property');
+    }
+    if (this.stats && typeof harness.executeStep === 'function' && !harness.__statsWrapped) {
+      const orig = harness.executeStep.bind(harness);
+      const stats = this.stats;
+      harness.executeStep = async (args) => {
+        const receipt = await orig(args);
+        try {
+          stats.record(harness.id, args && args.modelId, receipt && receipt.outcome);
+        } catch {}
+        return receipt;
+      };
+      harness.__statsWrapped = true;
     }
     this.harnesses.set(harness.id, harness);
   }
@@ -7020,6 +7140,43 @@ class LocalWebUiServer {
     return false;
   }
 
+  /**
+   * Per-core availability, active rate-limit cooldowns and usage stats for the
+   * dashboard's Cores & Limits panel. Availability spawns CLI version checks,
+   * so it is cached for 30s to keep /api/state polling cheap.
+   */
+  async _coreStatus() {
+    const registry = this.mesh ? this.mesh.registry : null;
+    const ranker = this.mesh ? this.mesh.ranker : null;
+    if (!registry) return [];
+    if (!this._availCache) this._availCache = new Map();
+
+    const cores = [];
+    for (const harness of registry.list()) {
+      let available;
+      const cached = this._availCache.get(harness.id);
+      if (cached && Date.now() - cached.checkedAt < 30_000) {
+        available = cached.available;
+      } else {
+        try {
+          available = await harness.isAvailable();
+        } catch {
+          available = false;
+        }
+        this._availCache.set(harness.id, { available, checkedAt: Date.now() });
+      }
+
+      const cooldowns = ranker ? ranker.getActiveCooldowns(harness.id) : [];
+      cores.push({
+        id: harness.id,
+        available,
+        cooldowns,
+        stats: (registry.stats && registry.stats.snapshot()[harness.id]) || null
+      });
+    }
+    return cores;
+  }
+
   async start() {
     this.server = createServer(async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
@@ -7103,12 +7260,17 @@ class LocalWebUiServer {
         return JSON.parse(body || '{}');
       };
 
+<<<<<<< HEAD
       // 3. GET /api/state — Full Roster, Handoffs, Approvals, 0-Key Auth & IDE Transcript
+=======
+      // 3. GET /api/state — Full Roster, Handoffs, Cores/Limits, 0-Key Auth & IDE Transcript
+>>>>>>> 520c301 (feat(ui): add Orca-style Cores & Limits panel with usage tracking)
       if (req.method === 'GET' && url.pathname === '/api/state') {
         const agents = this.mesh ? this.mesh.listAgents() : [];
         const handoffs = this.mesh ? this.mesh.handoffs.slice(-40) : [];
         const approvals = this.mesh && typeof this.mesh.listApprovals === 'function' ? this.mesh.listApprovals() : [];
         const auth = await getZeroKeyAuthStatus();
+        const cores = await this._coreStatus();
         let latestIdeLog = null;
         try {
           const info = findLatestAntigravityTranscript();
@@ -7122,6 +7284,7 @@ class LocalWebUiServer {
         } catch {}
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
+<<<<<<< HEAD
         res.end(JSON.stringify({ agents, handoffs, approvals, auth, latestIdeLog }));
         return;
       }
@@ -7180,6 +7343,9 @@ class LocalWebUiServer {
           note: body.note
         });
         res.writeHead(out.status || 200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out));
+=======
+        res.end(JSON.stringify({ agents, handoffs, cores, auth, latestIdeLog }));
+>>>>>>> 520c301 (feat(ui): add Orca-style Cores & Limits panel with usage tracking)
         return;
       }
 
@@ -7469,7 +7635,8 @@ function loadConfig(customPath = null) {
  */
 function createRuntime(config = loadConfig()) {
   const ranker = new FreeModelRanker(config);
-  const registry = new HarnessRegistry();
+  const stats = new CoreStatsStore();
+  const registry = new HarnessRegistry({ stats });
   const hCfg = config.harnesses || {};
 
   if (hCfg.opencode?.enabled !== false) {

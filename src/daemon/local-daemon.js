@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { FreeModelRanker } from '../core/model-discovery.js';
 import { HarnessRegistry } from '../core/harness-registry.js';
 import { GoalOrchestrator } from '../core/orchestrator.js';
+import { CoreStatsStore } from '../core/core-stats.js';
 import { OpenCodeHarness } from '../harnesses/opencode-harness.js';
 import { AntigravityHarness } from '../harnesses/antigravity-harness.js';
 import { ClaudeCodexHarness } from '../harnesses/claude-codex-harness.js';
@@ -72,7 +73,8 @@ export function loadConfig(customPath = null) {
  */
 export function createRuntime(config = loadConfig()) {
   const ranker = new FreeModelRanker(config);
-  const registry = new HarnessRegistry();
+  const stats = new CoreStatsStore();
+  const registry = new HarnessRegistry({ stats });
   const hCfg = config.harnesses || {};
 
   if (hCfg.opencode?.enabled !== false) {

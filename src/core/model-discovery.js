@@ -46,6 +46,27 @@ export class FreeModelRanker {
   }
 
   /**
+   * Lists active cooldowns (expired entries purged) for status dashboards.
+   * @param {string} [harnessId] Optional filter to one harness.
+   * @returns {Array<{harnessId: string, modelId: string, untilMs: number, remainingMs: number}>}
+   */
+  getActiveCooldowns(harnessId = null, nowMs = Date.now()) {
+    const out = [];
+    for (const [key, untilMs] of this.cooldowns) {
+      if (nowMs >= untilMs) {
+        this.cooldowns.delete(key);
+        continue;
+      }
+      const sep = key.indexOf(':');
+      const h = key.slice(0, sep);
+      const m = key.slice(sep + 1);
+      if (harnessId && h !== harnessId) continue;
+      out.push({ harnessId: h, modelId: m, untilMs, remainingMs: untilMs - nowMs });
+    }
+    return out;
+  }
+
+  /**
    * Computes a priority score for a model ID. Higher = preferred earlier.
    * @param {string} modelId
    * @param {boolean} [isFree=true]
