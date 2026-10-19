@@ -193,16 +193,18 @@ async function ensureD1(dryRun) {
 async function deploy(dryRun) {
   if (dryRun) return log('[dry-run] would deploy worker.'), 'https://botautotask-cloud-core.example.workers.dev';
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const res = await wrangler(['deploy', '--config', GENERATED_CONFIG]);
+    const res = await wrangler(['deploy', '--config', GENERATED_CONFIG], { input: 'y\n' });
     const url = extractWorkersDevUrl(res.out);
     if (res.code === 0 && url) return url;
     if (attempt === 1 && needsWorkersDevSubdomain(res.out)) {
-      // ponytail: guided onboarding (user picks the subdomain name); dashboard selectors change too often to automate safely.
-      log('Your account has no workers.dev subdomain yet. Pick one in the browser window, then close it.');
+      log('Your account has no workers.dev subdomain yet. Opening Workers & Pages to auto-provision...');
       const context = await openBrowser();
       const page = context.pages()[0] || (await context.newPage());
-      await page.goto('https://dash.cloudflare.com/?to=/:account/workers-and-pages');
-      await page.waitForEvent('close', { timeout: HUMAN_TIMEOUT_MS }).catch(() => {});
+      await page.goto('https://dash.cloudflare.com/?to=/:account/workers-and-pages', { waitUntil: 'domcontentloaded' });
+      await Promise.race([
+        page.getByText(/[a-z0-9-]+\.workers\.dev/i).first().waitFor({ timeout: HUMAN_TIMEOUT_MS }).then(() => page.waitForTimeout(1500)),
+        page.waitForEvent('close', { timeout: HUMAN_TIMEOUT_MS })
+      ]).catch(() => {});
       await context.close().catch(() => {});
       continue;
     }

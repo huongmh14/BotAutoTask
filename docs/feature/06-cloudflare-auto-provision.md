@@ -83,7 +83,7 @@ $env:CLOUDFLARE_API_TOKEN="..."; npm run cloud:setup # CI/không có browser: b�
 - [x] Parser xử lý: URL OAuth qua nhiều chunk, D1 id định dạng TOML cũ và JSON mới, URL `*.workers.dev`, thông báo thiếu subdomain.
 - [x] `renderGeneratedConfig` từ chối id không phải UUID (chống chèn TOML).
 - [x] Playwright khởi chạy Edge thật trên máy này.
-- [ ] Chạy thật trên tài khoản người dùng (cần người dùng đăng nhập) — health check trả `healthy`.
+- [x] Chạy thật trên tài khoản người dùng (`https://botautotask-cloud-core.huonghoang789hp.workers.dev`) — health check trả `healthy`.
 
 ## 9. Giới hạn đã biết (ponytail)
 - Onboarding workers.dev subdomain là *bán tự động* (người dùng chọn tên) — dashboard đổi giao diện thường xuyên; nâng cấp: gọi API `PUT /accounts/:id/workers/subdomain` khi đã có token.
