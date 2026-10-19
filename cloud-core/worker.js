@@ -96,9 +96,175 @@ async function triggerGitHubActions(env, goal) {
   return res.ok;
 }
 
+function renderCloudDashboardHtml() {
+  return `<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>BotAutoTask — 24/7 Cloud & Mobile Control</title>
+<style>
+  :root{color-scheme:dark;--bg:#0b0f17;--card:#151c28;--border:#263248;--fg:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
+  *{box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--fg);padding:16px;max-width:980px;margin-inline:auto}
+  h1{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .sub{color:var(--muted);font-size:.85rem;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input,select,textarea,button{background:#0f1520;color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:.9rem}
+  input,select,textarea{width:100%}
+  button{cursor:pointer;background:var(--accent);color:#03111c;font-weight:600;border:none;width:auto}
+  button.sec{background:#1e293b;color:var(--fg);border:1px solid var(--border)}
+  button.danger{background:var(--err);color:#fff}
+  .badge{padding:2px 8px;border-radius:99px;font-size:.75rem;font-weight:600;background:#1e293b}
+  .QUEUED,.RUNNING_LOCAL,.RUNNING_CLOUD{color:var(--accent)}
+  .COMPLETED{color:var(--ok)} .PAUSED{color:var(--warn)} .CANCELLED,.FAILED{color:var(--err)}
+  .goal{border-top:1px solid var(--border);padding:10px 0;margin-top:10px}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:.8rem;color:var(--muted)}
+</style>
+</head>
+<body>
+  <h1>🤖 BotAutoTask Cloud Core <span id="conn" class="badge">Checking...</span></h1>
+  <div class="sub">Điều khiển đội Agent 24/7 từ điện thoại & máy tính (Cloudflare Worker + D1 + GitHub Actions)</div>
+
+  <div id="authCard" class="card" style="display:none">
+    <b>🔑 Nhập API Token (chỉ cần 1 lần)</b>
+    <p class="sub">Lấy trong <code>~/.botautotask/config.json</code> (trường <code>cloud.apiToken</code>) hoặc mở bằng link có <code>#token=...</code></p>
+    <div class="row">
+      <input id="tokenInput" type="password" placeholder="BOTAUTOTASK_API_TOKEN" style="flex:1"/>
+      <button onclick="saveToken()">Lưu & Kết nối</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>🎯 Giao nhiệm vụ mới (Goal)</b>
+    <div style="display:grid;gap:8px;margin-top:10px">
+      <textarea id="prompt" rows="2" placeholder="Mô tả công việc cho Agent (VD: Viết unit test và fix lỗi auth)..."></textarea>
+      <div class="row">
+        <select id="core" style="flex:1;min-width:180px">
+          <option value="auto">Lõi AI: Auto (Săn Model Free tốt nhất)</option>
+          <option value="opencode:opencode/deepseek-v4.1-flash-free">OpenCode: deepseek-v4.1-flash-free</option>
+          <option value="opencode:freemodel/claude-sonnet-4-6">OpenCode: claude-sonnet-4-6 (Free)</option>
+          <option value="codex">Codex (ChatGPT OAuth 0-Key)</option>
+          <option value="claude">Claude Code</option>
+          <option value="antigravity">Antigravity IDE</option>
+        </select>
+        <select id="mode" style="flex:1;min-width:150px">
+          <option value="auto">Chế độ: Auto (PC -> Cloud)</option>
+          <option value="local">Chỉ chạy trên PC (Local)</option>
+          <option value="cloud">Chạy ngay trên Cloud (GitHub Actions)</option>
+        </select>
+      </div>
+      <div class="row">
+        <input id="repo" placeholder="GitHub Repo khi tắt máy (VD: huongmh14/BotAutoTask)" value="huongmh14/BotAutoTask" style="flex:1"/>
+        <input id="check" placeholder="Lệnh kiểm tra (VD: npm test)" value="npm test" style="flex:1"/>
+        <button onclick="createGoal()">🚀 Gửi Goal</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <b>📋 Danh sách Goals & Điều khiển trực tiếp</b>
+      <button class="sec" onclick="loadState()">↻ Làm mới</button>
+    </div>
+    <div id="goalsList" class="sub" style="margin-top:8px">Đang tải...</div>
+  </div>
+
+  <div class="card">
+    <b>📜 Nhật ký bước chạy (Journal Entries)</b>
+    <div id="journalList" class="sub" style="margin-top:8px">Đang tải...</div>
+  </div>
+
+<script>
+  const hashToken = new URLSearchParams(location.hash.slice(1)).get('token') || new URLSearchParams(location.search).get('token');
+  if (hashToken) {
+    localStorage.setItem('bat_token', hashToken);
+    history.replaceState(null, '', location.pathname);
+  }
+  function getToken() { return localStorage.getItem('bat_token') || ''; }
+  function saveToken() {
+    localStorage.setItem('bat_token', document.getElementById('tokenInput').value.trim());
+    loadState();
+  }
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: body ? 'POST' : 'GET',
+      headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (res.status === 401) {
+      document.getElementById('authCard').style.display = 'block';
+      document.getElementById('conn').textContent = 'Cần nhập Token';
+      throw new Error('Unauthorized');
+    }
+    document.getElementById('authCard').style.display = 'none';
+    document.getElementById('conn').textContent = '🟢 Đã kết nối 24/7';
+    return res.json();
+  }
+  async function createGoal() {
+    const prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) return alert('Nhập mô tả công việc!');
+    await api('/api/goals', {
+      prompt,
+      preferred_core: document.getElementById('core').value,
+      execution_mode: document.getElementById('mode').value,
+      repo_url: document.getElementById('repo').value.trim(),
+      acceptance_cmd: document.getElementById('check').value.trim()
+    });
+    document.getElementById('prompt').value = '';
+    loadState();
+  }
+  async function goalAction(goalId, action, value) {
+    await api('/api/goals/action', { goalId, action, value });
+    loadState();
+  }
+  async function loadState() {
+    try {
+      const data = await api('/api/state');
+      const gEl = document.getElementById('goalsList');
+      gEl.innerHTML = (data.goals || []).length ? data.goals.map(g => \`
+        <div class="goal">
+          <div class="row" style="justify-content:space-between">
+            <div><b>\${esc(g.title)}</b> <span class="mono">(\${esc(g.id)})</span></div>
+            <span class="badge \${esc(g.status)}">\${esc(g.status)}</span>
+          </div>
+          <div class="mono" style="margin:4px 0">Worker: \${esc(g.lease_owner || 'waiting')} | Core: \${esc(g.preferred_core)} | Mode: \${esc(g.execution_mode)} | Step: \${g.current_step}/\${g.max_steps}</div>
+          <div class="row" style="margin-top:6px">
+            <button class="sec" onclick="goalAction('\${esc(g.id)}','pause')">⏸ Pause</button>
+            <button class="sec" onclick="goalAction('\${esc(g.id)}','resume')">▶ Resume</button>
+            <button class="sec" onclick="goalAction('\${esc(g.id)}','switch',prompt('Đổi lõi/model (auto, codex, claude, opencode:...):','\${esc(g.preferred_core)}'))">🔄 Đổi Lõi</button>
+            <button class="danger" onclick="goalAction('\${esc(g.id)}','cancel')">✕ Hủy</button>
+          </div>
+        </div>\`).join('') : 'Chưa có Goal nào. Hãy tạo Goal ở trên!';
+      const jEl = document.getElementById('journalList');
+      jEl.innerHTML = (data.journal || []).length ? data.journal.map(e => \`
+        <div class="goal mono">
+          <b>[\${esc(e.goal_id)} #Step \${e.step_number}]</b> (\${esc(e.core_used)}:\${esc(e.model_used)} → \${esc(e.outcome)}): \${esc(e.summary)}
+        </div>\`).join('') : 'Chưa có bước chạy nào.';
+    } catch {}
+  }
+  loadState();
+  setInterval(loadState, 8000);
+</script>
+</body>
+</html>`;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // 0. Browser Dashboard on GET / (when opened in browser without Bearer header)
+    const authHeader = request.headers.get('Authorization');
+    if (request.method === 'GET' && url.pathname === '/' && !authHeader) {
+      return new Response(renderCloudDashboardHtml(), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
 
     // 1. Telegram Webhook (24/7 Mobile Control)
     if (request.method === 'POST' && url.pathname === '/webhook/telegram') {
@@ -212,9 +378,48 @@ export default {
       return new Response('OK');
     }
 
-    // Authenticate Worker Lease API requests (fail-closed: no configured token => nothing is authorized)
-    if (!(await isAuthorized(request.headers.get('Authorization'), env.BOTAUTOTASK_API_TOKEN))) {
+    // Authenticate Worker Lease & Dashboard API requests (fail-closed: no configured token => nothing is authorized)
+    if (!(await isAuthorized(authHeader, env.BOTAUTOTASK_API_TOKEN))) {
       return new Response('Unauthorized', { status: 401 });
+    }
+
+    // 1b. Web/Mobile Dashboard APIs
+    if (request.method === 'GET' && url.pathname === '/api/state') {
+      const { results: goals } = await env.DB.prepare(`SELECT * FROM goals ORDER BY created_at DESC LIMIT 20`).all();
+      const { results: journal } = await env.DB.prepare(`SELECT * FROM journal_entries ORDER BY id DESC LIMIT 30`).all();
+      return Response.json({ goals: goals || [], journal: journal || [] });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/goals') {
+      const body = await request.json().catch(() => ({}));
+      const prompt = String(body.prompt || '').trim();
+      if (!prompt) return Response.json({ error: 'Missing prompt' }, { status: 400 });
+      const now = Date.now();
+      const id = `goal-${now.toString(36)}`;
+      const mode = ['local', 'cloud', 'auto'].includes(body.execution_mode) ? body.execution_mode : 'auto';
+      await env.DB.prepare(
+        `INSERT INTO goals (id, title, target_prompt, repo_path, repo_url, acceptance_cmd, execution_mode, preferred_core, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', ?, ?)`
+      )
+        .bind(id, prompt.slice(0, 80), prompt, body.repo_path || null, body.repo_url || null, body.acceptance_cmd || null, mode, body.preferred_core || 'auto', now, now)
+        .run();
+      if (mode === 'cloud' && body.repo_url) {
+        await triggerGitHubActions(env, { id, repo_url: body.repo_url, branch: body.branch || 'dev' });
+      }
+      return Response.json({ ok: true, id });
+    }
+
+    if (request.method === 'POST' && url.pathname === '/api/goals/action') {
+      const { goalId, action, value } = await request.json().catch(() => ({}));
+      if (!goalId) return Response.json({ error: 'Missing goalId' }, { status: 400 });
+      const now = Date.now();
+      if (action === 'switch' && value) {
+        await env.DB.prepare(`UPDATE goals SET preferred_core = ?, updated_at = ? WHERE id = ?`).bind(String(value), now, goalId).run();
+      } else if (action === 'pause' || action === 'resume' || action === 'cancel') {
+        const nextStatus = action === 'pause' ? 'PAUSED' : action === 'cancel' ? 'CANCELLED' : 'QUEUED';
+        await env.DB.prepare(`UPDATE goals SET status = ?, updated_at = ? WHERE id = ?`).bind(nextStatus, now, goalId).run();
+      }
+      return Response.json({ ok: true });
     }
 
     // 2. Lease Acquire / Heartbeat
