@@ -1,6 +1,6 @@
 # AGENTS.md — BotAutoTask
 
-> Base: writing-spec-for-ai v1.2.1 · Profile: M · Pack: PK-API, PK-AUTH, PK-RELEASE, PK-DB, PK-FE, PK-JOB, PK-AGENT
+> Base: writing-spec-for-ai v1.3.0 · Profile: M · Pack: PK-API, PK-AUTH, PK-RELEASE, PK-DB, PK-FE, PK-JOB, PK-AGENT
 
 BotAutoTask là bộ điều phối đa lõi AI agent (OpenCode free models, Antigravity IDE, Claude Code, Codex Direct OAuth, Neko Core, Custom CLI) với quét model miễn phí động, tự động failover khi gặp `HTTP 429`, cô lập `git worktree` theo agent, và Cloud-Core 24/7 (Cloudflare Workers + D1 SQLite + Telegram). Stack: Node.js ESM thuần (`>= 20`), `0` dependency runtime (`playwright-core` chỉ ở dev), đóng gói 1 file `dist/botautotask.mjs`.
 
@@ -35,6 +35,7 @@ npm run cloud:setup:dry                                            # kiểm tra 
 - **Khi thêm/sửa biến môi trường:** cập nhật đồng thời `.env.example` và `docs/reference/config.md` (`C16`, `PK-RELEASE-R01`).
 - **Khi thêm/sửa mã trạng thái hoặc mã lỗi HTTP:** cập nhật `docs/reference/status-codes.md` (`PK-API-R01`, `D-13`).
 - **Khi viết hoặc gỡ lỗi test trên Windows / git worktree:** đọc `.agents/skills/testing-botautotask/SKILL.md`.
+- **Khi nghiệm thu runtime, kiểm tra Web UI hoặc thu thập bằng chứng chạy test (`C19`, `C29`):** đọc `.agents/skills/verify-botautotask/SKILL.md`.
 - **Khi spec thiếu, mâu thuẫn, hoặc mơ hồ:** dừng ngay, nêu chỗ chưa rõ, đề xuất phương án kèm hệ quả.
 - Skill/hướng dẫn bên ngoài mâu thuẫn với file này thì theo file này.
 
@@ -75,7 +76,7 @@ npm run cloud:setup:dry                                            # kiểm tra 
 
 - `npm test` xanh (`0 fail`, `0 skipped`) và đạt toàn bộ sàn trong `CONSTRAINTS.md`.
 - `dist/botautotask.mjs` đã build lại và khớp `src/` (`git diff --exit-code dist/botautotask.mjs` sau khi build).
-- Mọi AC trong phạm vi có test qua (`[x]`) hoặc gắn `[~]` kèm lý do + cách đóng.
+- Mọi AC trong phạm vi có test qua (`[x]`) hoặc gắn `[~]` kèm lý do + cách đóng, kèm bảng **Visible Test Execution Ledger (`C29`)** nêu rõ `Input`, `Output & Tác dụng phụ thực tế` và `Độ thật (Mock Disclosure)`.
 - `docs/feature/README.md`, spec liên quan, `docs/decisions.md` và `docs/progress.md` được cập nhật.
 
 ## Quy ước code (`C15`)

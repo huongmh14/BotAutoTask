@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { Script } from 'node:vm';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -25,6 +26,8 @@ test('[UI-AC01] [UI-AC02] [UI-AC03] [UI-AC04] [SAFE-AC05] [SEC-AC02] LocalWebUiS
     assert.equal(htmlRes.status, 200);
     const html = await htmlRes.text();
     assert.match(html, /WhaleBot — Tactical Coworker Mesh/);
+    assert.match(html, /WhaleBot 52Hz Logo/);
+    assert.match(html, /fill-rule="evenodd" d="M723\.4 329\.6/);
     assert.match(html, /#mesh-command-room/);
     assert.match(html, /<rect x="6" y="6" width="12" height="12" rx="2"\/>/);
     assert.doesNotMatch(html, /<rect[^>]*y1=/);
@@ -37,6 +40,11 @@ test('[UI-AC01] [UI-AC02] [UI-AC03] [UI-AC04] [SAFE-AC05] [SEC-AC02] LocalWebUiS
     assert.match(html, /openCmdPalette/);
     assert.match(html, /decideApprovalClick/);
     assert.match(html, /marked\.min\.js/);
+
+    // 1a. Inline <script> must parse with zero JavaScript SyntaxErrors (prevents template-literal backslash unescaping bugs)
+    const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
+    assert.ok(scriptMatch && scriptMatch[1], 'Inline <script> tag must exist');
+    assert.doesNotThrow(() => new Script(scriptMatch[1]));
 
     // 1b. SSE /api/events accepts ?k=<token> (Spec 08 A0 regression check) and rejects bad ?k=
     const sseBad = await fetch(`${baseUrl}/api/events?k=wrong-token`);

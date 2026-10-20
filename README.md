@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/whale-52hz-logo.svg" alt="BotAutoTask 52Hz Whale Logo" width="220" />
+
 # ⚡ BotAutoTask
 
 **Bộ điều phối Agent Đa Lõi (Pluggable Multi-Core Orchestrator) — Tự săn Model Free tốt nhất, Tự vượt Rate Limit, Tự chạy khi có mạng & Hoạt động 24/7 cả khi tắt máy.**

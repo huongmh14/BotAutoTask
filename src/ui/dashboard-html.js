@@ -4,17 +4,20 @@
  *   - Left sidebar: chat list (group channel + AI coworkers), search, connection state
  *   - Right: conversation with left/right bubbles, typing indicator, composer
  *   - Ocean-blue primary palette (#0284C7) with light / deep-ocean dark themes
- *   - Original friendly whale mascot (pure inline SVG, no external assets)
+ *   - 52Hz Baleen Whale mascot (pure inline SVG traced from official logo, 0 external assets)
  */
 
-export function renderDashboardHtml() {
+export const WHALE_52HZ_PATH_D = 'M723.4 329.6Q751.4 340.1 761.4 345.1Q771.4 350.1 780.2 356.3Q789.0 362.5 796.8 370.2Q804.5 378.0 808.7 383.8Q812.9 389.6 812.7 390.7Q812.5 391.8 804.9 386.9Q797.4 382.1 786.4 378.1Q775.4 374.1 749.0 369.1Q722.6 364.1 721.8 365.3Q721.0 366.5 721.0 387.5Q721.0 408.5 722.1 415.4Q723.1 422.4 725.4 424.1Q727.6 425.9 739.0 427.0Q750.4 428.1 755.9 429.6Q761.4 431.1 768.2 434.8Q775.0 438.5 778.2 442.2Q781.5 446.0 783.2 449.8Q784.9 453.6 784.9 458.0Q784.9 462.4 782.4 466.9Q780.0 471.5 773.7 474.7Q767.4 477.9 760.4 477.9Q753.5 478.0 747.6 476.4Q741.6 474.9 732.3 469.7Q723.0 464.5 718.2 460.2Q713.5 456.0 708.0 449.0Q702.5 442.0 696.8 430.2Q691.1 418.4 689.1 410.4Q687.1 402.4 686.1 392.4Q685.0 382.5 686.1 364.6Q687.1 346.6 689.1 337.1Q691.1 327.6 693.2 323.4Q695.4 319.1 723.4 329.6ZM974.7 340.8Q975.9 343.6 976.9 352.6Q978.0 361.5 977.4 381.4Q976.9 401.4 972.9 416.4Q968.9 431.4 965.4 438.9Q961.9 446.4 956.7 454.2Q951.5 462.0 944.8 468.8Q938.0 475.5 928.2 481.7Q918.4 487.9 906.4 491.9Q894.4 495.9 886.4 496.9Q878.5 498.0 875.1 497.4Q871.6 496.9 873.4 491.8Q875.1 486.6 881.8 476.8Q888.5 467.0 895.2 460.8Q902.0 454.5 915.5 445.0Q929.0 435.5 935.2 429.8Q941.5 424.0 946.2 416.7Q950.9 409.4 952.4 402.4Q954.0 395.5 953.4 392.1Q952.9 388.6 951.2 385.3Q949.5 382.0 945.9 379.1Q942.4 376.1 936.9 374.6Q931.5 373.0 925.5 373.0Q919.5 373.0 912.6 374.6Q905.6 376.1 897.1 380.1Q888.6 384.1 882.8 388.3Q877.0 392.5 871.2 398.8Q865.5 405.0 862.8 409.8Q860.1 414.6 860.4 415.8Q860.6 416.9 864.5 417.4Q868.4 417.9 876.5 411.0Q884.6 404.1 891.1 401.6Q897.6 399.1 901.6 399.1Q905.5 399.0 908.2 400.2Q911.0 401.5 912.9 404.6Q914.9 407.6 914.9 410.0Q914.9 412.4 913.2 416.7Q911.5 421.0 908.2 424.8Q905.0 428.5 890.5 440.0Q876.0 451.5 867.2 461.2Q858.5 471.0 853.8 479.3Q849.1 487.6 842.5 504.5Q835.9 521.4 830.4 532.4Q824.9 543.4 818.2 554.2Q811.5 565.0 805.0 573.5Q798.5 582.0 788.2 592.2Q778.0 602.5 771.0 608.0Q764.0 613.5 744.7 624.7Q725.4 635.9 712.4 641.4Q699.4 646.9 685.4 651.4Q671.4 655.9 647.4 660.4Q623.5 665.0 602.5 666.0Q581.5 667.0 571.0 666.5Q560.5 666.0 546.1 663.9Q531.6 661.9 521.1 659.4Q510.6 656.9 501.8 653.7Q493.0 650.5 481.2 634.8Q469.5 619.0 450.1 603.1Q430.6 587.1 435.6 594.1Q440.5 601.0 456.0 618.0Q471.5 635.0 478.7 645.8Q485.9 656.6 498.5 683.5Q511.1 710.4 524.0 732.5Q536.9 754.6 537.9 760.5Q538.9 766.4 536.1 769.1Q533.4 771.9 527.5 771.4Q521.6 770.9 513.6 768.4Q505.6 765.9 489.6 758.4Q473.6 750.9 463.3 744.2Q453.0 737.5 444.0 730.0Q435.0 722.5 427.8 714.8Q420.5 707.0 414.5 699.0Q408.5 691.0 400.8 677.2Q393.1 663.4 386.1 643.4Q379.1 623.4 377.6 616.4Q376.0 609.5 374.9 597.6Q373.9 585.6 364.2 582.8Q354.6 579.9 346.3 575.7Q338.0 571.5 320.0 557.0Q302.0 542.5 293.2 536.8Q284.4 531.1 265.9 523.6Q247.4 516.1 225.9 511.6Q204.4 507.1 180.4 504.6Q156.5 502.0 124.5 500.5Q92.5 499.0 79.5 497.1Q66.5 495.2 66.3 496.3Q66.1 497.4 67.8 500.2Q69.5 503.0 72.8 505.8Q76.0 508.5 86.7 513.8Q97.4 519.1 109.2 527.3Q121.0 535.5 132.2 546.8Q143.5 558.0 158.0 575.5Q172.5 593.0 183.8 604.2Q195.0 615.5 206.0 623.5Q217.0 631.5 230.3 638.2Q243.6 644.9 257.6 649.4Q271.6 653.9 287.6 656.9Q303.5 660.0 318.0 661.0Q332.5 662.0 356.9 662.1Q381.4 662.1 380.9 663.0Q380.4 663.9 375.9 664.9Q371.4 665.9 358.9 667.4Q346.5 669.0 327.5 669.0Q308.5 669.0 293.1 666.9Q277.6 664.9 257.1 658.9Q236.6 652.9 227.1 648.4Q217.6 643.9 209.3 638.7Q201.0 633.5 186.2 620.8Q171.5 608.0 152.0 585.0Q132.5 562.0 120.2 549.8Q108.0 537.5 99.5 531.5Q91.0 525.5 81.5 520.5Q72.0 515.5 64.8 509.8Q57.5 504.0 54.8 500.2Q52.1 496.4 49.6 490.4Q47.1 484.4 47.1 481.0Q47.1 477.6 48.1 475.1Q49.1 472.6 50.9 470.9Q52.6 469.1 57.1 467.6Q61.5 466.0 76.0 467.0Q90.5 468.0 138.9 475.6Q187.4 483.1 215.9 489.6Q244.4 496.1 254.9 500.1Q265.4 504.1 275.7 509.8Q286.0 515.5 295.5 523.5Q305.0 531.5 317.5 544.5Q330.0 557.5 335.8 561.2Q341.6 564.9 350.6 568.4Q359.6 571.9 366.6 572.9Q373.5 574.0 376.4 573.6Q379.4 573.1 373.0 571.0Q366.6 568.9 354.3 562.2Q342.0 555.5 320.0 534.5Q298.0 513.5 284.2 505.3Q270.4 497.1 251.9 491.1Q233.4 485.1 210.4 480.6Q187.4 476.1 138.9 469.1Q90.5 462.0 78.5 461.0Q66.5 460.0 61.1 460.4Q55.6 460.9 54.8 459.2Q54.0 457.5 55.1 455.1Q56.1 452.6 61.4 447.4Q66.6 442.1 73.1 439.1Q79.6 436.1 89.6 433.6Q99.6 431.1 122.1 429.1Q144.5 427.0 181.5 422.0Q218.5 417.0 246.0 416.5Q273.5 416.0 298.0 418.0Q322.5 420.0 345.4 423.6Q368.4 427.1 395.9 433.6Q423.4 440.1 449.9 448.6Q476.4 457.1 507.0 469.0Q537.6 480.9 546.1 483.4Q554.6 485.9 566.1 486.4Q577.5 487.0 590.0 484.0Q602.5 481.0 612.9 481.1Q623.4 481.1 625.2 481.8Q627.0 482.5 628.5 484.5Q630.0 486.5 627.6 489.6Q625.1 492.6 625.3 495.3Q625.5 498.0 629.6 500.4Q633.6 502.9 640.6 504.9Q647.6 506.9 660.1 508.4Q672.5 510.0 697.0 509.5Q721.5 509.0 736.4 506.4Q751.4 503.9 769.9 497.4Q788.4 490.9 797.4 484.4Q806.5 478.0 809.2 472.2Q811.9 466.4 811.9 461.9Q812.0 457.5 810.9 453.1Q809.9 448.6 806.7 442.8Q803.5 437.0 798.8 432.2Q794.0 427.5 784.7 422.3Q775.4 417.1 768.9 415.1Q762.4 413.1 753.2 411.8Q744.1 410.4 743.9 398.2Q743.6 386.1 757.5 387.6Q771.4 389.1 778.9 391.1Q786.4 393.1 792.4 395.6Q798.4 398.1 804.2 401.8Q810.0 405.5 815.8 411.2Q821.5 417.0 824.2 421.8Q826.9 426.6 829.7 439.2Q832.5 451.8 834.8 441.2Q837.1 430.6 842.6 417.6Q848.1 404.6 854.8 395.3Q861.5 386.0 867.8 380.2Q874.0 374.5 882.8 368.8Q891.6 363.1 901.1 359.1Q910.6 355.1 942.1 346.6Q973.5 338.0 974.7 340.8ZM314.0 481.5Q312.0 482.5 311.1 484.1Q310.1 485.6 310.1 489.0Q310.1 492.4 312.4 494.6Q314.6 496.9 317.6 496.9Q320.5 497.0 323.0 495.5Q325.5 494.0 326.2 490.8Q326.9 487.6 324.9 484.6Q323.0 481.5 319.5 481.0Q316.0 480.5 314.0 481.5ZM132.9 523.1Q144.4 528.1 153.2 534.3Q162.0 540.5 192.0 571.0Q222.0 601.5 235.5 611.5Q249.0 621.5 266.3 629.7Q283.6 637.9 298.6 641.9Q313.6 645.9 327.5 647.5Q341.4 649.1 342.1 649.8Q342.8 650.5 342.1 650.8Q341.5 651.0 327.0 651.0Q312.5 651.0 302.6 649.4Q292.6 647.9 283.1 645.4Q273.6 642.9 258.8 636.2Q244.0 629.5 233.5 622.5Q223.0 615.5 216.0 609.5Q209.0 603.5 180.5 573.0Q152.0 542.5 145.0 536.5Q138.0 530.5 129.5 525.0Q121.0 519.5 121.2 518.8Q121.4 518.1 132.9 523.1ZM177.9 526.1Q189.4 531.1 196.2 535.8Q203.0 540.5 226.0 562.5Q249.0 584.5 265.3 596.2Q281.6 607.9 294.6 613.9Q307.6 619.9 323.6 624.4Q339.6 628.9 345.5 629.5Q351.4 630.1 352.6 630.8Q353.8 631.5 353.1 631.8Q352.5 632.0 341.5 632.0Q330.5 632.0 319.1 629.9Q307.6 627.9 297.1 624.4Q286.6 620.9 276.1 615.4Q265.6 609.9 250.8 598.2Q236.0 586.5 215.5 565.0Q195.0 543.5 186.5 536.5Q178.0 529.5 172.5 526.5Q167.0 523.5 166.1 522.5Q165.2 521.5 165.8 521.3Q166.4 521.1 177.9 526.1Z';
+
+export function renderDashboardHtml(defaultToken = '') {
+  const safeDefaultToken = JSON.stringify(String(defaultToken || ''));
   return `<!DOCTYPE html>
 <html lang="vi" data-theme="ocean-light">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>WhaleBot — Tactical Coworker Mesh</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28' shape-rendering='crispEdges'%3E%3Crect width='28' height='28' rx='6' fill='%230284C7'/%3E%3Crect width='28' height='10' fill='%2322D3EE' fill-opacity='0.45'/%3E%3Cpath d='M21 6h4v1h-4zM18 7h4v1h-4zM15 8h3v1h-3zM13 9h2v1h-2zM11 10h2v1h-2zM9 11h2v1H9zM8 12h1v1H8zM7 13h1v1H7zM6 14h1v1H6z' fill='%237DD3FC'/%3E%3Cpath d='M22 7h3v1h-3zM18 8h6v1h-6zM15 9h6v1h-6zM13 10h6v1h-6zM11 11h6v1h-6zM9 12h5v1H9zM8 13h4v1H8zM7 14h3v1H7zM5 15h2v1H5zM4 16h2v1H4z' fill='%231E3A5F'/%3E%3Cpath d='M25 7h1v1h-1zM24 8h2v1h-2zM22 9h2v1h-2zM19 10h3v1h-3zM17 11h3v1h-3zM14 12h4v1h-4zM12 13h4v1h-4zM10 14h4v1h-4zM16 14h2v1h-2zM7 15h2v1H7zM11 15h3v1h-3zM16 15h2v1h-2zM6 16h1v1H6zM10 16h3v1h-3zM15 16h2v1h-2zM2 17h4v1H2zM8 17h4v1H8zM14 17h2v1h-2zM1 18h3v1H1zM5 18h1v1H5zM7 18h3v1H7zM13 18h2v1h-2zM1 19h2v1H1zM5 19h1v1H5zM4 20h2v1H4z' fill='%23091929'/%3E%3Cpath d='M24 9h1v1h-1zM22 10h2v1h-2zM20 11h3v1h-3zM18 12h3v1h-3zM16 13h3v1h-3z' fill='%231E4976'/%3E%3Crect x='21' y='9' width='1' height='1' fill='%2338BDF8'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='220' fill='%23FFFFFF'/%3E%3Cpath fill='%231670ED' fill-rule='evenodd' d='${WHALE_52HZ_PATH_D}'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -137,10 +140,11 @@ export function renderDashboardHtml() {
     min-width: 0;
   }
   .brand-logo {
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 13px;
-    background: linear-gradient(180deg, #22D3EE 0%, #0284C7 55%, #1E3A8A 100%);
+    background: #FFFFFF;
+    border: 1.5px solid var(--border-strong);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -149,10 +153,8 @@ export function renderDashboardHtml() {
     overflow: hidden;
   }
   .brand-logo svg {
-    width: 34px;
-    height: 34px;
-    shape-rendering: crispEdges;
-    image-rendering: pixelated;
+    width: 38px;
+    height: 38px;
   }
   .brand-name {
     font-size: 15.5px;
@@ -267,27 +269,25 @@ export function renderDashboardHtml() {
     width: 44px;
     height: 44px;
     border-radius: 50%;
+    border: 1.5px solid var(--border-strong);
+    background: #FFFFFF;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    color: #FFFFFF;
+    color: #1670ED;
   }
   .avatar svg {
-    width: 30px;
-    height: 30px;
-    shape-rendering: crispEdges;
-    image-rendering: pixelated;
+    width: 36px;
+    height: 36px;
   }
   .avatar.sm {
     width: 34px;
     height: 34px;
   }
   .avatar.sm svg {
-    width: 24px;
-    height: 24px;
-    shape-rendering: crispEdges;
-    image-rendering: pixelated;
+    width: 28px;
+    height: 28px;
   }
 
   .status-dot {
@@ -489,22 +489,21 @@ export function renderDashboardHtml() {
     padding: 20px 10px;
   }
   .hero-art {
-    width: 136px;
-    height: 136px;
+    width: 148px;
+    height: 148px;
     margin: 0 auto 18px;
     border-radius: 50%;
-    background: linear-gradient(180deg, #22D3EE 0%, #0284C7 55%, #1E3A8A 100%);
+    background: #FFFFFF;
+    border: 2px solid var(--border-strong);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 0 10px var(--accent-soft), 0 12px 28px rgba(2, 132, 199, 0.25);
+    box-shadow: 0 0 0 10px var(--accent-soft), 0 12px 28px rgba(22, 112, 237, 0.22);
     overflow: hidden;
   }
   .hero-art svg {
-    width: 136px;
-    height: 136px;
-    shape-rendering: crispEdges;
-    image-rendering: pixelated;
+    width: 132px;
+    height: 132px;
   }
   .welcome h2 {
     font-size: 22px;
@@ -1191,14 +1190,9 @@ export function renderDashboardHtml() {
     <aside class="sidebar" id="sidebar">
       <div class="brand-bar">
         <div class="brand">
-          <div class="brand-logo" title="WhaleBot">
-            <svg viewBox="0 0 28 28" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5 0h2v9H5zM11 0h3v11h-3zM19 0h2v8h-2z" fill="rgba(255,255,255,0.16)"/>
-              <path d="M21 6h4v1h-4zM18 7h4v1h-4zM15 8h3v1h-3zM13 9h2v1h-2zM11 10h2v1h-2zM9 11h2v1H9zM8 12h1v1H8zM7 13h1v1H7zM6 14h1v1H6z" fill="#7DD3FC"/>
-              <path d="M22 7h3v1h-3zM18 8h6v1h-6zM15 9h6v1h-6zM13 10h6v1h-6zM11 11h6v1h-6zM9 12h5v1H9zM8 13h4v1H8zM7 14h3v1H7zM5 15h2v1H5zM4 16h2v1H4z" fill="#1E3A5F"/>
-              <path d="M25 7h1v1h-1zM24 8h2v1h-2zM22 9h2v1h-2zM19 10h3v1h-3zM17 11h3v1h-3zM14 12h4v1h-4zM12 13h4v1h-4zM10 14h4v1h-4zM16 14h2v1h-2zM7 15h2v1H7zM11 15h3v1h-3zM16 15h2v1h-2zM6 16h1v1H6zM10 16h3v1h-3zM15 16h2v1h-2zM2 17h4v1H2zM8 17h4v1H8zM14 17h2v1h-2zM1 18h3v1H1zM5 18h1v1H5zM7 18h3v1H7zM13 18h2v1h-2zM1 19h2v1H1zM5 19h1v1H5zM4 20h2v1H4z" fill="#091929"/>
-              <path d="M24 9h1v1h-1zM22 10h2v1h-2zM20 11h3v1h-3zM18 12h3v1h-3zM16 13h3v1h-3z" fill="#1E4976"/>
-              <rect x="21" y="9" width="1" height="1" fill="#38BDF8"/>
+          <div class="brand-logo" title="WhaleBot 52Hz">
+            <svg viewBox="20 180 984 720" xmlns="http://www.w3.org/2000/svg" aria-label="WhaleBot 52Hz Logo">
+              <path fill="#1670ED" fill-rule="evenodd" d="${WHALE_52HZ_PATH_D}"/>
             </svg>
           </div>
           <div class="brand-text">
@@ -1261,7 +1255,7 @@ export function renderDashboardHtml() {
           <button class="icon-btn" onclick="toggleSidebar()" title="Đóng/mở danh sách chat">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
           </button>
-          <span class="avatar sm" id="headerAvatar" style="background:linear-gradient(135deg,#38BDF8,#0369A1);"></span>
+          <span class="avatar sm" id="headerAvatar" style="background:#FFFFFF;"></span>
           <div class="header-info">
             <div class="header-title-row">
               <span class="header-title" id="headerTitle">Nhóm WhaleBot</span>
@@ -1450,35 +1444,19 @@ export function renderDashboardHtml() {
   </div>
 
 <script>
-  // ===== Pixel-Art Humpback Whale Mascot (28x28 crisp pixel grid) =====
+  // ===== 52Hz Baleen Whale Mascot (Smooth Vector SVG with negative-space 52 tail flukes) =====
+  const WHALE_52HZ_D = '${WHALE_52HZ_PATH_D}';
   function whaleSvg(opts) {
     opts = opts || {};
-    const top = opts.top || '#7DD3FC';
-    const mid = opts.mid || '#1E3A5F';
-    const dark = opts.dark || '#091929';
-    const belly = opts.belly || '#1E4976';
-    const eye = opts.eye || '#38BDF8';
-    let scene = '';
-    if (opts.scene) {
-      scene =
-        '<path d="M4 0h2v12H4zM9 0h3v15H9zM16 0h2v11h-2zM22 0h2v9h-2z" fill="rgba(255,255,255,0.14)"/>' +
-        '<path d="M18 22h10v6H18zM13 24h5v4h-5zM9 26h4v2H9zM21 20h7v2h-7z" fill="rgba(9,25,41,0.45)"/>' +
-        '<path d="M20 21h8v1h-8zM15 23h6v1h-6z" fill="rgba(56,189,248,0.22)"/>' +
-        '<path d="M23 3h1v1h-1zM25 4h1v1h-1zM19 4h1v1h-1z" fill="rgba(255,255,255,0.65)"/>';
-    }
-    return '<svg viewBox="0 0 28 28" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-      scene +
-      '<path d="M21 6h4v1h-4zM18 7h4v1h-4zM15 8h3v1h-3zM13 9h2v1h-2zM11 10h2v1h-2zM9 11h2v1H9zM8 12h1v1H8zM7 13h1v1H7zM6 14h1v1H6z" fill="' + top + '"/>' +
-      '<path d="M22 7h3v1h-3zM18 8h6v1h-6zM15 9h6v1h-6zM13 10h6v1h-6zM11 11h6v1h-6zM9 12h5v1H9zM8 13h4v1H8zM7 14h3v1H7zM5 15h2v1H5zM4 16h2v1H4z" fill="' + mid + '"/>' +
-      '<path d="M25 7h1v1h-1zM24 8h2v1h-2zM22 9h2v1h-2zM19 10h3v1h-3zM17 11h3v1h-3zM14 12h4v1h-4zM12 13h4v1h-4zM10 14h4v1h-4zM16 14h2v1h-2zM7 15h2v1H7zM11 15h3v1h-3zM16 15h2v1h-2zM6 16h1v1H6zM10 16h3v1h-3zM15 16h2v1h-2zM2 17h4v1H2zM8 17h4v1H8zM14 17h2v1h-2zM1 18h3v1H1zM5 18h1v1H5zM7 18h3v1H7zM13 18h2v1h-2zM1 19h2v1H1zM5 19h1v1H5zM4 20h2v1H4z" fill="' + dark + '"/>' +
-      '<path d="M24 9h1v1h-1zM22 10h2v1h-2zM20 11h3v1h-3zM18 12h3v1h-3zM16 13h3v1h-3z" fill="' + belly + '"/>' +
-      '<rect x="21" y="9" width="1" height="1" fill="' + eye + '"/>' +
+    const fill = opts.fill || '#1670ED';
+    return '<svg viewBox="20 180 984 720" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<path fill="' + fill + '" fill-rule="evenodd" d="' + WHALE_52HZ_D + '"/>' +
       '</svg>';
   }
 
-  // Pixel whale for colored coworker avatars & full underwater pixel scene for welcome hero
-  const WHALE_MARK = whaleSvg({ top: '#E0F2FE', mid: '#FFFFFF', dark: '#0C4A6E', belly: '#7DD3FC', eye: '#0284C7' });
-  const WHALE_HERO = whaleSvg({ top: '#7DD3FC', mid: '#1E3A5F', dark: '#091929', belly: '#1E4976', eye: '#38BDF8', scene: true });
+  // Exact 52Hz Whale (#1670ED on white) for avatars and welcome hero
+  const WHALE_MARK = whaleSvg({ fill: '#1670ED' });
+  const WHALE_HERO = whaleSvg({ fill: '#1670ED' });
 
   const ICONS = {
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
@@ -1489,25 +1467,25 @@ export function renderDashboardHtml() {
     all: {
       title: 'Nhóm WhaleBot',
       tag: 'Nhóm',
-      grad: 'linear-gradient(180deg, #22D3EE 0%, #0284C7 55%, #1E3A8A 100%)',
+      grad: '#FFFFFF',
       sub: 'Kênh phối hợp chung · #mesh-command-room'
     },
     lead: {
       title: '@lead · Trưởng nhóm',
       tag: 'Lead',
-      grad: 'linear-gradient(135deg, #0EA5E9, #075985)',
+      grad: '#FFFFFF',
       sub: 'Điều phối & phân công công việc'
     },
     coder: {
       title: '@coder · Lập trình viên',
       tag: 'Writer',
-      grad: 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
+      grad: '#FFFFFF',
       sub: 'Viết code & kiểm thử trong Git Worktree riêng'
     },
     reviewer: {
       title: '@reviewer · Kiểm duyệt',
       tag: 'QA',
-      grad: 'linear-gradient(135deg, #6366F1, #4338CA)',
+      grad: '#FFFFFF',
       sub: 'Review code & đảm bảo chất lượng'
     }
   };
@@ -1517,17 +1495,42 @@ export function renderDashboardHtml() {
     return {
       title: '@' + id,
       tag: 'Đồng sự',
-      grad: 'linear-gradient(135deg, #38BDF8, #0284C7)',
+      grad: '#FFFFFF',
       sub: 'Chuyên gia đồng hành'
     };
   }
 
-  let authToken = '';
+  let authToken = ${safeDefaultToken};
   if (location.hash.startsWith('#k=')) {
     authToken = location.hash.slice(3);
   }
 
-  let agentsState = [];
+  let agentsState = [
+    {
+      id: 'lead',
+      name: 'Team Lead (Orchestrator)',
+      role: 'reader',
+      preferredCore: 'auto',
+      status: 'idle',
+      description: 'Điều phối & phân công công việc'
+    },
+    {
+      id: 'coder',
+      name: 'Senior Implementation Engineer',
+      role: 'writer',
+      preferredCore: 'auto',
+      status: 'idle',
+      description: 'Viết code & kiểm thử trong Git Worktree riêng'
+    },
+    {
+      id: 'reviewer',
+      name: 'Adversarial Reviewer & QA',
+      role: 'reader',
+      preferredCore: 'auto',
+      status: 'idle',
+      description: 'Review code & đảm bảo chất lượng'
+    }
+  ];
   let approvalsState = [];
   let feedItems = [];
   let currentChannel = 'all';
@@ -1955,7 +1958,7 @@ export function renderDashboardHtml() {
   function formatBubbleContent(rawText) {
     const str = String(rawText || '');
     const toolChips = [];
-    const cleaned = str.replace(/\[Tool\s+([A-Za-z0-9_]+)\s*->\s*([\s\S]*?)\]/g, (_, toolName, jsonText) => {
+    const cleaned = str.replace(/\\[Tool\\s+([A-Za-z0-9_]+)\\s*->\\s*([\\s\\S]*?)\\]/g, (_, toolName, jsonText) => {
       toolChips.push({ name: toolName, payload: jsonText.trim() });
       return '';
     }).trim();
@@ -2209,7 +2212,7 @@ export function renderDashboardHtml() {
         box.textContent = 'Chưa có bài học nào trong .botautotask/library/general.';
         return;
       }
-      box.textContent = data.entries.slice(0, 6).join('\n---\n');
+      box.textContent = data.entries.slice(0, 6).join('\\n---\\n');
     } catch {}
   }
 
@@ -2243,7 +2246,7 @@ export function renderDashboardHtml() {
       }
       let currentFile = 'worktree';
       let lineNo = 0;
-      const lines = raw.split(/\r?\n/);
+      const lines = raw.split(/\\r?\\n/);
       if (boxEl) {
         boxEl.innerHTML = lines.map((line) => {
           lineNo++;
@@ -2290,9 +2293,9 @@ export function renderDashboardHtml() {
   }
 
   function formatDiffCommentsForAgent(comments) {
-    return 'Review comments on your branch:\n' + comments.map((c) =>
-      \`File: \${c.file}\nLines: \${c.line}\nUser comment: "\${c.comment}"\`
-    ).join('\n\n');
+    return 'Review comments on your branch:\\n' + comments.map((c) =>
+      \`File: \${c.file}\\nLines: \${c.line}\\nUser comment: "\${c.comment}"\`
+    ).join('\\n\\n');
   }
 
   async function submitDiffComments() {
@@ -2304,7 +2307,7 @@ export function renderDashboardHtml() {
         nonce: 'diffc-' + Date.now(),
         text: formatted,
         delivery: 'send',
-        wait: false
+        wait: true
       })
     });
     diffComments = [];
@@ -2471,7 +2474,7 @@ export function renderDashboardHtml() {
           text,
           delivery,
           priority: delivery === 'interrupt',
-          wait: false
+          wait: delivery !== 'queue'
         })
       });
     }
@@ -2536,6 +2539,9 @@ export function renderDashboardHtml() {
     refreshState();
   }
 
+  renderRoster();
+  renderHeader();
+  renderStream();
   syncNotifBtn();
   connectSse();
   refreshState();
