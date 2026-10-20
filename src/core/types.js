@@ -67,10 +67,15 @@ export function buildHandoverPrompt(goal, journal = []) {
     ? `\nAcceptance Verification Command: \`${normalizedGoal.acceptance_cmd}\` (run this to verify before declaring completion).`
     : '';
 
+  const experience = normalizedGoal.experience_notes
+    ? `\n## PROVEN EXPERIENCE (verified lessons from past goals — trust but re-verify):\n${normalizedGoal.experience_notes}\n`
+    : '';
+
   return [
     `# TARGET GOAL: ${normalizedGoal.title || normalizedGoal.id || 'Autonomous Task'}`,
     normalizedGoal.target_prompt || '',
     acceptance,
+    experience,
     `\n## DURABLE JOURNAL (Previous Cores' Progress):`,
     historyLines,
     `\n## INSTRUCTIONS FOR THIS STEP:`,

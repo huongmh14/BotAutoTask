@@ -1,28 +1,20 @@
 /**
- * BotAutoTask — Google Research Harness² Engine.
- * Implements "Harness²: Recursive Agent Harnessing for an Open World" (arXiv:2610.14224).
- * Features:
- * 1. 8-Component Surface Tree (c1..c8): system prompt, guardrails, memory, tools, subagents, skills, verifiers, hooks.
- * 2. Autotrigger discovery: Automatically registers discovered skills into guardrails.
- * 3. Two-Level Recursion:
- *    - Task-Level: Propose -> Probe (Invariant & Domain worktrees) -> Compose
- *    - System-Level: Experience Library R with { cue, lesson, evidence } triples
- * 4. Context Budget & Path Validation: Rejects path escapes (..) and enforces always_on limits.
+ * BotAutoTask — Google Research Harness² Engine (library subset).
+ * Implements the durable part of "Harness²: Recursive Agent Harnessing for an Open World"
+ * (arXiv:2610.14224) that pays for itself in a single-machine orchestrator:
+ * 1. Experience Library R: { cue, lesson, evidence } triples saved to disk (core/library.py).
+ * 2. Autotrigger discovery: registers discovered skills into guardrails (c2).
+ * 3. Path validation ported from normalize_rel (core/tree.py): rejects any '..' segment,
+ *    Windows and POSIX separators alike.
+ *
+ * Đính chính so với Spec 04 (đối chiếu harness2/core/*.py): Probe KHÔNG dùng git worktree
+ * (thư mục staged riêng), thư viện KHÔNG đồng bộ cloud, Compose là phiên LLM gộp cây —
+ * nên Propose–Probe–Compose không được triển khai ở đây (YAGNI, xem Spec 08 §D0).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { join, resolve, isAbsolute, normalize } from 'node:path';
-
-export const SURFACE_COMPONENTS = {
-  C1_SYSTEM_PROMPT: 'c1_system_prompt',
-  C2_GUARDRAILS: 'c2_guardrails',
-  C3_LONG_TERM_MEMORY: 'c3_long_term_memory',
-  C4_TOOL_GUIDANCE: 'c4_tool_guidance',
-  C5_SUBAGENTS: 'c5_subagents',
-  C6_SKILLS: 'c6_skills',
-  C7_VERIFIERS: 'c7_verifiers',
-  C8_HOOKS: 'c8_hooks'
-};
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { atomicWriteFileSync } from './atomic-write.js';
 
 export class Harness2Engine {
   constructor({ workspaceDir = process.cwd(), alwaysOnMaxChars = 24000 } = {}) {
@@ -32,19 +24,20 @@ export class Harness2Engine {
   }
 
   /**
-   * Validates relative file paths within the surface tree.
-   * Prevents directory escape (..) and unauthorized paths across Windows and POSIX.
+   * Validates relative paths inside the surface tree.
+   * Splits on both separators and rejects any '..' segment (ports normalize_rel),
+   * so 'a/../../x' and 'a\..\..\x' are both refused on every platform.
    */
   validatePath(relativePath) {
     if (!relativePath || typeof relativePath !== 'string') return false;
     const str = String(relativePath).trim();
+    if (str.length === 0) return false;
     if (str.startsWith('/') || str.startsWith('\\') || /^[a-zA-Z]:/.test(str)) {
-      return false; // Absolute or root-relative path
+      return false; // Absolute or drive/root-relative path
     }
-    const norm = normalize(str);
-    if (isAbsolute(norm) || norm.startsWith('..') || norm.startsWith(`..${normalize('/')}`)) {
-      return false;
-    }
+    const segments = str.split(/[/\\]+/).filter((s) => s.length > 0);
+    if (segments.length === 0) return false;
+    if (segments.some((s) => s === '..' || s === '.')) return false;
     return true;
   }
 
@@ -62,82 +55,73 @@ export class Harness2Engine {
   }
 
   /**
-   * Validates that total always-on components (c1 + c2 + c3) do not exceed context window limits.
+   * Saves an experience triple { cue, lesson, evidence } to the on-disk library.
+   * Missing fields are a silent no-op ({ saved: false }), mirroring library.py — never throws.
    */
-  validateContextBudget(components = {}) {
-    let totalChars = 0;
-    for (const [key, content] of Object.entries(components)) {
-      if ([SURFACE_COMPONENTS.C1_SYSTEM_PROMPT, SURFACE_COMPONENTS.C2_GUARDRAILS, SURFACE_COMPONENTS.C3_LONG_TERM_MEMORY].includes(key)) {
-        totalChars += String(content || '').length;
-      }
+  saveExperience({ domain = 'general', name, cue, lesson, evidence } = {}) {
+    if (!name || !cue || !lesson || !evidence) {
+      return { saved: false, reason: 'MISSING_FIELDS' };
     }
-    return {
-      valid: totalChars <= this.alwaysOnMaxChars,
-      totalChars,
-      maxChars: this.alwaysOnMaxChars
-    };
-  }
-
-  /**
-   * Composes Invariant Probe and Domain Probe outputs into a unified refined Harness H*.
-   */
-  composeProbes({ invariantProbe = {}, domainProbe = {} } = {}) {
-    const verified = invariantProbe.testPassed === true;
-    return {
-      success: verified,
-      harness: {
-        codeChanges: domainProbe.codeChanges || [],
-        verifiers: invariantProbe.verifiers || [],
-        guardrails: [
-          ...(domainProbe.guardrails || []),
-          ...(invariantProbe.guardrails || [])
-        ],
-        skills: domainProbe.skills || []
-      },
-      summary: verified
-        ? 'Domain implementation verified against Invariant Probe verifiers.'
-        : 'Invariant verification failed. Refinements required.'
-    };
-  }
-
-  /**
-   * Saves an experience entry triple: { cue, lesson, evidence }
-   */
-  saveExperience({ domain = 'general', name, cue, lesson, evidence }) {
-    if (!cue || !lesson || !evidence) {
-      throw new Error('Experience entry must contain cue, lesson, and evidence.');
-    }
-    const cleanDomain = String(domain).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-    const cleanName = String(name || `exp-${Date.now().toString(36)}`).replace(/[^a-z0-9_-]/g, '-');
+    const cleanDomain = String(domain).toLowerCase().replace(/[^a-z0-9_-]/g, '-') || 'general';
+    const cleanName = String(name).toLowerCase().replace(/[^a-z0-9_-]/g, '-') || `exp-${Date.now().toString(36)}`;
     const targetDir = join(this.libraryDir, cleanDomain);
-    mkdirSync(targetDir, { recursive: true });
-
-    const content = `# EXPERIENCE ENTRY: ${cleanName}
+    try {
+      mkdirSync(targetDir, { recursive: true });
+      const content = `# EXPERIENCE ENTRY: ${cleanName}
 - **Cue:** ${cue}
 - **Lesson:** ${lesson}
 - **Evidence:** ${evidence}
 `;
-    const targetFile = join(targetDir, `${cleanName}.md`);
-    writeFileSync(targetFile, content, 'utf8');
-    return { saved: true, file: targetFile };
+      const targetFile = join(targetDir, `${cleanName}.md`);
+      atomicWriteFileSync(targetFile, content, 'utf8');
+      return { saved: true, file: targetFile };
+    } catch (err) {
+      return { saved: false, reason: err.message };
+    }
   }
 
   /**
-   * Loads all experiences for a given domain into a prompt-ready format.
+   * Loads experiences for a domain, newest first (mtime), stopping before maxChars total.
+   * If the single newest entry alone exceeds the budget, it is head-truncated to fit.
    */
-  loadExperiences(domain = 'general') {
-    const cleanDomain = String(domain).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  loadExperiences(domain = 'general', { maxChars = 4000 } = {}) {
+    const cleanDomain = String(domain).toLowerCase().replace(/[^a-z0-9_-]/g, '-') || 'general';
     const targetDir = join(this.libraryDir, cleanDomain);
     if (!existsSync(targetDir)) return [];
 
-    const entries = [];
+    let files = [];
     try {
-      const files = readdirSync(targetDir).filter((f) => f.endsWith('.md'));
-      for (const f of files) {
-        const text = readFileSync(join(targetDir, f), 'utf8');
-        entries.push(text);
+      files = readdirSync(targetDir)
+        .filter((f) => f.endsWith('.md'))
+        .map((f) => {
+          let mtimeMs = 0;
+          try {
+            mtimeMs = statSync(join(targetDir, f)).mtimeMs;
+          } catch {}
+          return { f, mtimeMs };
+        })
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    } catch {
+      return [];
+    }
+
+    const entries = [];
+    let total = 0;
+    for (const { f } of files) {
+      let text = '';
+      try {
+        text = readFileSync(join(targetDir, f), 'utf8');
+      } catch {
+        continue;
       }
-    } catch {}
+      if (entries.length === 0 && text.length > maxChars) {
+        entries.push(`${text.slice(0, maxChars)}…[truncated]`);
+        break;
+      }
+      if (total + text.length > maxChars) break;
+      entries.push(text);
+      total += text.length;
+    }
     return entries;
   }
 }

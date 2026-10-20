@@ -6,7 +6,7 @@
 > [`google-research/harness2`](https://github.com/google-research/harness2) ·
 > [`CopilotKit/openmuse`](https://github.com/CopilotKit/openmuse).
 > Nguyên tắc: **zero runtime dependency**, tái dùng module sẵn có, không thêm abstraction thừa.
-> Trạng thái: 📝 Spec (chưa triển khai). Bổ sung (không thay thế) [Spec 07](07-orca-arena-accounts-ratchet-awake.md).
+> Trạng thái: ✅ **Triển khai xong (2026-10-20)** — A0–A2, B1–B3, C1–C4, D1–D2, E1–E5 đều đã có trong `src/` kèm test (`npm test`, 37/37 pass). Bổ sung (không thay thế) [Spec 07](07-orca-arena-accounts-ratchet-awake.md).
 
 > [!NOTE]
 > REA dùng để phân tích phần mềm **đã đóng gói** (binary, apk, Electron). Cả 4 repo đều có mã nguồn công khai nên được đọc trực tiếp. Mọi trích dẫn `file:dòng` là của bản clone trên.

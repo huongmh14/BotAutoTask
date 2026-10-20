@@ -24,7 +24,8 @@ docs/feature/
 |---|---|---|
 | 06 Cloudflare auto-provision | ✅ Triển khai | `scripts/cloud-provision.mjs`, `npm run cloud:setup`, daemon đọc `~/.botautotask/config.json` |
 | 02 (một phần) | ✅ Sửa bảo mật | Auth Worker fail-closed + constant-time (`isAuthorized`) |
-| 01, 02, 03, 04, 05 | 📝 Spec | — |
+| 08 Mesh safety + approval + experience + attention UI | ✅ Triển khai | SSE auth `?k=`, merge `MAIN_DIRTY_COLLISION` + `reset --keep`, `COMPLETED_UNVERIFIED` (orchestrator/supervisor/worker), `framePeerMessage` defang, loop guard cửa sổ trượt, trạng thái giao tin thật, approval gate hash-bound cho merge từ agent, experience library nạp/lưu runtime, diff modal, roster attention, Ctrl+K, tool chip, notification |
+| 01, 02, 03, 04, 05, 07 | 📝 Spec | Một phần đã vào theo Spec 08 (lease CAS, completion contract, policy, worktree có sẵn từ trước) |
 
 ## Phát hiện quan trọng từ nghiên cứu
 1. **GrokBot là client mỏng**: agent chạy trên VM cloud; client **không có** routed loopback MCP bridge (đính chính tài liệu cũ). Học được: 3 chế độ giao tin subagent, await có timeout, lineage + `maxRunning=32`, stale 90s, nonce idempotent, dial-out daemon (doorbell + poll/ack), permission `min(choice, ceiling)`, kill-switch fail-closed.
