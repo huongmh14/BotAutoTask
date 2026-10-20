@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { OUTCOME } from './types.js';
+import { Harness2Engine } from './harness2-engine.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -16,6 +18,7 @@ export class GoalOrchestrator {
     this.onJournalEntry = onJournalEntry;
     this.onNotify = onNotify;
     this.gitCheckpoint = gitCheckpoint;
+    this.experience = null;
   }
 
   async _notify(msg) {
@@ -39,22 +42,47 @@ export class GoalOrchestrator {
     }
   }
 
+  _getExperienceEngine(workspaceDir) {
+    if (!this.experience) {
+      this.experience = new Harness2Engine({ workspaceDir });
+    }
+    return this.experience;
+  }
+
   async _verifyAcceptance(goal, workspaceDir) {
-    if (!goal.acceptance_cmd) return { ok: true, output: '' };
+    if (!goal.acceptance_cmd) return { ok: true, verified: false, output: '' };
+    const cwd = workspaceDir && existsSync(workspaceDir) ? workspaceDir : process.cwd();
     try {
       const { stdout, stderr } = await execFileAsync(goal.acceptance_cmd, [], {
-        cwd: workspaceDir || process.cwd(),
+        cwd,
         shell: true,
         timeout: 5 * 60 * 1000,
         windowsHide: true
       });
-      return { ok: true, output: `${stdout || ''}\n${stderr || ''}`.trim() };
+      return { ok: true, verified: true, output: `${stdout || ''}\n${stderr || ''}`.trim() };
     } catch (err) {
       return {
         ok: false,
+        verified: false,
         output: `${err.stdout || ''}\n${err.stderr || ''}\n${err.message || ''}`.slice(-400).trim()
       };
     }
+  }
+
+  _saveVerifiedExperience(goal, journal, check) {
+    // ponytail: lesson = last step summary, không chưng cất bằng LLM (harness2 selection.py).
+    // Trần: bài học có thể dài/nhiễu. Nâng cấp: 1 lời gọi LLM rẻ trích <experience> cue/lesson/evidence.
+    try {
+      const engine = this._getExperienceEngine(goal.repo_path || process.cwd());
+      const lastSummary = journal.length > 0 ? String(journal[journal.length - 1].summary || '') : '';
+      engine.saveExperience({
+        domain: goal.domain || 'general',
+        name: goal.id,
+        cue: goal.title || goal.id,
+        lesson: lastSummary.slice(0, 400),
+        evidence: `${goal.acceptance_cmd} → pass\n${String(check.output || '').slice(-300)}`
+      });
+    } catch {}
   }
 
   /**
@@ -65,6 +93,14 @@ export class GoalOrchestrator {
     const maxSteps = goal.max_steps ?? 15;
     const workspaceDir = goal.repo_path || process.cwd();
     let stepNumber = goal.current_step ?? journal.length;
+
+    // Harness² Experience Library: inject proven lessons from past verified goals
+    try {
+      const notes = this._getExperienceEngine(workspaceDir).loadExperiences(goal.domain || 'general');
+      if (notes.length > 0 && !goal.experience_notes) {
+        goal.experience_notes = notes.join('\n');
+      }
+    } catch {}
 
     while (stepNumber < maxSteps) {
       stepNumber += 1;
@@ -128,9 +164,17 @@ export class GoalOrchestrator {
         if (receipt.outcome === OUTCOME.GOAL_COMPLETED) {
           const check = await this._verifyAcceptance(goal, workspaceDir);
           if (check.ok) {
+            if (check.verified === false) {
+              // Không có acceptance_cmd → không tự cho "đạt" (Spec 08 A2, bỏ auto-pass)
+              await this._notify(
+                `🟡 [${goal.title || goal.id}] COMPLETED (UNVERIFIED) using ${harness.id}/${modelId}: ${receipt.summary} — thiếu acceptance_cmd nên chưa kiểm chứng.`
+              );
+              return { status: 'COMPLETED_UNVERIFIED', stepsRun: stepNumber, journal };
+            }
             await this._notify(
               `✅ [${goal.title || goal.id}] COMPLETED using ${harness.id}/${modelId}: ${receipt.summary}`
             );
+            this._saveVerifiedExperience(goal, journal, check);
             return { status: 'COMPLETED', stepsRun: stepNumber, journal };
           } else {
             journal.push({

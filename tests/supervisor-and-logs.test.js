@@ -104,8 +104,41 @@ test('SupervisorLoop reads worker logs/results, generates targeted next directiv
     max_steps: 4
   });
 
-  assert.equal(result.status, 'COMPLETED');
+  // Không có acceptance_cmd → không còn auto-pass (Spec 08 A2)
+  assert.equal(result.status, 'COMPLETED_UNVERIFIED');
   assert.equal(result.stepsRun, 2);
   assert.equal(directivesReceivedByWorker.length, 2);
   assert.match(directivesReceivedByWorker[1], /export function subtract/);
+});
+
+test('SupervisorLoop returns COMPLETED when an acceptance command passes (Spec 08 A2)', async () => {
+  const mockWorkerHarness = {
+    id: 'ide-worker',
+    async executeStep() {
+      return {
+        outcome: 'GOAL_COMPLETED',
+        summary: 'All functions implemented',
+        harnessId: 'ide-worker',
+        modelId: 'freemodel/claude-sonnet-4-6',
+        rawLog: 'PASS: all tests'
+      };
+    }
+  };
+
+  const loop = new SupervisorLoop({
+    workerHarness: mockWorkerHarness,
+    workerModelId: 'freemodel/claude-sonnet-4-6',
+    writeDirectiveBridge: false
+  });
+
+  const result = await loop.runSupervisedGoal({
+    id: 'sup-goal-2',
+    title: 'Verified module',
+    target_prompt: 'Implement and verify module',
+    acceptance_cmd: 'echo acceptance-ok',
+    max_steps: 2
+  });
+
+  assert.equal(result.status, 'COMPLETED');
+  assert.equal(result.stepsRun, 1);
 });

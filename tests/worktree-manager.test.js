@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { WorktreeManager } from '../src/core/worktree-manager.js';
 
@@ -100,6 +100,39 @@ test('WorktreeManager detects merge conflicts, aborts cleanly, and reports confl
   // Main repository must remain clean without lingering merge state
   const statusRes = runGitCmd(['status', '--porcelain'], repoDir);
   assert.equal(statusRes.stdout.trim(), '');
+
+  wm.cleanup();
+});
+
+test('WorktreeManager refuses merge when user has uncommitted changes on colliding files (Spec 08 A1)', (t) => {
+  const repoDir = createTempGitRepo();
+  t.after(() => {
+    try { rmSync(repoDir, { recursive: true, force: true }); } catch {}
+  });
+
+  const wm = new WorktreeManager({ repoPath: repoDir, baseBranch: 'main' });
+  const wt = wm.ensure('agent-carol');
+
+  // Agent commits a change to a.txt in her isolated worktree
+  writeFileSync(join(wt.path, 'a.txt'), 'agent version of a.txt\n', 'utf8');
+  const commitRes = wm.commit('agent-carol', 'Carol modifies a.txt');
+  assert.equal(commitRes.committed, true);
+
+  // User leaves an UNCOMMITTED edit to the same file on main
+  writeFileSync(join(repoDir, 'a.txt'), 'user uncommitted version of a.txt\n', 'utf8');
+
+  const merge = wm.merge('agent-carol');
+  assert.equal(merge.success, false);
+  assert.equal(merge.reason, 'MAIN_DIRTY_COLLISION');
+  assert.ok(merge.files.includes('a.txt'));
+
+  // The user's uncommitted work must be untouched
+  assert.equal(readFileSync(join(repoDir, 'a.txt'), 'utf8'), 'user uncommitted version of a.txt\n');
+
+  // After the user removes their untracked colliding file, merge succeeds cleanly
+  rmSync(join(repoDir, 'a.txt'));
+  const merge2 = wm.merge('agent-carol');
+  assert.equal(merge2.success, true);
 
   wm.cleanup();
 });

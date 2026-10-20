@@ -183,6 +183,7 @@ export class AgentMesh {
     this.mcpBridge = null;
     this.worktreeManager = new WorktreeManager({ repoPath: workspaceDir });
     this.loopGuardCounts = new Map();
+    this.approvals = new Map();
 
     this._seedDefaultTeam();
   }
@@ -236,6 +237,7 @@ export class AgentMesh {
       worktreePath: null,
       status: 'idle',
       startedAtMs: null,
+      finishedAtMs: null,
       toolCallCount: 0,
       recentActivity: [],
       pendingSteers: [],
@@ -251,20 +253,121 @@ export class AgentMesh {
   }
 
   listAgents() {
-    return Array.from(this.agents.values()).map((a) => ({
-      id: a.id,
-      name: a.name,
-      role: a.role,
-      description: a.description,
-      preferredCore: a.preferredCore,
-      status: a.status,
-      worktreePath: a.worktreePath,
-      elapsedMs: a.startedAtMs ? Date.now() - a.startedAtMs : 0,
-      toolCallCount: a.toolCallCount,
-      recentActivity: a.recentActivity.slice(-5),
-      pendingSteers: a.pendingSteers.length,
-      inboxCount: a.inbox.length
-    }));
+    return Array.from(this.agents.values()).map((a) => {
+      const lastAct = a.recentActivity.length > 0 ? a.recentActivity[a.recentActivity.length - 1] : '';
+      return {
+        id: a.id,
+        name: a.name,
+        role: a.role,
+        description: a.description,
+        preferredCore: a.preferredCore,
+        status: a.status,
+        worktreePath: a.worktreePath,
+        startedAtMs: a.startedAtMs || null,
+        finishedAtMs: a.finishedAtMs || null,
+        elapsedMs: a.status === 'running' && a.startedAtMs ? Date.now() - a.startedAtMs : 0,
+        doing: String(lastAct || a.description || '').slice(0, 120),
+        toolCallCount: a.toolCallCount,
+        recentActivity: a.recentActivity.slice(-5),
+        pendingSteers: a.pendingSteers.length,
+        inboxCount: a.inbox.length,
+        inboxPreview: a.inbox.slice(0, 8).map((item, idx) => ({
+          index: idx,
+          fromId: item.fromId,
+          message: String(item.message || '').slice(0, 120),
+          timestamp: item.timestamp
+        }))
+      };
+    });
+  }
+
+  removeInboxItem(agentId, index) {
+    const agent = this.agents.get(agentId);
+    if (!agent) return { ok: false, error: `No agent "${agentId}" found.` };
+    const idx = Number(index);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= agent.inbox.length) {
+      return { ok: false, error: 'Invalid inbox index' };
+    }
+    const [removed] = agent.inbox.splice(idx, 1);
+    this._persistState();
+    return { ok: true, removed, inboxCount: agent.inbox.length };
+  }
+
+  listApprovals() {
+    const now = Date.now();
+    for (const app of this.approvals.values()) {
+      if (app.status === 'pending' && app.expiresAt && now > app.expiresAt) {
+        app.status = 'expired';
+      }
+    }
+    return Array.from(this.approvals.values()).slice(-30);
+  }
+
+  proposeApproval({ action, args = {}, callerId = 'coder' }) {
+    const id = `appr-${randomUUID().slice(0, 8)}`;
+    const hash = createHash('sha256')
+      .update(JSON.stringify({ action, args }))
+      .digest('hex')
+      .slice(0, 16);
+    const entry = {
+      id,
+      action,
+      args,
+      callerId,
+      hash,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      expiresAt: Date.now() + 30 * 60 * 1000,
+      decidedAt: null,
+      note: null,
+      result: null
+    };
+    this.approvals.set(id, entry);
+    this._persistState();
+    this.onEvent({ type: 'approval_request', approval: entry });
+    return entry;
+  }
+
+  async decideApproval(id, { decision, hash, note = '' } = {}) {
+    const entry = this.approvals.get(id);
+    if (!entry) return { ok: false, status: 404, error: 'Approval not found' };
+    if (entry.status !== 'pending') {
+      return { ok: false, status: 409, error: 'already_decided', currentStatus: entry.status, approval: entry };
+    }
+    if (entry.expiresAt && Date.now() > entry.expiresAt) {
+      entry.status = 'expired';
+      this._persistState();
+      return { ok: false, status: 410, error: 'expired', approval: entry };
+    }
+    if (hash && hash !== entry.hash) {
+      return { ok: false, status: 409, error: 'hash_mismatch', approval: entry };
+    }
+
+    entry.decidedAt = new Date().toISOString();
+    entry.note = note || '';
+
+    if (decision === 'deny') {
+      entry.status = 'denied';
+      this._persistState();
+      this.steerAgent(entry.callerId, `Approval ${id} (${entry.action}) denied${note ? ': ' + note : '.'}`, 'commander');
+      this.onEvent({ type: 'approval_decided', approval: entry });
+      return { ok: true, approval: entry };
+    }
+
+    // Atomic claim in synchronous tick
+    entry.status = 'executing';
+    this._persistState();
+    try {
+      const out = await this.executeMeshTool(entry.action, entry.args, { callerAgentId: 'commander' });
+      entry.status = out && out.success === false ? 'failed' : 'succeeded';
+      entry.result = out;
+    } catch (err) {
+      entry.status = 'failed';
+      entry.result = { error: err.message };
+    }
+    this._persistState();
+    this.onEvent({ type: 'approval_decided', approval: entry });
+    return { ok: true, approval: entry };
   }
 
   steerAgent(agentId, message, from = 'commander') {
@@ -785,10 +888,11 @@ export class AgentMesh {
       timestamp: new Date().toISOString()
     };
     agent.transcript.push(entry);
+    agent.finishedAtMs = Date.now();
     agent.status = stepResult.outcome === OUTCOME.ERROR ? 'error' : 'idle';
     agent.recentActivity.push(`Completed turn (${stepResult.outcome})`);
     this._persistState();
-    this.onEvent({ type: 'agent_status', agentId, status: agent.status });
+    this.onEvent({ type: 'agent_status', agentId, status: agent.status, finishedAtMs: agent.finishedAtMs });
 
     return {
       ...stepResult,

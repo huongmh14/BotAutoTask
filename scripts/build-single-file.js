@@ -61,7 +61,7 @@ for (const relPath of MODULE_ORDER) {
 const mergedImports = [
   `import { exec, execFile, spawn, spawnSync } from 'node:child_process';`,
   `import { createServer } from 'node:http';`,
-  `import { randomUUID, randomBytes, createHash } from 'node:crypto';`,
+  `import { randomUUID, randomBytes, createHash, timingSafeEqual } from 'node:crypto';`,
   `import { promisify } from 'node:util';`,
   `import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, statSync, lstatSync, renameSync, appendFileSync, rmSync, copyFileSync, openSync, fsyncSync, closeSync } from 'node:fs';`,
   `import { join, dirname, basename, resolve, isAbsolute, normalize } from 'node:path';`,

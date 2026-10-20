@@ -360,7 +360,7 @@ function renderCloudDashboardHtml() {
       const data = await api('/api/state');
       const gEl = document.getElementById('goalsList');
       gEl.innerHTML = (data.goals || []).length ? data.goals.map(g => {
-        const stClass = g.status === 'COMPLETED' ? 'ok' : (g.status === 'PAUSED' ? 'warn' : (g.status === 'CANCELLED' ? 'err' : ''));
+        const stClass = g.status === 'COMPLETED' ? 'ok' : (g.status === 'COMPLETED_UNVERIFIED' || g.status === 'PAUSED' ? 'warn' : (g.status === 'CANCELLED' ? 'err' : ''));
         return \`
         <div class="goal-node">
           <div class="row" style="justify-content:space-between;margin-bottom:4px">
@@ -520,7 +520,7 @@ export default {
 
       if (command === '/pause' || command === '/cancel' || command === '/resume') {
         const nextStatus = command === '/pause' ? 'PAUSED' : command === '/cancel' ? 'CANCELLED' : 'QUEUED';
-        await env.DB.prepare(`UPDATE goals SET status = ?, updated_at = ? WHERE status NOT IN ('COMPLETED', 'CANCELLED')`)
+        await env.DB.prepare(`UPDATE goals SET status = ?, updated_at = ? WHERE status NOT IN ('COMPLETED', 'COMPLETED_UNVERIFIED', 'CANCELLED')`)
           .bind(nextStatus, now)
           .run();
         await sendTelegramMessage(env, `Updated active goal status to *${nextStatus}*.`, chatId);
@@ -692,8 +692,8 @@ export default {
         .bind(body.step_number, newStatus, now + 90_000, now, body.goal_id)
         .run();
 
-      if (newStatus === 'COMPLETED' || body.outcome === 'RATE_LIMITED') {
-        const icon = newStatus === 'COMPLETED' ? '✅' : '🔄';
+      if (newStatus === 'COMPLETED' || newStatus === 'COMPLETED_UNVERIFIED' || body.outcome === 'RATE_LIMITED') {
+        const icon = newStatus === 'COMPLETED' ? '✅' : newStatus === 'COMPLETED_UNVERIFIED' ? '🟡' : '🔄';
         await sendTelegramMessage(
           env,
           `${icon} *Goal* \`${body.goal_id}\` [Step ${body.step_number} via \`${body.core_used}:${body.model_used}\`]: ${body.summary}`

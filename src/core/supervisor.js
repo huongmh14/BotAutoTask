@@ -197,8 +197,14 @@ export class SupervisorLoop {
           summary: receipt.summary,
           directive_sent: currentDirective
         });
-        await this._notify(`✅ [Supervisor] Goal completed in ${stepNumber} step(s): ${receipt.summary}`);
-        return { status: 'COMPLETED', stepsRun: stepNumber, journal };
+        // testPassed === null (không có acceptance_cmd) → không tự cho "đạt" (Spec 08 A2)
+        const finalStatus = evidence.testPassed === true ? 'COMPLETED' : 'COMPLETED_UNVERIFIED';
+        await this._notify(
+          finalStatus === 'COMPLETED'
+            ? `✅ [Supervisor] Goal completed in ${stepNumber} step(s): ${receipt.summary}`
+            : `🟡 [Supervisor] Goal completed in ${stepNumber} step(s) but CHƯA kiểm chứng (thiếu acceptance_cmd): ${receipt.summary}`
+        );
+        return { status: finalStatus, stepsRun: stepNumber, journal };
       }
 
       const decideFn = this.supervisorDecideFn || this._defaultSupervisorDecide.bind(this);
@@ -222,8 +228,14 @@ export class SupervisorLoop {
       });
 
       if (decision.completed) {
-        await this._notify(`✅ [Supervisor] Verified goal completion at step ${stepNumber}.`);
-        return { status: 'COMPLETED', stepsRun: stepNumber, journal };
+        // Chỉ COMPLETED khi có bằng chứng test pass; thiếu check → COMPLETED_UNVERIFIED (Spec 08 A2)
+        const finalStatus = evidence.testPassed === true ? 'COMPLETED' : 'COMPLETED_UNVERIFIED';
+        await this._notify(
+          finalStatus === 'COMPLETED'
+            ? `✅ [Supervisor] Verified goal completion at step ${stepNumber}.`
+            : `🟡 [Supervisor] Goal finished at step ${stepNumber} nhưng CHƯA kiểm chứng (thiếu acceptance_cmd).`
+        );
+        return { status: finalStatus, stepsRun: stepNumber, journal };
       }
 
       currentDirective = decision.nextDirective;

@@ -18,6 +18,8 @@ export function renderDashboardHtml() {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
 <style>
   :root, [data-theme="ocean-light"] {
     --bg-sidebar: #EFF5FA;
@@ -841,6 +843,330 @@ export function renderDashboardHtml() {
     cursor: pointer;
   }
 
+  /* ===== Spec 08 Attention UI, Tool Chips, Approvals, Diff Viewer & Cmd+K ===== */
+  .bucket-bar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px 8px;
+    flex-wrap: wrap;
+  }
+  .bucket-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--bg-pill);
+    color: var(--text-secondary);
+  }
+  .bucket-pill.attention {
+    background: rgba(217, 119, 6, 0.16);
+    color: var(--warn);
+  }
+  .bucket-pill.working {
+    background: rgba(2, 132, 199, 0.15);
+    color: var(--accent);
+  }
+  .bucket-pill.done {
+    background: rgba(22, 163, 74, 0.15);
+    color: var(--ok);
+  }
+
+  .chat-item.unread .chat-item-name {
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .chat-item.unread .chat-item-preview {
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .chat-item.attention-row {
+    background: rgba(217, 119, 6, 0.09);
+    border: 1px solid rgba(217, 119, 6, 0.28);
+  }
+  .unread-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .time-ago {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .kbd-hint {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    border: 1px solid var(--border-strong);
+    color: var(--text-muted);
+    background: var(--bg-sidebar);
+    flex-shrink: 0;
+  }
+  .icon-btn.active-toggle {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  /* Smart autoscroll jump pill */
+  .jump-latest-btn {
+    position: sticky;
+    bottom: 8px;
+    align-self: center;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    background: var(--bg-card);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    z-index: 20;
+  }
+  .jump-latest-btn.visible {
+    display: inline-flex;
+  }
+
+  /* Collapsible Tool-Call Chips (OpenMuse) */
+  .tool-chip {
+    margin-top: 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 12px;
+    overflow: hidden;
+  }
+  .tool-chip summary {
+    padding: 6px 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    background: var(--bg-pill);
+  }
+  .tool-chip pre {
+    margin: 0;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  /* Markdown inside bubbles */
+  .msg-bubble code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: rgba(15, 23, 42, 0.08);
+  }
+  .msg-row.out .msg-bubble code {
+    background: rgba(255, 255, 255, 0.18);
+  }
+  .msg-bubble pre {
+    margin: 6px 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.08);
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  /* Inline HITL Approval Card (OpenMuse actions.ts) */
+  .approval-card {
+    align-self: stretch;
+    border: 1.5px solid rgba(217, 119, 6, 0.45);
+    background: rgba(217, 119, 6, 0.07);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .approval-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--warn);
+  }
+  .approval-cmd {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    overflow-x: auto;
+  }
+  .approval-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-approve {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: none;
+    background: var(--ok);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-deny {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--err);
+    background: transparent;
+    color: var(--err);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Removable Follow-Up Queue Bar (OpenMuse conversation-queue) */
+  .queue-bar {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 4px 2px;
+    font-size: 11.5px;
+  }
+  .queue-bar.visible {
+    display: flex;
+  }
+  .queue-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--bg-pill);
+    border: 1px solid var(--border-strong);
+    font-size: 11.5px;
+    max-width: 280px;
+  }
+  .queue-chip span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .queue-chip button {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  /* Diff Review Modal (Orca diff-comments) */
+  .modal.modal-wide {
+    max-width: 860px;
+  }
+  .diff-box {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-height: 360px;
+    overflow: auto;
+  }
+  .diff-line {
+    display: flex;
+    gap: 8px;
+    padding: 1px 10px;
+    white-space: pre;
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+  }
+  .diff-line:hover {
+    background: var(--bg-hover);
+  }
+  .diff-line.add {
+    background: rgba(22, 163, 74, 0.12);
+    color: var(--ok);
+  }
+  .diff-line.del {
+    background: rgba(220, 38, 38, 0.12);
+    color: var(--err);
+  }
+  .diff-line.hunk {
+    background: var(--bg-pill);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .diff-num {
+    width: 38px;
+    color: var(--text-muted);
+    text-align: right;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .diff-comment-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--bg-pill);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  /* Ctrl+K Quick Switcher Palette (Orca cmd-j) */
+  .cmdk-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .cmdk-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .cmdk-item:hover, .cmdk-item.selected {
+    background: var(--bg-active);
+    color: var(--accent);
+  }
+
   @media (max-width: 760px) {
     .app-shell {
       grid-template-columns: 1fr;
@@ -882,6 +1208,12 @@ export function renderDashboardHtml() {
         </div>
 
         <div class="brand-actions">
+          <button class="icon-btn" id="notifToggleBtn" onclick="toggleNotifications()" title="Bật/tắt thông báo trình duyệt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </button>
+          <button class="icon-btn" onclick="openCmdPalette()" title="Chuyển nhanh (Ctrl+K)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg>
+          </button>
           <button class="icon-btn" onclick="toggleOceanTheme()" title="Đổi giao diện sáng / tối">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           </button>
@@ -895,8 +1227,11 @@ export function renderDashboardHtml() {
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.2" y2="16.2"/></svg>
           <input id="searchInput" type="text" placeholder="Tìm đồng sự..." oninput="renderRoster()" />
+          <span class="kbd-hint" onclick="openCmdPalette()" style="cursor:pointer;" title="Mở bảng lệnh nhanh">Ctrl+K</span>
         </div>
       </div>
+
+      <div class="bucket-bar" id="bucketSummaryBar"></div>
 
       <div class="chat-list-scroll">
         <div class="list-title"><span>Kênh nhóm</span></div>
@@ -937,9 +1272,9 @@ export function renderDashboardHtml() {
         </div>
 
         <div class="header-actions">
-          <button class="pill-btn" onclick="mergeAgentWorktree(currentChannel === 'all' ? 'coder' : currentChannel)" title="Kiểm thử & gộp nhánh Git Worktree của đồng sự">
+          <button class="pill-btn" onclick="openDiffModal(currentChannel === 'all' ? 'coder' : currentChannel)" title="Xem git diff, thêm góp ý theo dòng & gộp nhánh">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
-            <span>Gộp nhánh</span>
+            <span>Xem diff & Gộp</span>
           </button>
           <button class="icon-btn" onclick="clearCurrentView()" title="Xóa lịch sử hiển thị">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
@@ -947,9 +1282,11 @@ export function renderDashboardHtml() {
         </div>
       </header>
 
-      <section class="chat-stream" id="chatStream"></section>
+      <section class="chat-stream" id="chatStream" onscroll="onStreamScroll()"></section>
+      <button class="jump-latest-btn" id="jumpLatestBtn" onclick="jumpToLatest()">↓ Tin nhắn mới nhất</button>
 
       <footer class="composer">
+        <div class="queue-bar" id="composerQueueBar"></div>
         <div class="composer-controls">
           <span class="ctrl-label">AI Core:</span>
           <select class="select" id="coreSelect" onchange="onCoreSelectChange(this.value)">
@@ -1013,6 +1350,53 @@ export function renderDashboardHtml() {
           <h4>Log IDE gần nhất</h4>
           <div id="ideLogBox" style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);white-space:pre-wrap;">Chưa có dữ liệu</div>
         </div>
+        <div class="modal-card">
+          <h4>Thư viện kinh nghiệm (Harness² Experience Library)</h4>
+          <div id="experienceListBox" style="font-size:12.5px;color:var(--text-secondary);white-space:pre-wrap;">Chưa có bài học nào được lưu.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: DIFF REVIEW & LINE COMMENTS (Spec 08 C4 / Orca) -->
+  <div class="modal-backdrop" id="diffModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Xem diff và gộp nhánh">
+      <div class="modal-head">
+        <span id="diffModalTitle">Xem diff trước khi gộp nhánh</span>
+        <button class="icon-btn" onclick="closeTelemetry()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--text-secondary);">
+          <span id="diffStatSummary">Đang tải diff...</span>
+          <span>💡 Bấm vào một dòng code để gắn nhận xét gửi lại cho đồng sự</span>
+        </div>
+        <div class="diff-box" id="diffLinesBox"></div>
+        <div id="diffCommentsBox"></div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;">
+          <button class="pill-btn" id="sendDiffCommentsBtn" onclick="submitDiffComments()" style="display:none;">Gửi góp ý cho đồng sự</button>
+          <button class="primary-btn" onclick="confirmMergeFromModal()">Kiểm thử & Gộp vào nhánh chính</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CTRL+K QUICK SWITCHER PALETTE (Spec 08 E5 / Orca cmd-j) -->
+  <div class="modal-backdrop" id="cmdkModal" onclick="if(event.target===this)closeTelemetry()">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Bảng điều khiển nhanh">
+      <div class="modal-head">
+        <span>Chuyển nhanh · Ctrl+K</span>
+        <button class="icon-btn" onclick="closeTelemetry()">✕</button>
+      </div>
+      <div class="modal-body">
+        <input
+          id="cmdkInput"
+          class="form-input"
+          type="text"
+          placeholder="Tìm đồng sự hoặc lệnh (Gộp nhánh, Dừng tất cả, Đổi giao diện...)"
+          oninput="renderCmdkList()"
+          onkeydown="onCmdkKeydown(event)"
+        />
+        <div class="cmdk-list" id="cmdkList"></div>
       </div>
     </div>
   </div>
@@ -1144,12 +1528,83 @@ export function renderDashboardHtml() {
   }
 
   let agentsState = [];
+  let approvalsState = [];
   let feedItems = [];
   let currentChannel = 'all';
   let currentVerifyCmd = 'python -m unittest discover -s tests -p "test_*.py" -v; python scripts/query_engine.py --test; python scripts/evaluate.py --check';
   let sseSource = null;
   let sseState = 'CONNECTING';
   let lastStateOkTs = 0;
+  let stickToBottom = true;
+  let unseenCountOnScroll = 0;
+  let lastSeenMap = {};
+  let notifEnabled = false;
+  const notifCooldownMap = new Map();
+  let diffTargetAgent = 'coder';
+  let diffComments = [];
+  let cmdkItems = [];
+  let cmdkIndex = 0;
+
+  try {
+    lastSeenMap = JSON.parse(localStorage.getItem('botautotask-last-seen') || '{}') || {};
+    notifEnabled = localStorage.getItem('botautotask-notif') === '1';
+  } catch {}
+
+  function saveLastSeen(agentId) {
+    if (!agentId || agentId === 'all') return;
+    lastSeenMap[agentId] = Date.now();
+    try { localStorage.setItem('botautotask-last-seen', JSON.stringify(lastSeenMap)); } catch {}
+  }
+
+  function formatAgo(ms) {
+    if (!ms) return '';
+    const sec = Math.max(1, Math.floor((Date.now() - ms) / 1000));
+    if (sec < 60) return sec + 's';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return min + 'm';
+    const hr = Math.floor(min / 60);
+    return hr + 'h';
+  }
+
+  function getAgentBucket(a) {
+    const hasPendingApproval = approvalsState.some((ap) => ap.status === 'pending' && ap.callerId === a.id);
+    if (hasPendingApproval || a.status === 'error') return 'attention';
+    if (a.status === 'running') return 'working';
+    const seen = lastSeenMap[a.id] || 0;
+    if (a.finishedAtMs && a.finishedAtMs > seen && currentChannel !== a.id) return 'done';
+    return 'idle';
+  }
+
+  function maybeNotify(key, title, body) {
+    if (!notifEnabled || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (typeof document.hasFocus === 'function' && document.hasFocus()) return;
+    const now = Date.now();
+    const prev = notifCooldownMap.get(key) || 0;
+    if (now - prev < 5000) return;
+    notifCooldownMap.set(key, now);
+    if (notifCooldownMap.size > 50) {
+      const oldest = notifCooldownMap.keys().next().value;
+      notifCooldownMap.delete(oldest);
+    }
+    try { new Notification(title, { body, tag: key }); } catch {}
+  }
+
+  async function toggleNotifications() {
+    if (typeof Notification === 'undefined') return;
+    if (!notifEnabled) {
+      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      notifEnabled = perm === 'granted';
+    } else {
+      notifEnabled = false;
+    }
+    try { localStorage.setItem('botautotask-notif', notifEnabled ? '1' : '0'); } catch {}
+    syncNotifBtn();
+  }
+
+  function syncNotifBtn() {
+    const btn = document.getElementById('notifToggleBtn');
+    if (btn) btn.classList.toggle('active-toggle', notifEnabled);
+  }
 
   function escapeHtml(str) {
     return String(str ?? '')
@@ -1241,9 +1696,25 @@ export function renderDashboardHtml() {
           };
           if (!hasDuplicateItem(item)) {
             feedItems.push(item);
+            if (!stickToBottom) unseenCountOnScroll++;
             renderStream();
             renderRoster();
           }
+        } else if (frame.family === 'agent_status') {
+          if (p.status === 'idle' || p.status === 'error') {
+            const per = getPersona(p.agentId || 'coder');
+            maybeNotify(
+              (p.agentId || 'agent') + ':' + p.status,
+              p.status === 'error' ? ('⚠️ ' + per.title + ' gặp lỗi') : ('✅ ' + per.title + ' đã hoàn thành'),
+              'Bấm để mở WhaleBot và kiểm tra kết quả.'
+            );
+          }
+        } else if (frame.family === 'approval_request' && p.approval) {
+          maybeNotify(
+            'appr:' + p.approval.id,
+            '🔔 Cần duyệt: @' + p.approval.callerId,
+            p.approval.action + ' — chờ bạn phê duyệt'
+          );
         }
         refreshState();
       } catch {}
@@ -1259,6 +1730,7 @@ export function renderDashboardHtml() {
       if (sseState !== 'LIVE') setConnState(sseState);
 
       agentsState = Array.isArray(data.agents) ? data.agents : [];
+      approvalsState = Array.isArray(data.approvals) ? data.approvals : [];
 
       if (Array.isArray(data.handoffs)) {
         let added = false;
@@ -1283,6 +1755,7 @@ export function renderDashboardHtml() {
 
       renderRoster();
       renderHeader();
+      renderQueueBar();
       renderRuntimeModal(data);
     } catch {}
   }
@@ -1292,10 +1765,28 @@ export function renderDashboardHtml() {
     const groupEl = document.getElementById('groupRoster');
     const coworkerEl = document.getElementById('coworkerRoster');
     const countEl = document.getElementById('podCountLabel');
+    const bucketBar = document.getElementById('bucketSummaryBar');
     if (!groupEl || !coworkerEl) return;
     if (countEl) countEl.textContent = agentsState.length + ' thành viên';
 
-    const runningCount = agentsState.filter((a) => a.status === 'running').length;
+    const counts = { attention: 0, working: 0, done: 0, idle: 0 };
+    for (const a of agentsState) {
+      counts[getAgentBucket(a)]++;
+    }
+
+    const badgeTotal = counts.attention + counts.done;
+    document.title = (badgeTotal > 0 ? '(' + badgeTotal + ') ' : '') + 'WhaleBot — Tactical Coworker Mesh';
+
+    if (bucketBar) {
+      const pills = [];
+      if (counts.attention > 0) pills.push('<span class="bucket-pill attention">⚠️ ' + counts.attention + ' cần chú ý</span>');
+      if (counts.working > 0) pills.push('<span class="bucket-pill working">⚡ ' + counts.working + ' đang chạy</span>');
+      if (counts.done > 0) pills.push('<span class="bucket-pill done">● ' + counts.done + ' mới xong</span>');
+      if (pills.length === 0) pills.push('<span class="bucket-pill">🌊 Đội ngũ sẵn sàng</span>');
+      bucketBar.innerHTML = pills.join('');
+    }
+
+    const runningCount = counts.working;
     const lastGroupMsg = feedItems[feedItems.length - 1];
     const groupPreview = runningCount > 0
       ? (runningCount + ' đồng sự đang xử lý...')
@@ -1318,26 +1809,58 @@ export function renderDashboardHtml() {
       </button>
     \`;
 
-    const filtered = agentsState.filter((a) => {
-      if (!q) return true;
-      const p = getPersona(a.id);
-      return (
-        a.id.toLowerCase().includes(q) ||
-        p.title.toLowerCase().includes(q) ||
-        (a.name || '').toLowerCase().includes(q) ||
-        (a.description || '').toLowerCase().includes(q)
-      );
-    });
+    const bucketOrder = { attention: 0, working: 1, done: 2, idle: 3 };
+    const filtered = agentsState
+      .filter((a) => {
+        if (!q) return true;
+        const p = getPersona(a.id);
+        return (
+          a.id.toLowerCase().includes(q) ||
+          p.title.toLowerCase().includes(q) ||
+          (a.name || '').toLowerCase().includes(q) ||
+          (a.description || '').toLowerCase().includes(q)
+        );
+      })
+      .slice()
+      .sort((a, b) => {
+        const ba = bucketOrder[getAgentBucket(a)] ?? 3;
+        const bb = bucketOrder[getAgentBucket(b)] ?? 3;
+        if (ba !== bb) return ba - bb;
+        return String(a.id).localeCompare(String(b.id));
+      });
 
     coworkerEl.innerHTML = filtered.map((a) => {
       const p = getPersona(a.id);
+      const bucket = getAgentBucket(a);
       const isRunning = a.status === 'running';
       const isQueued = (a.inboxCount || 0) > 0 || (a.pendingSteers || 0) > 0;
       const dotCls = isRunning ? 'working' : (a.status === 'error' ? 'error' : (isQueued ? 'queued' : 'online'));
-      const preview = isRunning ? 'Đang xử lý nhiệm vụ...' : (a.description || p.sub);
+      const doingText = a.doing || (a.recentActivity || []).slice(-1)[0] || a.description || p.sub;
+      let preview = doingText;
+      let rightMeta = '<span class="role-tag">' + escapeHtml(p.tag) + '</span>';
+
+      if (bucket === 'attention') {
+        preview = a.status === 'error' ? ('⚠️ Lỗi · ' + doingText) : '🔔 Cần bạn phê duyệt';
+        rightMeta = '<span class="bucket-pill attention">Duyệt</span>';
+      } else if (isRunning) {
+        const el = a.elapsedMs ? (' · ' + formatAgo(Date.now() - a.elapsedMs)) : '';
+        preview = 'Đang làm: ' + doingText + el;
+      } else if (bucket === 'done' && a.finishedAtMs) {
+        preview = '✓ Xong ' + formatAgo(a.finishedAtMs) + ' trước · ' + doingText;
+        rightMeta = '<span class="unread-dot" title="Mới hoàn thành"></span>';
+      } else if (a.finishedAtMs) {
+        rightMeta = '<span class="time-ago">' + formatAgo(a.finishedAtMs) + '</span>';
+      }
+
+      const rowCls = [
+        'chat-item',
+        currentChannel === a.id ? 'active' : '',
+        bucket === 'done' ? 'unread' : '',
+        bucket === 'attention' ? 'attention-row' : ''
+      ].filter(Boolean).join(' ');
 
       return \`
-        <button class="chat-item \${currentChannel === a.id ? 'active' : ''}" onclick="selectChannel('\${escapeHtml(a.id)}')">
+        <button class="\${rowCls}" onclick="selectChannel('\${escapeHtml(a.id)}')">
           <span class="avatar" style="background:\${p.grad}">
             \${WHALE_MARK}
             <i class="status-dot \${dotCls}"></i>
@@ -1345,7 +1868,7 @@ export function renderDashboardHtml() {
           <span class="chat-item-main">
             <span class="chat-item-top">
               <span class="chat-item-name">\${escapeHtml(p.title)}</span>
-              <span class="role-tag">\${escapeHtml(p.tag)}</span>
+              \${rightMeta}
             </span>
             <span class="chat-item-preview">\${escapeHtml(preview)}</span>
           </span>
@@ -1407,16 +1930,145 @@ export function renderDashboardHtml() {
     return feedItems.filter((m) => m.from === currentChannel || m.to === currentChannel);
   }
 
+  function onStreamScroll() {
+    const stream = document.getElementById('chatStream');
+    if (!stream) return;
+    const dist = stream.scrollHeight - stream.scrollTop - stream.clientHeight;
+    stickToBottom = dist < 80;
+    if (stickToBottom) {
+      unseenCountOnScroll = 0;
+      const btn = document.getElementById('jumpLatestBtn');
+      if (btn) btn.classList.remove('visible');
+    }
+  }
+
+  function jumpToLatest() {
+    const stream = document.getElementById('chatStream');
+    if (!stream) return;
+    stickToBottom = true;
+    unseenCountOnScroll = 0;
+    stream.scrollTop = stream.scrollHeight;
+    const btn = document.getElementById('jumpLatestBtn');
+    if (btn) btn.classList.remove('visible');
+  }
+
+  function formatBubbleContent(rawText) {
+    const str = String(rawText || '');
+    const toolChips = [];
+    const cleaned = str.replace(/\[Tool\s+([A-Za-z0-9_]+)\s*->\s*([\s\S]*?)\]/g, (_, toolName, jsonText) => {
+      toolChips.push({ name: toolName, payload: jsonText.trim() });
+      return '';
+    }).trim();
+
+    let bodyHtml = escapeHtml(cleaned);
+    try {
+      if (window.marked && typeof window.marked.parse === 'function' && cleaned) {
+        // Parse safe escaped text so raw HTML in agent output cannot execute
+        bodyHtml = window.marked.parse(bodyHtml, { breaks: true });
+      }
+    } catch {}
+
+    const chipsHtml = toolChips.map((tc) => \`
+      <details class="tool-chip">
+        <summary>🔧 \${escapeHtml(tc.name)} · kết quả tool</summary>
+        <pre>\${escapeHtml(tc.payload)}</pre>
+      </details>
+    \`).join('');
+
+    return (bodyHtml || '') + chipsHtml;
+  }
+
+  function renderApprovalCardsHtml() {
+    const visibleApprovals = approvalsState.filter((ap) => {
+      if (currentChannel === 'all') return true;
+      return ap.callerId === currentChannel;
+    });
+    if (visibleApprovals.length === 0) return '';
+
+    return visibleApprovals.map((ap) => {
+      const isPending = ap.status === 'pending';
+      const cmdPreview = ap.args ? JSON.stringify(ap.args) : ap.action;
+      const statusBadge = isPending
+        ? '⏳ Đang chờ bạn duyệt'
+        : (ap.status === 'succeeded' ? '✅ Đã duyệt & thực thi' : (ap.status === 'denied' ? '🚫 Đã từ chối' : ('ℹ️ ' + ap.status)));
+      return \`
+        <div class="approval-card" data-approval-id="\${escapeHtml(ap.id)}">
+          <div class="approval-head">
+            <span>🛡️ Yêu cầu phê duyệt từ @\${escapeHtml(ap.callerId || 'agent')} · \${escapeHtml(ap.action)}</span>
+            <span>\${statusBadge}</span>
+          </div>
+          <div class="approval-cmd">\${escapeHtml(cmdPreview)}</div>
+          \${isPending ? \`
+            <div class="approval-actions">
+              <button class="pill-btn" onclick="openDiffModal('\${escapeHtml(ap.callerId || 'coder')}')">🔍 Xem diff</button>
+              <button class="btn-approve" onclick="decideApprovalClick('\${escapeHtml(ap.id)}', '\${escapeHtml(ap.hash || '')}', 'approve')">✓ Phê duyệt</button>
+              <button class="btn-deny" onclick="decideApprovalClick('\${escapeHtml(ap.id)}', '\${escapeHtml(ap.hash || '')}', 'deny')">✕ Từ chối</button>
+            </div>
+          \` : ''}
+        </div>
+      \`;
+    }).join('');
+  }
+
+  async function decideApprovalClick(id, hash, decision) {
+    const note = decision === 'deny' ? (prompt('Lý do từ chối (gửi cho đồng sự):', '') || '') : '';
+    await apiFetch('/api/approvals/' + encodeURIComponent(id), {
+      method: 'POST',
+      body: JSON.stringify({
+        nonce: 'appr-' + Date.now() + '-' + id,
+        decision,
+        hash,
+        note
+      })
+    });
+    refreshState();
+  }
+
+  function renderQueueBar() {
+    const bar = document.getElementById('composerQueueBar');
+    if (!bar) return;
+    const items = [];
+    for (const a of agentsState) {
+      if (currentChannel !== 'all' && a.id !== currentChannel) continue;
+      const list = Array.isArray(a.inboxPreview) ? a.inboxPreview : [];
+      for (const it of list) {
+        items.push({ agentId: a.id, index: it.index, message: it.message });
+      }
+    }
+    if (items.length === 0) {
+      bar.classList.remove('visible');
+      bar.innerHTML = '';
+      return;
+    }
+    bar.classList.add('visible');
+    bar.innerHTML = '<strong style="color:var(--text-secondary);">Hàng đợi (' + items.length + '):</strong>' +
+      items.map((it) => \`
+        <span class="queue-chip">
+          <span>@\${escapeHtml(it.agentId)}: \${escapeHtml(it.message)}</span>
+          <button onclick="removeQueuedItem('\${escapeHtml(it.agentId)}', \${Number(it.index)})" title="Xoá khỏi hàng đợi">✕</button>
+        </span>
+      \`).join('');
+  }
+
+  async function removeQueuedItem(agentId, index) {
+    await apiFetch('/api/agents/' + encodeURIComponent(agentId) + '/inbox/remove', {
+      method: 'POST',
+      body: JSON.stringify({ nonce: 'rmq-' + Date.now(), index })
+    });
+    refreshState();
+  }
+
   function renderStream() {
     const stream = document.getElementById('chatStream');
     if (!stream) return;
     const msgs = getVisibleMessages();
+    const approvalsHtml = renderApprovalCardsHtml();
 
     const runningAgents = currentChannel === 'all'
       ? agentsState.filter((a) => a.status === 'running')
       : agentsState.filter((a) => a.id === currentChannel && a.status === 'running');
 
-    if (msgs.length === 0 && runningAgents.length === 0) {
+    if (msgs.length === 0 && runningAgents.length === 0 && !approvalsHtml) {
       stream.innerHTML = \`
         <div class="welcome">
           <div class="hero-art">\${WHALE_HERO}</div>
@@ -1467,15 +2119,17 @@ export function renderDashboardHtml() {
               \${coreTag}
               <span class="msg-time">\${formatTime(m.ts)}</span>
             </div>
-            <div class="msg-bubble \${m.priority ? 'priority' : ''}">\${escapeHtml(m.text)}</div>
+            <div class="msg-bubble \${m.priority ? 'priority' : ''}">\${formatBubbleContent(m.text)}</div>
           </div>
         </div>
       \`;
     }
 
+    html += approvalsHtml;
+
     for (const a of runningAgents) {
       const p = getPersona(a.id);
-      const lastAct = (a.recentActivity || []).slice(-1)[0] || 'Đang xử lý...';
+      const lastAct = a.doing || (a.recentActivity || []).slice(-1)[0] || 'Đang xử lý...';
       html += \`
         <div class="typing-row">
           <span class="avatar sm" style="background:\${p.grad}">
@@ -1490,7 +2144,15 @@ export function renderDashboardHtml() {
     }
 
     stream.innerHTML = html;
-    stream.scrollTop = stream.scrollHeight;
+    if (stickToBottom) {
+      stream.scrollTop = stream.scrollHeight;
+    } else {
+      const btn = document.getElementById('jumpLatestBtn');
+      if (btn) {
+        btn.textContent = unseenCountOnScroll > 0 ? ('↓ ' + unseenCountOnScroll + ' tin nhắn mới') : '↓ Tin nhắn mới nhất';
+        btn.classList.add('visible');
+      }
+    }
   }
 
   function renderRuntimeModal(data) {
@@ -1526,11 +2188,216 @@ export function renderDashboardHtml() {
 
   function selectChannel(ch) {
     currentChannel = ch;
+    saveLastSeen(ch);
+    stickToBottom = true;
+    unseenCountOnScroll = 0;
     document.getElementById('sidebar')?.classList.remove('mobile-open');
     renderRoster();
     renderHeader();
+    renderQueueBar();
     renderStream();
   }
+
+  async function loadExperienceModal() {
+    try {
+      const res = await apiFetch('/api/experience?domain=general');
+      if (!res.ok) return;
+      const data = await res.json();
+      const box = document.getElementById('experienceListBox');
+      if (!box) return;
+      if (!Array.isArray(data.entries) || data.entries.length === 0) {
+        box.textContent = 'Chưa có bài học nào trong .botautotask/library/general.';
+        return;
+      }
+      box.textContent = data.entries.slice(0, 6).join('\n---\n');
+    } catch {}
+  }
+
+  async function openDiffModal(agentId) {
+    diffTargetAgent = (!agentId || agentId === 'all') ? 'coder' : agentId;
+    diffComments = [];
+    openModal('diffModal');
+    const titleEl = document.getElementById('diffModalTitle');
+    const statEl = document.getElementById('diffStatSummary');
+    const boxEl = document.getElementById('diffLinesBox');
+    if (titleEl) titleEl.textContent = 'Xem diff & Gộp nhánh · @' + diffTargetAgent;
+    if (statEl) statEl.textContent = 'Đang tải git diff...';
+    if (boxEl) boxEl.innerHTML = '';
+    renderDiffComments();
+
+    try {
+      const res = await apiFetch('/api/agents/' + encodeURIComponent(diffTargetAgent) + '/diff');
+      if (!res.ok) {
+        if (statEl) statEl.textContent = 'Không tải được diff.';
+        return;
+      }
+      const data = await res.json();
+      if (statEl) {
+        statEl.textContent = (data.branch ? ('Nhánh: ' + data.branch + ' · ') : '') +
+          (data.stat || (data.diff ? 'Có thay đổi' : 'Không có khác biệt so với HEAD'));
+      }
+      const raw = String(data.diff || '');
+      if (!raw.trim()) {
+        if (boxEl) boxEl.innerHTML = '<div style="padding:14px;color:var(--text-secondary);">Nhánh sạch, chưa có thay đổi nào cần gộp.</div>';
+        return;
+      }
+      let currentFile = 'worktree';
+      let lineNo = 0;
+      const lines = raw.split(/\r?\n/);
+      if (boxEl) {
+        boxEl.innerHTML = lines.map((line) => {
+          lineNo++;
+          if (line.startsWith('+++ b/')) currentFile = line.slice(6).trim();
+          let cls = 'diff-line';
+          if (line.startsWith('+') && !line.startsWith('+++')) cls += ' add';
+          else if (line.startsWith('-') && !line.startsWith('---')) cls += ' del';
+          else if (line.startsWith('@@')) cls += ' hunk';
+          return \`<div class="\${cls}" onclick="addDiffLineComment('\${escapeHtml(currentFile)}', \${lineNo})"><span class="diff-num">\${lineNo}</span><span>\${escapeHtml(line)}</span></div>\`;
+        }).join('');
+      }
+    } catch {
+      if (statEl) statEl.textContent = 'Lỗi khi đọc diff.';
+    }
+  }
+
+  function addDiffLineComment(file, line) {
+    const comment = prompt('Nhận xét cho ' + file + ' (dòng ' + line + '):', '');
+    if (!comment || !comment.trim()) return;
+    diffComments.push({ file, line, comment: comment.trim() });
+    renderDiffComments();
+  }
+
+  function removeDiffComment(idx) {
+    diffComments.splice(idx, 1);
+    renderDiffComments();
+  }
+
+  function renderDiffComments() {
+    const box = document.getElementById('diffCommentsBox');
+    const sendBtn = document.getElementById('sendDiffCommentsBtn');
+    if (sendBtn) sendBtn.style.display = diffComments.length > 0 ? 'inline-flex' : 'none';
+    if (!box) return;
+    if (diffComments.length === 0) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = diffComments.map((c, idx) => \`
+      <div class="diff-comment-pill">
+        <span><strong>\${escapeHtml(c.file)}:\${c.line}</strong> — "\${escapeHtml(c.comment)}"</span>
+        <button class="icon-btn" onclick="removeDiffComment(\${idx})" title="Xoá">✕</button>
+      </div>
+    \`).join('');
+  }
+
+  function formatDiffCommentsForAgent(comments) {
+    return 'Review comments on your branch:\n' + comments.map((c) =>
+      \`File: \${c.file}\nLines: \${c.line}\nUser comment: "\${c.comment}"\`
+    ).join('\n\n');
+  }
+
+  async function submitDiffComments() {
+    if (diffComments.length === 0) return;
+    const formatted = formatDiffCommentsForAgent(diffComments);
+    await apiFetch('/api/agents/' + encodeURIComponent(diffTargetAgent) + '/message', {
+      method: 'POST',
+      body: JSON.stringify({
+        nonce: 'diffc-' + Date.now(),
+        text: formatted,
+        delivery: 'send',
+        wait: false
+      })
+    });
+    diffComments = [];
+    closeTelemetry();
+    selectChannel(diffTargetAgent);
+    refreshState();
+  }
+
+  async function confirmMergeFromModal() {
+    const target = diffTargetAgent || 'coder';
+    closeTelemetry();
+    await mergeAgentWorktree(target);
+  }
+
+  function openCmdPalette() {
+    openModal('cmdkModal');
+    const inp = document.getElementById('cmdkInput');
+    if (inp) {
+      inp.value = '';
+      cmdkIndex = 0;
+      renderCmdkList();
+      setTimeout(() => inp.focus(), 20);
+    }
+  }
+
+  function getCmdkCatalog() {
+    const list = [
+      { label: '🌊 Kênh chung Nhóm WhaleBot', sub: 'Alt+1', run: () => selectChannel('all') },
+      ...agentsState.map((a, idx) => ({
+        label: '🐋 Chuyển tới ' + getPersona(a.id).title,
+        sub: 'Alt+' + (idx + 2) + ' · ' + a.status,
+        run: () => selectChannel(a.id)
+      })),
+      { label: '🔍 Xem diff & Gộp nhánh (@coder)', sub: 'Diff Review', run: () => openDiffModal(currentChannel === 'all' ? 'coder' : currentChannel) },
+      { label: '➕ Thêm đồng sự mới', sub: 'Spawn', run: () => openModal('spawnModal') },
+      { label: '🌓 Đổi giao diện Sáng / Tối', sub: 'Theme', run: () => toggleOceanTheme() },
+      { label: '🔔 Bật / tắt thông báo trình duyệt', sub: 'Notifications', run: () => toggleNotifications() },
+      { label: '⚙️ Cài đặt & Thư viện kinh nghiệm', sub: 'Runtime', run: () => { openModal('runtimeModal'); loadExperienceModal(); } },
+      { label: '🛑 Dừng khẩn cấp tất cả đồng sự', sub: 'Stop All', run: () => apiFetch('/api/agents/stop-all', { method: 'POST', body: JSON.stringify({ confirm: true }) }).then(refreshState) }
+    ];
+    return list;
+  }
+
+  function renderCmdkList() {
+    const q = (document.getElementById('cmdkInput')?.value || '').trim().toLowerCase();
+    const box = document.getElementById('cmdkList');
+    if (!box) return;
+    cmdkItems = getCmdkCatalog().filter((it) => !q || it.label.toLowerCase().includes(q) || (it.sub || '').toLowerCase().includes(q));
+    if (cmdkIndex >= cmdkItems.length) cmdkIndex = 0;
+    box.innerHTML = cmdkItems.map((it, idx) => \`
+      <button class="cmdk-item \${idx === cmdkIndex ? 'selected' : ''}" onclick="runCmdkItem(\${idx})">
+        <span><strong>\${escapeHtml(it.label)}</strong></span>
+        <span class="kbd-hint">\${escapeHtml(it.sub || '')}</span>
+      </button>
+    \`).join('');
+  }
+
+  function runCmdkItem(idx) {
+    const item = cmdkItems[idx];
+    closeTelemetry();
+    if (item && typeof item.run === 'function') item.run();
+  }
+
+  function onCmdkKeydown(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      cmdkIndex = (cmdkIndex + 1) % Math.max(1, cmdkItems.length);
+      renderCmdkList();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      cmdkIndex = (cmdkIndex - 1 + Math.max(1, cmdkItems.length)) % Math.max(1, cmdkItems.length);
+      renderCmdkList();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      runCmdkItem(cmdkIndex);
+    } else if (e.key === 'Escape') {
+      closeTelemetry();
+    }
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      openCmdPalette();
+    } else if (e.key === 'Escape') {
+      closeTelemetry();
+    } else if (e.altKey && /^[1-9]$/.test(e.key)) {
+      e.preventDefault();
+      const n = parseInt(e.key, 10);
+      if (n === 1) selectChannel('all');
+      else if (agentsState[n - 2]) selectChannel(agentsState[n - 2].id);
+    }
+  });
 
   function toggleSidebar() {
     const sb = document.getElementById('sidebar');
@@ -1557,6 +2424,7 @@ export function renderDashboardHtml() {
   function openModal(id) {
     closeTelemetry();
     document.getElementById(id)?.classList.add('open');
+    if (id === 'runtimeModal') loadExperienceModal();
   }
 
   function closeTelemetry() {
@@ -1668,6 +2536,7 @@ export function renderDashboardHtml() {
     refreshState();
   }
 
+  syncNotifBtn();
   connectSse();
   refreshState();
   setInterval(refreshState, 3000);

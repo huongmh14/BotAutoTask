@@ -6,9 +6,10 @@
  */
 
 import { createServer } from 'node:http';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { getZeroKeyAuthStatus } from '../core/auth-bridge.js';
 import { findLatestAntigravityTranscript } from '../core/log-reader.js';
+import { Harness2Engine } from '../core/harness2-engine.js';
 import { renderDashboardHtml } from '../ui/dashboard-html.js';
 
 export { renderDashboardHtml };
@@ -51,10 +52,16 @@ export class LocalWebUiServer {
   }
 
   _isAuthorized(req, url) {
+    const expected = Buffer.from(String(this.token || ''), 'utf8');
+    if (expected.length === 0) return false;
+    const safeMatch = (candidate) => {
+      const buf = Buffer.from(String(candidate || ''), 'utf8');
+      return buf.length === expected.length && timingSafeEqual(buf, expected);
+    };
     const authHeader = req.headers.authorization || '';
-    if (authHeader === `Bearer ${this.token}`) return true;
-    const qToken = url.searchParams.get('token');
-    return qToken === this.token;
+    if (authHeader.startsWith('Bearer ') && safeMatch(authHeader.slice(7))) return true;
+    const qToken = url.searchParams.get('token') || url.searchParams.get('k');
+    return Boolean(qToken && safeMatch(qToken));
   }
 
   _checkOrigin(req) {
@@ -166,10 +173,11 @@ export class LocalWebUiServer {
         return JSON.parse(body || '{}');
       };
 
-      // 3. GET /api/state — Full Roster, Handoffs, 0-Key Auth & IDE Transcript
+      // 3. GET /api/state — Full Roster, Handoffs, Approvals, 0-Key Auth & IDE Transcript
       if (req.method === 'GET' && url.pathname === '/api/state') {
         const agents = this.mesh ? this.mesh.listAgents() : [];
         const handoffs = this.mesh ? this.mesh.handoffs.slice(-40) : [];
+        const approvals = this.mesh && typeof this.mesh.listApprovals === 'function' ? this.mesh.listApprovals() : [];
         const auth = await getZeroKeyAuthStatus();
         let latestIdeLog = null;
         try {
@@ -184,7 +192,64 @@ export class LocalWebUiServer {
         } catch {}
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ agents, handoffs, auth, latestIdeLog }));
+        res.end(JSON.stringify({ agents, handoffs, approvals, auth, latestIdeLog }));
+        return;
+      }
+
+      // 3b. GET /api/experience — Harness² Experience Library entries
+      if (req.method === 'GET' && url.pathname === '/api/experience') {
+        const domain = url.searchParams.get('domain') || 'general';
+        const workspaceDir = this.mesh?.workspaceDir || process.cwd();
+        const engine = new Harness2Engine({ workspaceDir });
+        const entries = engine.loadExperiences(domain);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ domain, entries }));
+        return;
+      }
+
+      // 3c. GET /api/agents/:id/diff — Unified diff & diffstat before merge (Spec 08 C4)
+      const diffMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/diff$/);
+      if (req.method === 'GET' && diffMatch) {
+        const agentId = decodeURIComponent(diffMatch[1]);
+        const out =
+          this.mesh?.worktreeManager && typeof this.mesh.worktreeManager.diff === 'function'
+            ? this.mesh.worktreeManager.diff(agentId)
+            : { branch: null, diff: '', stat: '', files: [], truncated: false, isGitRepo: false };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(out));
+        return;
+      }
+
+      // 3d. POST /api/agents/:id/inbox/remove — Remove a queued message from agent inbox
+      const inboxRemMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/inbox\/remove$/);
+      if (req.method === 'POST' && inboxRemMatch) {
+        const agentId = decodeURIComponent(inboxRemMatch[1]);
+        const body = await readJson().catch(() => ({}));
+        if (this._checkDuplicateNonce(body.nonce, res)) return;
+        const out =
+          this.mesh && typeof this.mesh.removeInboxItem === 'function'
+            ? this.mesh.removeInboxItem(agentId, body.index)
+            : { ok: true };
+        res.writeHead(out.ok === false ? 400 : 200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out));
+        return;
+      }
+
+      // 3e. POST /api/approvals/:id — Approve or Deny a pending hash-bound action (Spec 08 C3)
+      const apprMatch = url.pathname.match(/^\/api\/approvals\/([^/]+)$/);
+      if (req.method === 'POST' && apprMatch) {
+        const approvalId = decodeURIComponent(apprMatch[1]);
+        const body = await readJson().catch(() => ({}));
+        if (this._checkDuplicateNonce(body.nonce, res)) return;
+        if (!this.mesh || typeof this.mesh.decideApproval !== 'function') {
+          res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: true }));
+          return;
+        }
+        const out = await this.mesh.decideApproval(approvalId, {
+          decision: body.decision,
+          hash: body.hash,
+          note: body.note
+        });
+        res.writeHead(out.status || 200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out));
         return;
       }
 

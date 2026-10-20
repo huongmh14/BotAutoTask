@@ -181,6 +181,57 @@ export class WorktreeManager {
   }
 
   /**
+   * Returns unified git diff and diffstat for the agent's worktree branch vs HEAD, capped at maxBytes.
+   */
+  diff(agentId, { maxBytes = 200_000 } = {}) {
+    if (!this.isGitRepo) {
+      return { branch: null, diff: '', stat: '', files: [], truncated: false, isGitRepo: false };
+    }
+    const branchName = this.getBranchName(agentId);
+    const wtPath = this.getWorktreePath(agentId);
+
+    // Include any uncommitted edits in the worktree if it exists
+    let rawDiff = '';
+    let stat = '';
+    let files = [];
+
+    const branchCheck = this._runGit(['rev-parse', '--verify', branchName]);
+    if (branchCheck.status === 0) {
+      const diffRes = this._runGit(['diff', `HEAD...${branchName}`]);
+      const statRes = this._runGit(['diff', '--stat', `HEAD...${branchName}`]);
+      const nameRes = this._runGit(['diff', '--name-status', `HEAD...${branchName}`]);
+      rawDiff = diffRes.stdout || '';
+      stat = statRes.stdout || '';
+      files = nameRes.stdout
+        ? nameRes.stdout
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .map((line) => {
+              const [status, ...rest] = line.split(/\t+/);
+              return { status: status.trim(), path: rest.join('\t').trim() };
+            })
+        : [];
+    }
+
+    if (existsSync(wtPath)) {
+      const wtDiff = this._runGit(['diff', 'HEAD'], wtPath);
+      if (wtDiff.stdout && !rawDiff.includes(wtDiff.stdout)) {
+        rawDiff = rawDiff ? `${rawDiff}\n${wtDiff.stdout}` : wtDiff.stdout;
+      }
+    }
+
+    const truncated = rawDiff.length > maxBytes;
+    return {
+      branch: branchName,
+      diff: truncated ? `${rawDiff.slice(0, maxBytes)}\n... [diff truncated at ${maxBytes} bytes]` : rawDiff,
+      stat,
+      files,
+      truncated,
+      isGitRepo: true
+    };
+  }
+
+  /**
    * Merges the agent's worktree branch into the base branch with verification.
    */
   merge(agentId, { verifyCmd = null } = {}) {
@@ -207,12 +258,22 @@ export class WorktreeManager {
       }
     }
 
-    // 2. Clean any colliding uncommitted/untracked files in main working tree so verified worktree merges cleanly
+    // 2. Refuse to destroy the user's uncommitted work: if any file the branch changes is
+    //    locally modified/untracked in the main working tree, bail out without touching anything.
     const changedRes = this._runGit(['diff', '--name-only', `HEAD...${branchName}`]);
     const changedFiles = changedRes.stdout ? changedRes.stdout.split(/\r?\n/).filter(Boolean) : [];
-    for (const f of changedFiles) {
-      this._runGit(['checkout', '--', f]);
-      this._runGit(['clean', '-f', '--', f]);
+    if (changedFiles.length > 0) {
+      const dirtyRes = this._runGit(['status', '--porcelain', '--', ...changedFiles]);
+      const dirtyLines = dirtyRes.stdout ? dirtyRes.stdout.split(/\r?\n/).filter(Boolean) : [];
+      if (dirtyLines.length > 0) {
+        return {
+          success: false,
+          reason: 'MAIN_DIRTY_COLLISION',
+          files: dirtyLines.map((line) => line.slice(3).trim().replace(/^"|"$/g, '')),
+          error:
+            'Main working tree has uncommitted changes on files this merge would touch. Commit or stash them, then merge again.'
+        };
+      }
     }
 
     // 3. Merge into main repository working tree
@@ -236,8 +297,8 @@ export class WorktreeManager {
     if (verifyCmd) {
       const mainVerify = this.verify(agentId, verifyCmd, 300000, this.repoPath);
       if (!mainVerify.passed) {
-        // Revert merge commit cleanly
-        this._runGit(['reset', '--hard', 'HEAD~1']);
+        // Revert merge commit but keep unrelated local edits (--keep refuses unsafe resets)
+        this._runGit(['reset', '--keep', 'HEAD~1']);
         return {
           success: false,
           reason: 'VERIFY_FAILED_ON_MAIN',

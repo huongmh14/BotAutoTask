@@ -32,6 +32,17 @@ test('LocalWebUiServer serves Tactical Coworker HTML, enforces auth/DNS-rebindin
     assert.match(html, /function closeTelemetry\(\)/);
     assert.match(html, /currentVerifyCmd/);
     assert.match(html, /hasDuplicateItem/);
+    assert.match(html, /openDiffModal/);
+    assert.match(html, /openCmdPalette/);
+    assert.match(html, /decideApprovalClick/);
+    assert.match(html, /marked\.min\.js/);
+
+    // 1b. SSE /api/events accepts ?k=<token> (Spec 08 A0 regression check) and rejects bad ?k=
+    const sseBad = await fetch(`${baseUrl}/api/events?k=wrong-token`);
+    assert.equal(sseBad.status, 401);
+    const sseOk = await fetch(`${baseUrl}/api/events?k=${ui.token}`);
+    assert.equal(sseOk.status, 200);
+    await sseOk.body?.cancel();
 
     // 2. GET /api/state rejects unauthorized requests
     const unauthRes = await fetch(`${baseUrl}/api/state`);
@@ -133,6 +144,54 @@ test('LocalWebUiServer serves Tactical Coworker HTML, enforces auth/DNS-rebindin
       body: JSON.stringify({ nonce: `stop2-${Date.now()}`, confirm: true })
     });
     assert.equal(stopOk.status, 200);
+
+    // 8b. Diff endpoint, removable inbox queue, and hash-bound approval lifecycle (Spec 08 C3, C4, B3)
+    const diffRes = await fetch(`${baseUrl}/api/agents/coder/diff`, {
+      headers: { Authorization: `Bearer ${ui.token}` }
+    });
+    assert.equal(diffRes.status, 200);
+    const diffData = await diffRes.json();
+    assert.equal(typeof diffData.diff, 'string');
+
+    const remRes = await fetch(`${baseUrl}/api/agents/coder/inbox/remove`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ui.token}`
+      },
+      body: JSON.stringify({ nonce: `rm-${Date.now()}`, index: 0 })
+    });
+    assert.equal(remRes.status, 200);
+    const remData = await remRes.json();
+    assert.equal(remData.ok, true);
+
+    const prop = mesh.proposeApproval({ action: 'MergeAgentWorktree', args: { agent_id: 'coder' }, callerId: 'coder' });
+    const badHashRes = await fetch(`${baseUrl}/api/approvals/${prop.id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ui.token}`
+      },
+      body: JSON.stringify({ nonce: `ap1-${Date.now()}`, decision: 'approve', hash: 'wrong-hash' })
+    });
+    assert.equal(badHashRes.status, 409);
+
+    const denyRes = await fetch(`${baseUrl}/api/approvals/${prop.id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${ui.token}`
+      },
+      body: JSON.stringify({ nonce: `ap2-${Date.now()}`, decision: 'deny', hash: prop.hash, note: 'Hold merge' })
+    });
+    assert.equal(denyRes.status, 200);
+    const denyData = await denyRes.json();
+    assert.equal(denyData.approval.status, 'denied');
+
+    const expRes = await fetch(`${baseUrl}/api/experience?domain=general`, {
+      headers: { Authorization: `Bearer ${ui.token}` }
+    });
+    assert.equal(expRes.status, 200);
 
     // 9. EADDRINUSE auto-fallback: starting a second server on the occupied port automatically picks the next free port
     const ui2 = new LocalWebUiServer({ port: ui.port });
