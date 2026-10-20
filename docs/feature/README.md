@@ -12,6 +12,7 @@ docs/feature/
 ├── 05-verification-policy-auth.md     # Completion contract, validator độc lập, policy quyền, failover an toàn
 ├── 06-cloudflare-auto-provision.md    # Playwright + wrangler tự dựng Cloudflare (ĐÃ TRIỂN KHAI)
 ├── 07-orca-arena-accounts-ratchet-awake.md # Arena fan-out, multi-account pool, ratchet guard, awake lease (từ Orca)
+├── 08-mesh-safety-attention-ui.md     # Sửa 3 bug (SSE 401, merge mất dữ liệu, auto-pass) + mesh safety, approval gate, experience library, attention UI (reason-network, Orca, harness2, OpenMuse)
 └── research/
     ├── grokbot-findings.md            # REA GrokBot 0.71.2 (file:dòng, nhãn Verified/Inferred)
     ├── neko-core-findings.md          # Pattern Neko Core + bug BotAutoTask phát hiện được

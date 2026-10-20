@@ -1,5 +1,8 @@
 # Đặc Tả Kỹ Thuật: Tích Hợp Google Research Harness²
 
+> [!WARNING]
+> Một số mô tả dưới đây không khớp mã nguồn harness2 (worktree, D1, layout thư viện, ngữ nghĩa Compose). Xem đính chính và phạm vi triển khai thực tế ở [Spec 08 §D0](08-mesh-safety-attention-ui.md#d0-đính-chính-spec-04).
+
 ## 1. Bối Cảnh Nghiên Cứu: `google-research/harness2`
 Dựa trên công trình nghiên cứu [**Harness²: Recursive Agent Harnessing for an Open World** (arXiv:2610.14224)](https://github.com/google-research/harness2) phát hành bởi **Google Cloud AI Research**, hệ thống agent có thể tự hoàn thiện và tự nâng cấp năng lực giải quyết tác vụ mà **không cần chỉnh sửa trọng số model (Fixed Model Weights)** và **không cần có sẵn bộ kiểm tra chuẩn mực (No Ground-Truth Verifier Required)**.
 
