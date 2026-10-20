@@ -3999,8 +3999,8 @@ function renderDashboardHtml() {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>BotAutoTask — Tactical Coworker Mesh</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230284C7'/%3E%3Cpath d='M23 30.5C18.5 27.5 13 21.5 10.5 15C12.5 20.5 14 27 16.2 33.5C14 40 12.5 46.5 10.5 52.5C13 46 18.5 40.5 23 37.5Z' fill='%23fff'/%3E%3Cpath d='M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z' fill='%23fff'/%3E%3Ccircle cx='49.5' cy='27.5' r='2.2' fill='%230369A1'/%3E%3C/svg%3E" />
+<title>WhaleBot — Tactical Coworker Mesh</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28' shape-rendering='crispEdges'%3E%3Crect width='28' height='28' rx='6' fill='%230284C7'/%3E%3Crect width='28' height='10' fill='%2322D3EE' fill-opacity='0.45'/%3E%3Cpath d='M21 6h4v1h-4zM18 7h4v1h-4zM15 8h3v1h-3zM13 9h2v1h-2zM11 10h2v1h-2zM9 11h2v1H9zM8 12h1v1H8zM7 13h1v1H7zM6 14h1v1H6z' fill='%237DD3FC'/%3E%3Cpath d='M22 7h3v1h-3zM18 8h6v1h-6zM15 9h6v1h-6zM13 10h6v1h-6zM11 11h6v1h-6zM9 12h5v1H9zM8 13h4v1H8zM7 14h3v1H7zM5 15h2v1H5zM4 16h2v1H4z' fill='%231E3A5F'/%3E%3Cpath d='M25 7h1v1h-1zM24 8h2v1h-2zM22 9h2v1h-2zM19 10h3v1h-3zM17 11h3v1h-3zM14 12h4v1h-4zM12 13h4v1h-4zM10 14h4v1h-4zM16 14h2v1h-2zM7 15h2v1H7zM11 15h3v1h-3zM16 15h2v1h-2zM6 16h1v1H6zM10 16h3v1h-3zM15 16h2v1h-2zM2 17h4v1H2zM8 17h4v1H8zM14 17h2v1h-2zM1 18h3v1H1zM5 18h1v1H5zM7 18h3v1H7zM13 18h2v1h-2zM1 19h2v1H1zM5 19h1v1H5zM4 20h2v1H4z' fill='%23091929'/%3E%3Cpath d='M24 9h1v1h-1zM22 10h2v1h-2zM20 11h3v1h-3zM18 12h3v1h-3zM16 13h3v1h-3z' fill='%231E4976'/%3E%3Crect x='21' y='9' width='1' height='1' fill='%2338BDF8'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -4124,16 +4124,19 @@ function renderDashboardHtml() {
     width: 40px;
     height: 40px;
     border-radius: 13px;
-    background: linear-gradient(135deg, #38BDF8, #0369A1);
+    background: linear-gradient(180deg, #22D3EE 0%, #0284C7 55%, #1E3A8A 100%);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     box-shadow: 0 4px 12px var(--accent-soft);
+    overflow: hidden;
   }
   .brand-logo svg {
-    width: 27px;
-    height: 27px;
+    width: 34px;
+    height: 34px;
+    shape-rendering: crispEdges;
+    image-rendering: pixelated;
   }
   .brand-name {
     font-size: 15.5px;
@@ -4255,16 +4258,20 @@ function renderDashboardHtml() {
     color: #FFFFFF;
   }
   .avatar svg {
-    width: 27px;
-    height: 27px;
+    width: 30px;
+    height: 30px;
+    shape-rendering: crispEdges;
+    image-rendering: pixelated;
   }
   .avatar.sm {
     width: 34px;
     height: 34px;
   }
   .avatar.sm svg {
-    width: 21px;
-    height: 21px;
+    width: 24px;
+    height: 24px;
+    shape-rendering: crispEdges;
+    image-rendering: pixelated;
   }
 
   .status-dot {
@@ -4466,19 +4473,22 @@ function renderDashboardHtml() {
     padding: 20px 10px;
   }
   .hero-art {
-    width: 130px;
-    height: 130px;
+    width: 136px;
+    height: 136px;
     margin: 0 auto 18px;
     border-radius: 50%;
-    background: var(--bg-pill);
+    background: linear-gradient(180deg, #22D3EE 0%, #0284C7 55%, #1E3A8A 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 0 12px var(--accent-soft);
+    box-shadow: 0 0 0 10px var(--accent-soft), 0 12px 28px rgba(2, 132, 199, 0.25);
+    overflow: hidden;
   }
   .hero-art svg {
-    width: 88px;
-    height: 88px;
+    width: 136px;
+    height: 136px;
+    shape-rendering: crispEdges;
+    image-rendering: pixelated;
   }
   .welcome h2 {
     font-size: 22px;
@@ -4841,19 +4851,18 @@ function renderDashboardHtml() {
     <aside class="sidebar" id="sidebar">
       <div class="brand-bar">
         <div class="brand">
-          <div class="brand-logo" title="BotAutoTask">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M23 30.5C18.5 27.5 13 21.5 10.5 15C12.5 20.5 14 27 16.2 33.5C14 40 12.5 46.5 10.5 52.5C13 46 18.5 40.5 23 37.5Z" fill="#FFFFFF"/>
-              <path d="M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z" fill="#FFFFFF"/>
-              <g clip-path="url(#brandbelly)"><ellipse cx="39" cy="46" rx="19" ry="8.5" fill="rgba(255,255,255,0.38)"/></g>
-              <defs><clipPath id="brandbelly"><path d="M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z"/></clipPath></defs>
-              <path d="M37 37.5C41 38.5 43.2 42.5 41.2 47C37.6 49 33.4 47.6 32.4 44C33.6 40.5 35 37.9 37 37.5Z" fill="rgba(255,255,255,0.82)"/>
-              <circle cx="49.5" cy="27.5" r="2.2" fill="rgba(3,105,161,0.8)"/>
-              <path d="M52 33.5C53.3 35.1 55.3 35.3 56.7 34" stroke="rgba(3,105,161,0.8)" stroke-width="1.7" stroke-linecap="round" fill="none"/>
+          <div class="brand-logo" title="WhaleBot">
+            <svg viewBox="0 0 28 28" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 0h2v9H5zM11 0h3v11h-3zM19 0h2v8h-2z" fill="rgba(255,255,255,0.16)"/>
+              <path d="M21 6h4v1h-4zM18 7h4v1h-4zM15 8h3v1h-3zM13 9h2v1h-2zM11 10h2v1h-2zM9 11h2v1H9zM8 12h1v1H8zM7 13h1v1H7zM6 14h1v1H6z" fill="#7DD3FC"/>
+              <path d="M22 7h3v1h-3zM18 8h6v1h-6zM15 9h6v1h-6zM13 10h6v1h-6zM11 11h6v1h-6zM9 12h5v1H9zM8 13h4v1H8zM7 14h3v1H7zM5 15h2v1H5zM4 16h2v1H4z" fill="#1E3A5F"/>
+              <path d="M25 7h1v1h-1zM24 8h2v1h-2zM22 9h2v1h-2zM19 10h3v1h-3zM17 11h3v1h-3zM14 12h4v1h-4zM12 13h4v1h-4zM10 14h4v1h-4zM16 14h2v1h-2zM7 15h2v1H7zM11 15h3v1h-3zM16 15h2v1h-2zM6 16h1v1H6zM10 16h3v1h-3zM15 16h2v1h-2zM2 17h4v1H2zM8 17h4v1H8zM14 17h2v1h-2zM1 18h3v1H1zM5 18h1v1H5zM7 18h3v1H7zM13 18h2v1h-2zM1 19h2v1H1zM5 19h1v1H5zM4 20h2v1H4z" fill="#091929"/>
+              <path d="M24 9h1v1h-1zM22 10h2v1h-2zM20 11h3v1h-3zM18 12h3v1h-3zM16 13h3v1h-3z" fill="#1E4976"/>
+              <rect x="21" y="9" width="1" height="1" fill="#38BDF8"/>
             </svg>
           </div>
           <div class="brand-text">
-            <div class="brand-name">BotAutoTask</div>
+            <div class="brand-name">WhaleBot</div>
             <div class="brand-sub">Multi-Agent Chat</div>
           </div>
         </div>
@@ -4906,7 +4915,7 @@ function renderDashboardHtml() {
           <span class="avatar sm" id="headerAvatar" style="background:linear-gradient(135deg,#38BDF8,#0369A1);"></span>
           <div class="header-info">
             <div class="header-title-row">
-              <span class="header-title" id="headerTitle">Nhóm BotAutoTask</span>
+              <span class="header-title" id="headerTitle">Nhóm WhaleBot</span>
               <span class="role-tag" id="headerRoleTag">Nhóm</span>
             </div>
             <div class="header-sub" id="headerSubtitle">Kênh phối hợp chung · #mesh-command-room</div>
@@ -5043,50 +5052,35 @@ function renderDashboardHtml() {
   </div>
 
 <script>
-  // ===== Original whale mascot (pure SVG, parameterized colors) =====
-  let __whaleUid = 0;
+  // ===== Pixel-Art Humpback Whale Mascot (28x28 crisp pixel grid) =====
   function whaleSvg(opts) {
     opts = opts || {};
-    const uid = 'wh' + (++__whaleUid);
-    const BODY = 'M22 33C24 22 36 14.5 46 17C53.5 19.5 58 24.5 58 30.5C58 37 52.5 41.5 45.5 43.5C37 46 27 45.5 23 39C21.8 37 21.6 35 22 33Z';
-    const FLUKE = 'M23 30.5C18.5 27.5 13 21.5 10.5 15C12.5 20.5 14 27 16.2 33.5C14 40 12.5 46.5 10.5 52.5C13 46 18.5 40.5 23 37.5Z';
-    const FIN = 'M37 37.5C41 38.5 43.2 42.5 41.2 47C37.6 49 33.4 47.6 32.4 44C33.6 40.5 35 37.9 37 37.5Z';
-    let body = opts.body || 'currentColor';
-    let defs = '<defs><clipPath id="wc-' + uid + '"><path d="' + BODY + '"/></clipPath>';
-    if (opts.gradient) {
-      defs += '<linearGradient id="wg-' + uid + '" x1="0" y1="0" x2="0" y2="1">' +
-        '<stop offset="0" stop-color="' + opts.gradient[0] + '"/>' +
-        '<stop offset="1" stop-color="' + opts.gradient[1] + '"/></linearGradient>';
-      body = 'url(#wg-' + uid + ')';
+    const top = opts.top || '#7DD3FC';
+    const mid = opts.mid || '#1E3A5F';
+    const dark = opts.dark || '#091929';
+    const belly = opts.belly || '#1E4976';
+    const eye = opts.eye || '#38BDF8';
+    let scene = '';
+    if (opts.scene) {
+      scene =
+        '<path d="M4 0h2v12H4zM9 0h3v15H9zM16 0h2v11h-2zM22 0h2v9h-2z" fill="rgba(255,255,255,0.14)"/>' +
+        '<path d="M18 22h10v6H18zM13 24h5v4h-5zM9 26h4v2H9zM21 20h7v2h-7z" fill="rgba(9,25,41,0.45)"/>' +
+        '<path d="M20 21h8v1h-8zM15 23h6v1h-6z" fill="rgba(56,189,248,0.22)"/>' +
+        '<path d="M23 3h1v1h-1zM25 4h1v1h-1zM19 4h1v1h-1z" fill="rgba(255,255,255,0.65)"/>';
     }
-    defs += '</defs>';
-    const fin = opts.fin || body;
-    const belly = (opts.belly !== undefined) ? opts.belly : 'rgba(255,255,255,0.4)';
-    const ink = opts.ink || 'rgba(255,255,255,0.9)';
-    let spout = '';
-    if (opts.spout) {
-      const mist = opts.mist || 'rgba(255,255,255,0.65)';
-      spout = '<g stroke="' + mist + '" stroke-width="2.4" stroke-linecap="round" fill="none">' +
-        '<path d="M44.5 15.5C44.5 11.5 46.5 8.8 50 6.2"/>' +
-        '<path d="M43 15.5C42 11.6 40 9.2 37 7.2"/></g>' +
-        '<circle cx="52" cy="10.2" r="1.5" fill="' + mist + '"/>' +
-        '<circle cx="35.4" cy="10.8" r="1.5" fill="' + mist + '"/>' +
-        '<circle cx="44.2" cy="4.6" r="1.5" fill="' + mist + '"/>';
-    }
-    return '<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' + defs +
-      spout +
-      '<path d="' + FLUKE + '" fill="' + body + '"/>' +
-      '<path d="' + BODY + '" fill="' + body + '"/>' +
-      '<g clip-path="url(#wc-' + uid + ')"><ellipse cx="39" cy="46" rx="19" ry="8.5" fill="' + belly + '"/></g>' +
-      '<path d="' + FIN + '" fill="' + fin + '"/>' +
-      '<circle cx="49.5" cy="27.5" r="2.2" fill="' + ink + '"/>' +
-      '<path d="M52 33.5C53.3 35.1 55.3 35.3 56.7 34" stroke="' + ink + '" stroke-width="1.7" stroke-linecap="round" fill="none"/>' +
+    return '<svg viewBox="0 0 28 28" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      scene +
+      '<path d="M21 6h4v1h-4zM18 7h4v1h-4zM15 8h3v1h-3zM13 9h2v1h-2zM11 10h2v1h-2zM9 11h2v1H9zM8 12h1v1H8zM7 13h1v1H7zM6 14h1v1H6z" fill="' + top + '"/>' +
+      '<path d="M22 7h3v1h-3zM18 8h6v1h-6zM15 9h6v1h-6zM13 10h6v1h-6zM11 11h6v1h-6zM9 12h5v1H9zM8 13h4v1H8zM7 14h3v1H7zM5 15h2v1H5zM4 16h2v1H4z" fill="' + mid + '"/>' +
+      '<path d="M25 7h1v1h-1zM24 8h2v1h-2zM22 9h2v1h-2zM19 10h3v1h-3zM17 11h3v1h-3zM14 12h4v1h-4zM12 13h4v1h-4zM10 14h4v1h-4zM16 14h2v1h-2zM7 15h2v1H7zM11 15h3v1h-3zM16 15h2v1h-2zM6 16h1v1H6zM10 16h3v1h-3zM15 16h2v1h-2zM2 17h4v1H2zM8 17h4v1H8zM14 17h2v1h-2zM1 18h3v1H1zM5 18h1v1H5zM7 18h3v1H7zM13 18h2v1h-2zM1 19h2v1H1zM5 19h1v1H5zM4 20h2v1H4z" fill="' + dark + '"/>' +
+      '<path d="M24 9h1v1h-1zM22 10h2v1h-2zM20 11h3v1h-3zM18 12h3v1h-3zM16 13h3v1h-3z" fill="' + belly + '"/>' +
+      '<rect x="21" y="9" width="1" height="1" fill="' + eye + '"/>' +
       '</svg>';
   }
 
-  // White whale for colored avatars; gradient whale with water spout for the welcome art
-  const WHALE_MARK = whaleSvg({ body: '#FFFFFF', fin: 'rgba(255,255,255,0.82)', belly: 'rgba(255,255,255,0.38)', ink: 'rgba(3,105,161,0.8)' });
-  const WHALE_HERO = whaleSvg({ gradient: ['#5BC4F9', '#0284C7'], fin: '#0369A1', belly: 'rgba(255,255,255,0.62)', ink: '#0B3D5F', mist: 'rgba(2,132,199,0.5)', spout: true });
+  // Pixel whale for colored coworker avatars & full underwater pixel scene for welcome hero
+  const WHALE_MARK = whaleSvg({ top: '#E0F2FE', mid: '#FFFFFF', dark: '#0C4A6E', belly: '#7DD3FC', eye: '#0284C7' });
+  const WHALE_HERO = whaleSvg({ top: '#7DD3FC', mid: '#1E3A5F', dark: '#091929', belly: '#1E4976', eye: '#38BDF8', scene: true });
 
   const ICONS = {
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>',
@@ -5095,9 +5089,9 @@ function renderDashboardHtml() {
 
   const PERSONAS = {
     all: {
-      title: 'Nhóm BotAutoTask',
+      title: 'Nhóm WhaleBot',
       tag: 'Nhóm',
-      grad: 'linear-gradient(135deg, #38BDF8, #0369A1)',
+      grad: 'linear-gradient(180deg, #22D3EE 0%, #0284C7 55%, #1E3A8A 100%)',
       sub: 'Kênh phối hợp chung · #mesh-command-room'
     },
     lead: {
@@ -5412,7 +5406,7 @@ function renderDashboardHtml() {
       stream.innerHTML = \`
         <div class="welcome">
           <div class="hero-art">\${WHALE_HERO}</div>
-          <h2>Chào mừng đến BotAutoTask</h2>
+          <h2>Chào mừng đến WhaleBot</h2>
           <p>Không gian chat để bạn cùng các trợ lý AI phân tích, lập kế hoạch và hoàn thành công việc — mọi thay đổi code đều được kiểm thử trong Git Worktree trước khi gộp.</p>
           <div class="quick-grid">
             <button class="quick-chip" onclick="prefillPrompt('Hãy phân tích kiến trúc dự án hiện tại và đề xuất các việc cần làm tiếp theo.')">
