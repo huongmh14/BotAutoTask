@@ -90,6 +90,43 @@ export class LocalWebUiServer {
     return false;
   }
 
+  /**
+   * Per-core availability, active rate-limit cooldowns and usage stats for the
+   * dashboard's Cores & Limits panel. Availability spawns CLI version checks,
+   * so it is cached for 30s to keep /api/state polling cheap.
+   */
+  async _coreStatus() {
+    const registry = this.mesh ? this.mesh.registry : null;
+    const ranker = this.mesh ? this.mesh.ranker : null;
+    if (!registry) return [];
+    if (!this._availCache) this._availCache = new Map();
+
+    const cores = [];
+    for (const harness of registry.list()) {
+      let available;
+      const cached = this._availCache.get(harness.id);
+      if (cached && Date.now() - cached.checkedAt < 30_000) {
+        available = cached.available;
+      } else {
+        try {
+          available = await harness.isAvailable();
+        } catch {
+          available = false;
+        }
+        this._availCache.set(harness.id, { available, checkedAt: Date.now() });
+      }
+
+      const cooldowns = ranker ? ranker.getActiveCooldowns(harness.id) : [];
+      cores.push({
+        id: harness.id,
+        available,
+        cooldowns,
+        stats: (registry.stats && registry.stats.snapshot()[harness.id]) || null
+      });
+    }
+    return cores;
+  }
+
   async start() {
     this.server = createServer(async (req, res) => {
       const url = new URL(req.url, `http://${req.headers.host || '127.0.0.1'}`);
@@ -171,14 +208,15 @@ export class LocalWebUiServer {
           if (body.length > 1_048_576) throw new Error('Body too large');
         }
         return JSON.parse(body || '{}');
-      };
+	      };
 
-      // 3. GET /api/state — Full Roster, Handoffs, Approvals, 0-Key Auth & IDE Transcript
+      // 3. GET /api/state — Full Roster, Handoffs, Approvals, Cores/Limits, 0-Key Auth & IDE Transcript
       if (req.method === 'GET' && url.pathname === '/api/state') {
         const agents = this.mesh ? this.mesh.listAgents() : [];
         const handoffs = this.mesh ? this.mesh.handoffs.slice(-40) : [];
         const approvals = this.mesh && typeof this.mesh.listApprovals === 'function' ? this.mesh.listApprovals() : [];
         const auth = await getZeroKeyAuthStatus();
+        const cores = await this._coreStatus();
         let latestIdeLog = null;
         try {
           const info = findLatestAntigravityTranscript();
@@ -192,7 +230,7 @@ export class LocalWebUiServer {
         } catch {}
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ agents, handoffs, approvals, auth, latestIdeLog }));
+        res.end(JSON.stringify({ agents, handoffs, approvals, cores, auth, latestIdeLog }));
         return;
       }
 
@@ -293,6 +331,7 @@ export class LocalWebUiServer {
                 targetId,
                 message: body.text || '',
                 delivery: body.delivery || 'send',
+                parallel: Boolean(body.parallel),
                 wait: true
               })
               .catch((err) => {
@@ -312,6 +351,7 @@ export class LocalWebUiServer {
               targetId,
               message: body.text || '',
               delivery: body.delivery || 'send',
+              parallel: Boolean(body.parallel),
               wait: false
             });
             res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(out));
@@ -390,7 +430,45 @@ export class LocalWebUiServer {
         return;
       }
 
-      // 10. POST /api/team/start — Dispatch autonomous squad mission (@lead -> @coder -> @reviewer -> merge)
+      // 10. POST /api/arena/start — Fan one goal out to N parallel runners, verify & rank
+      if (req.method === 'POST' && url.pathname === '/api/arena/start') {
+        const body = await readJson().catch(() => ({}));
+        if (this._checkDuplicateNonce(body.nonce, res)) return;
+        const goal = String(body.goal || '').trim();
+        if (!goal) {
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Missing goal' }));
+          return;
+        }
+        const participants = Math.max(2, Math.min(6, Number(body.participants) || 3));
+
+        if (this.mesh) {
+          this.mesh
+            .runArena({ goal, verifyCmd: body.check || null, participants })
+            .then((out) => {
+              this.broadcastEvent('arena_result', {
+                arenaId: out.arenaId,
+                winner: out.winner ? out.winner.runnerId : null,
+                message: out.winner
+                  ? `Arena winner: @${out.winner.runnerId} (${out.winner.verified ? 'verified' : 'best outcome'}) · ${out.winner.spec}`
+                  : `Arena finished with no usable result (${out.participants} runners)`,
+                results: out.results
+              });
+            })
+            .catch((err) => {
+              this.broadcastEvent('arena_result', {
+                arenaId: null,
+                winner: null,
+                message: `Arena error: ${err.message}`
+              });
+            });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(
+          JSON.stringify({ status: 'dispatched', arena: true, participants, goal })
+        );
+        return;
+      }
+
+      // 11. POST /api/team/start — Dispatch autonomous squad mission to @lead
       if (req.method === 'POST' && url.pathname === '/api/team/start') {
         const body = await readJson().catch(() => ({}));
         if (this._checkDuplicateNonce(body.nonce, res)) return;
