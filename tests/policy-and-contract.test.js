@@ -7,7 +7,7 @@ import { decide, isHardRefuseCommand } from '../src/core/policy.js';
 import { CompletionContract } from '../src/core/completion-contract.js';
 import { Harness2Engine } from '../src/core/harness2-engine.js';
 
-test('Policy Engine enforces hard refuse, ask once, mode boundaries, and kill-switch', () => {
+test('[VERIFY-AC01] [SEC-AC03] Policy Engine enforces hard refuse, ask once, mode boundaries, and kill-switch', () => {
   // 1. Hard refuse is NEVER bypassed, even with YOLO and auto mode
   assert.equal(isHardRefuseCommand('rm -rf /'), true);
   assert.equal(decide({ mode: 'auto', yolo: true, command: 'rm -rf /' }), 'refused');
@@ -33,7 +33,7 @@ test('Policy Engine enforces hard refuse, ask once, mode boundaries, and kill-sw
   assert.equal(decide({ mode: 'default', action: 'exec', command: 'npm test' }), 'ask');
 });
 
-test('CompletionContract enforces append-only, epoch invalidation, gap anti-loop, and no self-pass', () => {
+test('[VERIFY-AC02] CompletionContract enforces append-only, epoch invalidation, gap anti-loop, and no self-pass', () => {
   const contract = new CompletionContract({ goalId: 'goal-42' });
 
   // 1. Append-only up to 16
@@ -69,7 +69,7 @@ test('CompletionContract enforces append-only, epoch invalidation, gap anti-loop
   assert.equal(gap3.status, 'STALLED'); // 3 consecutive identical failures
 });
 
-test('Harness2Engine validates paths, autotriggers, and experience library triples (Spec 08 D1)', (t) => {
+test('[H2-AC01] [H2-AC02] [H2-AC03] Harness2Engine validates paths, autotriggers, and experience library triples (Spec 08 D1)', (t) => {
   const tempDir = join(tmpdir(), `harness2-test-${Date.now()}`);
   t.after(() => {
     try { rmSync(tempDir, { recursive: true, force: true }); } catch {}

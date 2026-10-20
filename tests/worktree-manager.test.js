@@ -25,7 +25,7 @@ function createTempGitRepo() {
   return repoDir;
 }
 
-test('WorktreeManager ensures isolated worktree per agent and merges cleanly', (t) => {
+test('[MESH-AC01] WorktreeManager ensures isolated worktree per agent and merges cleanly', (t) => {
   const repoDir = createTempGitRepo();
   t.after(() => {
     try { rmSync(repoDir, { recursive: true, force: true }); } catch {}
@@ -70,7 +70,7 @@ test('WorktreeManager ensures isolated worktree per agent and merges cleanly', (
   assert.ok(!existsSync(wm.worktreesRoot));
 });
 
-test('WorktreeManager detects merge conflicts, aborts cleanly, and reports conflicting files', (t) => {
+test('[MESH-AC01] WorktreeManager detects merge conflicts, aborts cleanly, and reports conflicting files', (t) => {
   const repoDir = createTempGitRepo();
   t.after(() => {
     try { rmSync(repoDir, { recursive: true, force: true }); } catch {}
@@ -104,7 +104,7 @@ test('WorktreeManager detects merge conflicts, aborts cleanly, and reports confl
   wm.cleanup();
 });
 
-test('WorktreeManager refuses merge when user has uncommitted changes on colliding files (Spec 08 A1)', (t) => {
+test('[SAFE-AC01] WorktreeManager refuses merge when user has uncommitted changes on colliding files (Spec 08 A1)', (t) => {
   const repoDir = createTempGitRepo();
   t.after(() => {
     try { rmSync(repoDir, { recursive: true, force: true }); } catch {}
@@ -137,7 +137,7 @@ test('WorktreeManager refuses merge when user has uncommitted changes on collidi
   wm.cleanup();
 });
 
-test('WorktreeManager falls back safely when directory is not a git repo', (t) => {
+test('[MESH-AC02] WorktreeManager falls back safely when directory is not a git repo', (t) => {
   const nonGitDir = join(tmpdir(), `wt-nongit-${Date.now()}`);
   mkdirSync(nonGitDir, { recursive: true });
   t.after(() => {

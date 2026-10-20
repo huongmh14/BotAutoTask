@@ -43,11 +43,12 @@ function createMockMesh() {
     }
   });
 
-  const stateFile = join(tmpdir(), `mesh-test-${randomUUID()}.json`);
-  return new AgentMesh({ registry, ranker, stateFile });
+  const workspaceDir = join(tmpdir(), `mesh-ws-${randomUUID()}`);
+  const stateFile = join(workspaceDir, 'mesh-test.json');
+  return new AgentMesh({ registry, ranker, workspaceDir, stateFile });
 }
 
-test('parseInlineAgentToolCalls extracts structured inter-agent tool calls', () => {
+test('[MESH-AC04] parseInlineAgentToolCalls extracts structured inter-agent tool calls', () => {
   const text = `
 I will create a security agent and message coder:
 [AGENT_TOOL: {"tool":"CreateAgent","args":{"id":"sec","name":"Security Bot","description":"Audits code"}}]
@@ -62,7 +63,7 @@ I will create a security agent and message coder:
   assert.equal(calls[1].args.priority, true);
 });
 
-test('AgentMesh supports GrokBot + Neko-Bot multi-agent delegation and priority steering', async () => {
+test('[MESH-AC04] AgentMesh supports GrokBot + Neko-Bot multi-agent delegation and priority steering', async () => {
   const mesh = createMockMesh();
   const initial = mesh.listAgents();
   assert.equal(initial.length, 3); // lead, coder, reviewer
@@ -87,7 +88,7 @@ test('AgentMesh supports GrokBot + Neko-Bot multi-agent delegation and priority 
   assert.equal(coderCheck.pendingSteers.length, 0); // Consumed during coder's turn!
 });
 
-test('AgentMesh Loopback HTTP MCP Bridge serves tools/list and tools/call', async () => {
+test('[MESH-AC04] AgentMesh Loopback HTTP MCP Bridge serves tools/list and tools/call', async () => {
   const mesh = createMockMesh();
   const bridge = await mesh.startMcpBridgeServer();
   try {
@@ -127,7 +128,7 @@ test('AgentMesh Loopback HTTP MCP Bridge serves tools/list and tools/call', asyn
   }
 });
 
-test('getZeroKeyAuthStatus inspects local login states without throwing', async () => {
+test('[VERIFY-AC03] getZeroKeyAuthStatus inspects local login states without throwing', async () => {
   const status = await getZeroKeyAuthStatus();
   assert.ok('codex' in status);
   assert.ok('claude' in status);
@@ -135,7 +136,7 @@ test('getZeroKeyAuthStatus inspects local login states without throwing', async 
   assert.ok('antigravity' in status);
 });
 
-test('AgentMergeWorktree from an agent requires human approval (Spec 08 C1-C3)', async () => {
+test('[SAFE-AC03] [SEC-AC04] AgentMergeWorktree from an agent requires human approval (Spec 08 C1-C3)', async () => {
   const mesh = createMockMesh();
 
   // 1. Agent-initiated merge → awaiting_review, nothing merged yet
@@ -214,7 +215,7 @@ test('AgentMergeWorktree from an agent requires human approval (Spec 08 C1-C3)',
   assert.equal(expired.error, 'expired');
 });
 
-test('Commander-initiated merge bypasses the approval gate (Spec 08 C1)', async () => {
+test('[SAFE-AC03] Commander-initiated merge bypasses the approval gate (Spec 08 C1)', async () => {
   const mesh = createMockMesh();
   const out = await mesh.executeMeshTool(
     'MergeAgentWorktree',

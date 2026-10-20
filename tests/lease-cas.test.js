@@ -128,7 +128,7 @@ class MockD1Database {
   }
 }
 
-test('Lease CAS prevents racing workers and increments lease_epoch', async () => {
+test('[CLOUD-AC01] Lease CAS prevents racing workers and increments lease_epoch', async () => {
   const db = new MockD1Database();
   const token = 'secret-token-test';
   const env = { DB: db, BOTAUTOTASK_API_TOKEN: token };
@@ -172,7 +172,7 @@ test('Lease CAS prevents racing workers and increments lease_epoch', async () =>
   assert.equal(dataB.conflict, true);
 });
 
-test('Lease heartbeat and step fence outdated epochs with HTTP 409', async () => {
+test('[CLOUD-AC02] Lease heartbeat and step fence outdated epochs with HTTP 409', async () => {
   const db = new MockD1Database();
   const token = 'secret-token-test';
   const env = { DB: db, BOTAUTOTASK_API_TOKEN: token };

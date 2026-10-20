@@ -1,0 +1,37 @@
+name: Test & Verify Bundle Integrity
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+jobs:
+  verify:
+    name: Node.js Test & Bundle Sync (PK-RELEASE-R06)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check zero runtime dependencies (D-01)
+        run: node -e "const p=require('./package.json'); if(Object.keys(p.dependencies||{}).length>0) { console.error('Runtime dependencies are forbidden (D-01)'); process.exit(1); }"
+
+      - name: Run unit & integration test suite
+        run: npm test
+
+      - name: Verify dist/botautotask.mjs matches src/ (PK-RELEASE-R06)
+        run: |
+          node scripts/build-single-file.js
+          git diff --exit-code dist/botautotask.mjs
+
+      - name: Verify Cloud Provision Dry-Run & CONSTRAINTS.md Ratchets (C23)
+        run: |
+          npm run cloud:setup:dry
+          node -e "const s=require('fs').statSync('dist/botautotask.mjs').size; if(s>358400) { console.error('Bundle exceeds 350 KB'); process.exit(1); }"
+          node -e "const n=require('fs').readFileSync('AGENTS.md','utf8').split('\n').length; if(n>150) { console.error('AGENTS.md exceeds 150 lines'); process.exit(1); }"

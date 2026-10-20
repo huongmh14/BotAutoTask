@@ -30,11 +30,12 @@ function createMockMesh() {
     }
   });
 
-  const stateFile = join(tmpdir(), `mesh-v2-test-${randomUUID()}.json`);
-  return new AgentMesh({ registry, ranker, stateFile });
+  const workspaceDir = join(tmpdir(), `mesh-v2-ws-${randomUUID()}`);
+  const stateFile = join(workspaceDir, 'mesh-v2-test.json');
+  return new AgentMesh({ registry, ranker, workspaceDir, stateFile });
 }
 
-test('AgentMesh v2 supports delivery modes (send, interrupt, queue) with honest statuses (Spec 08 B3)', async () => {
+test('[MESH-AC03] AgentMesh v2 supports delivery modes (send, interrupt, queue) with honest statuses (Spec 08 B3)', async () => {
   const mesh = createMockMesh();
 
   // 1. Delivery "queue" to an IDLE agent → queued_idle (not a blanket "queued")
@@ -80,7 +81,7 @@ test('AgentMesh v2 supports delivery modes (send, interrupt, queue) with honest 
   assert.equal(coderFinal.inboxCount, 0);
 });
 
-test('AgentMesh v2 Loop Guard rejects identical repeated calls after 3 times', async () => {
+test('[MESH-AC03] [SAFE-AC04] AgentMesh v2 Loop Guard rejects identical repeated calls after 3 times', async () => {
   const mesh = createMockMesh();
   const repeatedMsg = 'Build exact same feature';
 
@@ -96,7 +97,7 @@ test('AgentMesh v2 Loop Guard rejects identical repeated calls after 3 times', a
   assert.match(res3.error, /Loop detected: same message sent/);
 });
 
-test('AgentMesh v2 Loop Guard uses a sliding 10-minute window and exempts humans (Spec 08 B2)', async () => {
+test('[MESH-AC03] [SAFE-AC04] AgentMesh v2 Loop Guard uses a sliding 10-minute window and exempts humans (Spec 08 B2)', async () => {
   const mesh = createMockMesh();
   const t0 = 1_700_000_000_000;
 
@@ -144,7 +145,7 @@ test('AgentMesh v2 Loop Guard uses a sliding 10-minute window and exempts humans
   }
 });
 
-test('framePeerMessage quotes injected control headings and caps size (Spec 08 B1)', () => {
+test('[SAFE-AC04] [SEC-AC03] framePeerMessage quotes injected control headings and caps size (Spec 08 B1)', () => {
   assert.equal(isHumanSender('commander'), true);
   assert.equal(isHumanSender('telegram'), true);
   assert.equal(isHumanSender('coder'), false);

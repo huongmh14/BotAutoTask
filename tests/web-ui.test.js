@@ -8,11 +8,12 @@ import { AgentMesh } from '../src/core/agent-mesh.js';
 import { HarnessRegistry } from '../src/core/harness-registry.js';
 import { FreeModelRanker } from '../src/core/model-discovery.js';
 
-test('LocalWebUiServer serves Tactical Coworker HTML, enforces auth/DNS-rebinding, and handles coworker mesh controls', async () => {
+test('[UI-AC01] [UI-AC02] [UI-AC03] [UI-AC04] [SAFE-AC05] [SEC-AC02] LocalWebUiServer serves Tactical Coworker HTML, enforces auth/DNS-rebinding, and handles coworker mesh controls', async () => {
   const registry = new HarnessRegistry();
   const ranker = new FreeModelRanker();
-  const stateFile = join(tmpdir(), `webui-mesh-${randomUUID()}.json`);
-  const mesh = new AgentMesh({ registry, ranker, stateFile });
+  const workspaceDir = join(tmpdir(), `webui-ws-${randomUUID()}`);
+  const stateFile = join(workspaceDir, 'webui-mesh.json');
+  const mesh = new AgentMesh({ registry, ranker, workspaceDir, stateFile });
   const ui = new LocalWebUiServer({ mesh, port: 0 });
   await ui.start();
 

@@ -2,7 +2,7 @@
 
 - **Date:** 2026-10-19
 - **Project Path:** `D:\BotAutoTask`
-- **Status:** Approved Design (Updated with Dynamic Free Model Discovery & Hexagonal Pluggable Core)
+- **Status:** `As-built` — Đặc tả REQ/AC chính thức hiện nằm tại [`docs/feature/00-core-orchestrator.md`](../../feature/00-core-orchestrator.md) (`SPEC-CORE`) và [`docs/feature/README.md`](../../feature/README.md)
 - **Inspiration:** [CopilotKit/OpenMuse](https://github.com/CopilotKit/openmuse) (Durable SQL Leases) + [meiiie/neko-bot](https://github.com/meiiie/neko-bot) (Neko Core Runtime, Journal & Receipts)
 
 ---
@@ -12,7 +12,7 @@
 Xây dựng hệ thống **`BotAutoTask`** tại `D:\BotAutoTask` (kèm Agent Skill đồng bộ toàn cục) với 4 trụ cột:
 1. **Kiến trúc Lõi Tách Bạch (Pluggable `AgentHarness` Architecture):**
    - Tách rời hoàn toàn **Bộ điều phối (Orchestrator / Lease / Journal / Telegram)** khỏi **Lõi AI thực thi (`AgentHarness`)**.
-   - Bất kỳ lõi nào (`opencode`, `agy`/Antigravity, `claude`, `codex`, `neko-core`, hoặc **lõi AI tự phát triển sau này**) đều giao tiếp qua một chuẩn `AgentHarness` duy nhất. Muốn thay thế Neko Core hay thêm lõi mới chỉ cần cắm thêm 1 file adapter trong `src/harnesses/` hoặc khai báo trong `config/harnesses.json`.
+   - Bất kỳ lõi nào (`opencode`, `agy`/Antigravity, `claude`, `codex`, `neko-core`, hoặc **lõi AI tự phát triển sau này**) đều giao tiếp qua một chuẩn `AgentHarness` duy nhất. Muốn thay thế Neko Core hay thêm lõi mới chỉ cần cắm thêm 1 file adapter trong `src/harnesses/` hoặc khai báo `customHarnesses` trong `config/default-config.json`.
 2. **Tự động Săn & Xếp hạng Model Miễn phí Tốt nhất (`FreeModelDiscovery`):**
    - Tự động quét danh sách model từ `opencode models`, OpenRouter Free API (`pricing.prompt == "0"`), và cấu hình ưu tiên để chọn các model miễn phí/idle mạnh nhất hiện tại (ví dụ: `deepseek-v4.1-flash-free`, `gpt-luna`, `gemini-2.5-pro`, `deepseek-r1:free`, `qwen-2.5-coder:free`, ...).
    - Khi một model/lõi bị dính Rate Limit (`429`) hoặc hết quota, tự động lưu checkpoint vào Journal và trượt sang model/lõi tốt nhất tiếp theo.
@@ -72,7 +72,7 @@ Mọi lõi AI chỉ cần thực thi 3 hàm:
 
 Thay vì gán cứng 1 model, `FreeModelRanker` kết hợp 3 nguồn:
 1. **Danh sách Ưu tiên Đỉnh cao (Priority Patterns):**
-   - Khớp ưu tiên số 1 với các từ khóa model do bạn chỉ định trong `config/models.json`:
+   - Khớp ưu tiên số 1 với các từ khóa model do bạn chỉ định trong `config/default-config.json`:
      - `deepseek*v4*flash*free` / `deepseek*free`
      - `gpt-luna*` / `*luna*`
      - `opencode/*free*`
@@ -122,5 +122,5 @@ D:\BotAutoTask\
 ├── skill/
 │   └── botautotask/SKILL.md         # Agent Skill tích hợp cho Antigravity, Claude, OpenCode, Cursor
 └── tests/
-    └── self-check.test.js           # Kiểm thử tự động chọn model free, đổi lõi khi limit & lease failover
+    └── *.test.js                    # 13 file kiểm thử tự động (node:test) cho model ranking, failover, lease CAS, mesh & policy
 ```

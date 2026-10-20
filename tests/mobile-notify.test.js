@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatGoalNotification, sendMobileNotification } from '../src/daemon/mobile-notify.js';
 
-test('formatGoalNotification correctly formats started, progress, rate-limited, and completion', () => {
+test('[CLOUD-AC04] formatGoalNotification correctly formats started, progress, rate-limited, and completion', () => {
   const goal = { id: 'goal-123', target_prompt: 'Fix login security vulnerability', title: 'Fix login' };
 
   // Goal started
@@ -42,7 +42,7 @@ test('formatGoalNotification correctly formats started, progress, rate-limited, 
   assert.equal(completeNotif.priority, 4);
 });
 
-test('sendMobileNotification formats request and calls fetch correctly', async () => {
+test('[CLOUD-AC04] sendMobileNotification formats request and calls fetch correctly', async () => {
   let capturedUrl = '';
   let capturedOptions = {};
 

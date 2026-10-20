@@ -1,0 +1,23 @@
+# Quyết định kiến trúc — BotAutoTask
+
+> Sổ đăng ký quyết định `D-xx` theo chuẩn `C07` (append-only, không xoá lịch sử; khi thay đổi thì ghi dòng mới và cập nhật cột `Trạng thái` của dòng cũ thành `Bị thay bởi D-yy`).
+
+| ID | Ngày | Trạng thái | Định danh hiện hành | Quyết định & Lý do |
+|---|---|---|---|---|
+| `D-01` | 2026-10-19 | Hiệu lực | — | **Node.js ESM thuần (`>= 20`), 0 dependency runtime:** Không dùng TypeScript hay thư viện ngoài ở runtime để đóng gói toàn bộ thành 1 file độc lập `dist/botautotask.mjs` và giảm bề mặt rủi ro chuỗi cung ứng. |
+| `D-02` | 2026-10-20 | Hiệu lực | — | **Kiểm chứng bằng `node:test` và cổng `CONSTRAINTS.md`:** Chưa cài ESLint/TypeScript; cưỡng chế chất lượng qua `npm test`, kiểm tra đồng bộ bundle `dist/botautotask.mjs` và các sàn cứng trong `CONSTRAINTS.md`. |
+| `D-03` | 2026-10-20 | Hiệu lực | Ghi đè cấu trúc thư mục `docs/specs/` | **Giữ thư mục `docs/feature/` thay vì đổi tên sang `docs/specs/`:** Tránh làm gãy liên kết trong các tài liệu nghiên cứu và commit trước đó; chuẩn hoá bằng cách gắn ID `SPEC-XXX / XXX-Rnn / XXX-ACnn` trực tiếp vào `docs/feature/00..09`. |
+| `D-04` | 2026-10-20 | Hiệu lực | `SPEC-VERIFY`, `SPEC-SAFE` | **Lớp `policy.js` hard-refuse tách biệt + Approval Gate cho `MergeAgentWorktree`:** Mọi lệnh nguy hiểm (`rm -rf /`, `format`, đọc file credential) bị từ chối cứng ở mọi chế độ kể cả `yolo`; agent yêu cầu merge vào nhánh chính hoặc chạy `verify_cmd` phải qua cổng người dùng duyệt (hash-bound, hết hạn 30 phút). |
+| `D-05` | 2026-10-20 | Hiệu lực | `SPEC-CLOUD` | **Cloud-Core (Cloudflare Workers + D1) là tuỳ chọn (hybrid fallback):** Khi chưa cấu hình hoặc mất mạng, Local Daemon lưu hàng đợi cục bộ (`~/.botautotask/queue.json`) và tự đồng bộ khi có mạng lại. |
+| `D-06` | 2026-10-20 | Hiệu lực | `SPEC-SEC`, `PK-AUTH` | **Zero-API-Key OAuth & Không sao chép/log token:** Chỉ kiểm tra trạng thái đăng nhập hoặc đọc phiên tại chỗ của CLI (`~/.codex/auth.json`, `~/.claude/.credentials.json`); tuyệt đối không log token/header `Authorization` hoặc đẩy credential cá nhân lên Cloud. |
+| `D-07` | 2026-10-20 | Hiệu lực | `SPEC-CLOUD` | **Mọi thao tác điều khiển Goal phải gắn `goal_id` tường minh:** Ngăn lỗi `/pause`, `/cancel`, `/switch` tác động nhầm lên toàn bộ các goal khác đang chạy. |
+| `D-08` | 2026-10-20 | Hiệu lực | `PK-RELEASE-R06` | **Đồng bộ bắt buộc giữa `src/` và `dist/botautotask.mjs`:** Vì `dist/botautotask.mjs` được commit để hỗ trợ chạy trực tiếp 1 file, mọi thay đổi trong `src/` phải chạy `node scripts/build-single-file.js` và được kiểm tự động trên CI. |
+| `D-09` | 2026-10-20 | Hiệu lực | Base `v1.2.1` | **Áp dụng Base `writing-spec-for-ai v1.2.1`, Profile `M`, 7 Pack (`PK-API`, `PK-AUTH`, `PK-RELEASE`, `PK-DB`, `PK-FE`, `PK-JOB`, `PK-AGENT`) và `CONSTRAINTS.md`:** Phản ánh đúng kiến trúc thực tế của dự án (HTTP/SSE UI, Token/HMAC, Single-file Release, D1 SQLite, Dashboard PWA, Daemon/Lease, Multi-Agent Mesh). |
+| `D-10` | 2026-10-20 | Hiệu lực | `docs/feature/README.md` | **Ánh xạ 1 file = 1 định danh `SPEC-XXX` (`00` → `09`):** Bổ sung `00-core-orchestrator.md` (`SPEC-CORE`) và `09-security-threat-model.md` (`SPEC-SEC`), gắn mỗi file `01..08` đúng một ID riêng biệt kèm bảng `Capability Map` một chiều. |
+| `D-11` | 2026-10-20 | Hiệu lực | `.github/workflows/test.yml` | **Nhánh tích hợp chính là `dev` + CI tự động kiểm định:** Nhánh phát triển tích hợp hàng ngày là `dev` (tag phát hành `v*`); thiết lập `.github/workflows/test.yml` chạy `npm test` và kiểm tra `dist/botautotask.mjs` khớp `src/` trên mọi push/PR. |
+| `D-12` | 2026-10-20 | Hiệu lực | Ghi đè `PK-RELEASE-R03` | **Miễn trừ `PK-RELEASE-R03` (Docker non-root/multi-stage):** BotAutoTask phân phối dưới dạng Node single-file bundle (`dist/botautotask.mjs`), binary `.exe` đóng gói bằng Bun và Cloudflare Worker serverless, không sử dụng Docker container. |
+| `D-13` | 2026-10-20 | Hiệu lực | Ghi đè `C16`/`PK-API`/`PK-AUTH`/`PK-FE` | **Ghi đè các quy tắc Pack không áp dụng cho kiến trúc Single-Commander CLI/Worker:** (1) Đặt tên `docs/reference/status-codes.md` (gộp cả mã trạng thái Goal/Step/Mesh và mã lỗi HTTP thay cho `error-codes.md`); (2) Dùng Bearer token tĩnh so sánh constant-time thay cho bảng user password / JWT claim `typ` / refresh token rotation (`PK-AUTH-R01/R03/R04`); (3) Dùng `LIMIT 20` cố định cho danh sách Goal thay cho phân trang `{items, total, page, limit}` (`PK-API-R05`); (4) Cho phép `waitForTimeout(1500)` duy nhất trong vòng lặp poll nút OAuth Consent của `scripts/cloud-provision.mjs` (công cụ cài đặt tương tác, không phải bài test E2E `PK-FE-R06`). |
+
+## Quyết định tạm thời đang mở (`P-xx`)
+
+Không có.

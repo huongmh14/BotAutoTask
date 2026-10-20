@@ -7,7 +7,7 @@ import { FreeModelRanker } from '../src/core/model-discovery.js';
 import { HarnessRegistry } from '../src/core/harness-registry.js';
 import { GoalOrchestrator } from '../src/core/orchestrator.js';
 
-test('GoalOrchestrator automatically switches from rate-limited model/harness to next free model and completes goal', async () => {
+test('[CORE-AC03] [CORE-AC04] [SAFE-AC02] GoalOrchestrator automatically switches from rate-limited model/harness to next free model and completes goal', async () => {
   const ranker = new FreeModelRanker({
     priorityModels: ['deepseek-v4.1-flash-free', 'gpt-luna', 'neko-local-v1']
   });
@@ -64,7 +64,7 @@ test('GoalOrchestrator automatically switches from rate-limited model/harness to
   assert.equal(result.journal[1].outcome, 'GOAL_COMPLETED');
 });
 
-test('GoalOrchestrator returns COMPLETED with passing acceptance_cmd and saves Experience Library entry (Spec 08 A2 + D2)', async (t) => {
+test('[CORE-AC04] [H2-AC03] [SAFE-AC02] GoalOrchestrator returns COMPLETED with passing acceptance_cmd and saves Experience Library entry (Spec 08 A2 + D2)', async (t) => {
   const workDir = join(tmpdir(), `orch-exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
   const ranker = new FreeModelRanker({ priorityModels: ['mock-free-model'] });
   const registry = new HarnessRegistry();
@@ -130,7 +130,7 @@ test('GoalOrchestrator returns COMPLETED with passing acceptance_cmd and saves E
   assert.equal(result2.status, 'COMPLETED');
 });
 
-test('HarnessRegistry allows hot-swapping neko-core with a custom self-developed core via config', async () => {
+test('[CORE-AC05] HarnessRegistry allows hot-swapping neko-core with a custom self-developed core via config', async () => {
   const ranker = new FreeModelRanker({ priorityModels: ['my-custom-model-free'] });
   const registry = new HarnessRegistry();
   registry.registerFromConfig([

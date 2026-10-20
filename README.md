@@ -6,7 +6,7 @@
 
 Giao một mục tiêu (Target Goal). Hệ thống tự chọn lõi AI miễn phí mạnh nhất, tự bàn giao công việc qua Sổ cái bền vững (Durable Journal) khi đứt mạng hoặc hết quota, và báo cáo trực tiếp về điện thoại của bạn.
 
-[Cài đặt 1 dòng](#-cài-đặt-nhanh-one-line-install) · [Bắt đầu nhanh](#-bắt-đầu-nhanh-quick-start) · [Kiến trúc](#-kiến-trúc-hệ-thống) · [Thay lõi AI tùy chỉnh](#-cắm--thay-thế-lõi-ai-pluggable-harnesses) · [Triển khai Cloud & Telegram 24/7](#-triển-khai-lõi-cloud-free-247--telegram-bot) · [Tài liệu Spec](docs/superpowers/specs/2026-10-19-botautotask-design.md)
+[Cài đặt 1 dòng](#-cài-đặt-nhanh-one-line-install) · [Bắt đầu nhanh](#-bắt-đầu-nhanh-quick-start) · [Kiến trúc](#-kiến-trúc-hệ-thống) · [Thay lõi AI tùy chỉnh](#-cắm--thay-thế-lõi-ai-pluggable-harnesses) · [Triển khai Cloud & Telegram 24/7](#-triển-khai-lõi-cloud-free-247--telegram-bot) · [Tài liệu Spec](docs/feature/README.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Runtime: Node >= 20 / Bun](https://img.shields.io/badge/Runtime-Node%20%E2%89%A5%2020%20%7C%20Bun-339933.svg)](package.json)
@@ -40,7 +40,7 @@ Khi chạy các tác vụ lập trình hoặc tự động hóa dài hơi bằng
 | **🌐 Network Gate & Wake Timer** | Tự động ngủ chờ khi mất mạng và chạy tiếp ngay khi có mạng. Tích hợp Windows Task Scheduler (`WakeToRun` + `RunOnlyIfNetworkAvailable`) để đánh thức máy từ chế độ Sleep/Hibernate. |
 | **☁️ Cloud-Core & Offline Worker** | Lõi điều phối trên **Cloudflare Workers + D1 (Free 24/7)**. Khi PC tắt nguồn hoàn toàn quá 90 giây (Lease hết hạn), tự động kích hoạt **GitHub Actions Cloud Worker** kéo nhánh Git về chạy tiếp. |
 | **📱 Telegram Mobile Control** | Điều khiển 24/7 từ điện thoại kể cả khi PC tắt: giao mục tiêu (`/goal`), xem tiến độ (`/status`), ép đổi lõi/model (`/switch`), chuyển chế độ chạy (`/mode local\|cloud\|auto`). |
-| **📦 Single-File Zero-Dep Bundle** | Đóng gói toàn bộ mã nguồn thành **1 file độc lập duy nhất** (`dist/botautotask.mjs` ~43 KB, 0 thư viện ngoài) và biên dịch ra `.exe` độc lập qua GitHub Actions. |
+| **📦 Single-File Zero-Dep Bundle** | Đóng gói toàn bộ mã nguồn thành **1 file độc lập duy nhất** (`dist/botautotask.mjs` ~260 KB, 0 thư viện ngoài) và biên dịch ra `.exe` độc lập qua GitHub Actions. |
 
 ---
 
@@ -279,13 +279,17 @@ Script này đăng ký tác vụ `BotAutoTask-Daemon` vào **Windows Task Schedu
 
 Đặt **Control Plane** trên **Cloudflare Workers + D1 (Miễn phí 100%)** giúp Telegram Bot của bạn luôn phản hồi 24/7 kể cả khi máy tính ở nhà đã rút điện.
 
-### Bước 1: Tạo Database D1 và Deploy Cloudflare Worker
+### Bước 1: Tạo Database D1 và Deploy Cloudflare Worker (Tự động 1 lệnh hoặc Thủ công)
 ```powershell
+# Cách 1 (Khuyến nghị — SPEC-PROVISION): Tự động dựng D1 + sinh wrangler.generated.toml + nạp schema + deploy Worker:
+npm run cloud:setup
+
+# Cách 2 (Thủ công):
 cd D:\BotAutoTask\cloud-core
 
 # 1. Tạo database SQLite trên Cloudflare D1
 npx wrangler d1 create botautotask-db
-# -> Copy `database_id` dán vào file `cloud-core/wrangler.toml`
+# -> Điền `database_id` vào file `cloud-core/wrangler.generated.toml` (copy từ `wrangler.toml`, giữ nguyên placeholder trong `wrangler.toml`)
 
 # 2. Khởi tạo bảng goals và journal_entries
 npx wrangler d1 execute botautotask-db --file=./schema.sql --remote
@@ -297,7 +301,7 @@ npx wrangler secret put BOTAUTOTASK_API_TOKEN     # Mật khẩu tự chọn đ�
 npx wrangler secret put GITHUB_PAT                # (Tùy chọn) GitHub Token để kích hoạt Cloud Worker khi PC tắt
 
 # 4. Deploy lên Cloudflare
-npx wrangler deploy
+npx wrangler deploy --config wrangler.generated.toml
 ```
 
 ### Bước 2: Gắn Webhook cho Telegram Bot

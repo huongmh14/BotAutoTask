@@ -6,7 +6,7 @@ import {
 } from '../src/core/log-reader.js';
 import { SupervisorLoop } from '../src/core/supervisor.js';
 
-test('parseAntigravityTranscript extracts latest response, tool calls, and status from transcript.jsonl', () => {
+test('[CORE-AC06] parseAntigravityTranscript extracts latest response, tool calls, and status from transcript.jsonl', () => {
   const sampleJsonl = [
     JSON.stringify({
       step_index: 1,
@@ -37,7 +37,7 @@ test('parseAntigravityTranscript extracts latest response, tool calls, and statu
   assert.equal(summary.hasError, false);
 });
 
-test('parseOpenCodeJsonStream parses opencode run --format json NDJSON events and session ID', () => {
+test('[CORE-AC06] parseOpenCodeJsonStream parses opencode run --format json NDJSON events and session ID', () => {
   const ndjson = [
     JSON.stringify({ type: 'session.start', sessionID: 'ses_abc123' }),
     JSON.stringify({ type: 'tool.call', tool: 'edit', input: { filePath: 'src/index.js' } }),
@@ -51,7 +51,7 @@ test('parseOpenCodeJsonStream parses opencode run --format json NDJSON events an
   assert.match(parsed.textOutput, /Added export to src\/index\.js/);
 });
 
-test('SupervisorLoop reads worker logs/results, generates targeted next directive, and completes goal', async () => {
+test('[CORE-AC06] [SAFE-AC02] SupervisorLoop reads worker logs/results, generates targeted next directive, and completes goal', async () => {
   const directivesReceivedByWorker = [];
 
   // Mock IDE Worker (e.g., Antigravity or OpenCode Sonnet)
@@ -111,7 +111,7 @@ test('SupervisorLoop reads worker logs/results, generates targeted next directiv
   assert.match(directivesReceivedByWorker[1], /export function subtract/);
 });
 
-test('SupervisorLoop returns COMPLETED when an acceptance command passes (Spec 08 A2)', async () => {
+test('[CORE-AC06] [SAFE-AC02] SupervisorLoop returns COMPLETED when an acceptance command passes (Spec 08 A2)', async () => {
   const mockWorkerHarness = {
     id: 'ide-worker',
     async executeStep() {

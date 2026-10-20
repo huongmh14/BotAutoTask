@@ -13,7 +13,7 @@ import {
 
 const ID = '1b2c3d4e-5f60-4718-9a0b-c1d2e3f40516';
 
-test('cloud-provision parses wrangler output (login URL, D1 id old+new format, deploy URL)', () => {
+test('[PROV-AC01] cloud-provision parses wrangler output (login URL, D1 id old+new format, deploy URL)', () => {
   assert.equal(
     extractOAuthUrl('Visit this link to authenticate: https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=x\nWaiting'),
     'https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=x'
@@ -31,7 +31,7 @@ test('cloud-provision parses wrangler output (login URL, D1 id old+new format, d
   assert.equal(needsWorkersDevSubdomain('Uploaded fine'), false);
 });
 
-test('cloud-provision renders generated wrangler config and merges user config without losing keys', () => {
+test('[PROV-AC02] cloud-provision renders generated wrangler config and merges user config without losing keys', () => {
   const toml = 'name = "x"\n[[d1_databases]]\ndatabase_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"\n';
   assert.match(renderGeneratedConfig(toml, ID), new RegExp(`database_id = "${ID}"`));
   assert.throws(() => renderGeneratedConfig(toml, 'evil"; rm -rf'), /Invalid D1/);

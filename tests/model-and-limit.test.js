@@ -4,14 +4,14 @@ import { isRateLimitError } from '../src/core/rate-limit-detector.js';
 import { parseStepTags } from '../src/core/types.js';
 import { FreeModelRanker } from '../src/core/model-discovery.js';
 
-test('isRateLimitError detects 429, quota, and usage limits', () => {
+test('[CORE-AC02] isRateLimitError detects 429, quota, and usage limits', () => {
   assert.equal(isRateLimitError('Error: HTTP 429 Too Many Requests', 1), true);
   assert.equal(isRateLimitError('You have exceeded your usage limit until 5pm', 1), true);
   assert.equal(isRateLimitError('resource_exhausted: quota exceeded for model', 1), true);
   assert.equal(isRateLimitError('SyntaxError: Unexpected token', 1), false);
 });
 
-test('parseStepTags extracts status and falls back when tags are missing', () => {
+test('[CORE-AC02] parseStepTags extracts status and falls back when tags are missing', () => {
   const tagged = parseStepTags(
     'Working...\n<OMNIGOAL_SUMMARY>Fixed auth bug</OMNIGOAL_SUMMARY>\n<OMNIGOAL_STATUS>COMPLETED</OMNIGOAL_STATUS>'
   );
@@ -23,7 +23,7 @@ test('parseStepTags extracts status and falls back when tags are missing', () =>
   assert.match(untagged.summary, /Refactored login controller/);
 });
 
-test('FreeModelRanker prioritizes deepseek-v4.1-flash-free and gpt-luna and respects cooldowns', () => {
+test('[CORE-AC01] FreeModelRanker prioritizes deepseek-v4.1-flash-free and gpt-luna and respects cooldowns', () => {
   const ranker = new FreeModelRanker({
     priorityModels: ['deepseek-v4.1-flash-free', 'gpt-luna', 'google/gemini-2.5-pro']
   });

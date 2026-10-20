@@ -249,10 +249,8 @@ async function main() {
 
   await ensureLogin(dryRun);
   const databaseId = await ensureD1(dryRun);
-  writeFileSync(
-    join(CLOUD_DIR, GENERATED_CONFIG),
-    renderGeneratedConfig(readFileSync(join(CLOUD_DIR, 'wrangler.toml'), 'utf8'), databaseId)
-  );
+  const renderedToml = renderGeneratedConfig(readFileSync(join(CLOUD_DIR, 'wrangler.toml'), 'utf8'), databaseId);
+  if (!dryRun) writeFileSync(join(CLOUD_DIR, GENERATED_CONFIG), renderedToml);
 
   if (dryRun) log('[dry-run] would apply cloud-core/schema.sql to remote D1.');
   else {
